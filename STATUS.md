@@ -1,7 +1,7 @@
 # STATUS
 
 ## Repository status
-Phase 3 (semantic analysis) complete. Ready for Phase 4 (interpreter) or Phase 5 (formatter).
+Phase 4 (interpreter) complete. Aster programs can now be executed! Ready for Phase 5 (formatter) or advanced features.
 
 ## What exists
 - project layout and setup scripts
@@ -10,11 +10,12 @@ Phase 3 (semantic analysis) complete. Ready for Phase 4 (interpreter) or Phase 5
 - **Complete parser** with Pratt parsing for expressions
 - **Comprehensive AST** with all node types (declarations, statements, expressions, types)
 - **Complete semantic analyzer** with symbol tables and type checking
-- **78 passing tests** covering lexer, parser, semantic analysis, and all language constructs
+- **Complete interpreter** with runtime execution engine
+- **119 passing tests** covering lexer, parser, semantic analysis, interpreter, and all language constructs
 - language and toolchain docs
 - Bottlecaps-compatible EBNF grammar files
 - AI workflow docs and recovery docs
-- interpreter / compiler / formatter scaffolds (non-functional)
+- compiler / formatter scaffolds (non-functional)
 
 ## Lexer Features
 - TokenKind enum with all language tokens (keywords, operators, literals)
@@ -43,24 +44,42 @@ Phase 3 (semantic analysis) complete. Ready for Phase 4 (interpreter) or Phase 5
 - Built-in functions (print)
 - Comprehensive error reporting
 
+## Interpreter Features
+- Runtime value model: Int, String, Bool, Nil, List, Tuple, Record, Function
+- Environment with variable bindings and mutability tracking
+- Expression evaluation: arithmetic, comparison, logical, unary operators
+- Statement execution: let, assign, return, if/else, while, for, break, continue
+- Function calls with closures and parameter passing
+- Built-in functions (print with newline separation)
+- Collection operations: list/tuple creation, indexing, record member access
+- Auto-execution of main() function
+- Recursive function support (factorial, fibonacci work correctly)
+- Error reporting with source node context
+
 ## What does not yet exist
-- runtime / interpreter execution engine
-- real formatter
-- real compiler backend
+- formatter (preserve concrete syntax, implement formatting rules)
+- compiler backend (bytecode or native)
 - pattern matching parser (grammar defined, parser not yet implemented)
 - advanced ownership analysis (basic mutability checking only)
+- module system and imports
+- advanced collections (sets, maps)
+- string operations and methods
 
 ## Current recommendation
 Next steps (choose based on goals):
-1. **Interpreter**: runtime value model, execution engine to run Aster programs
-2. **Formatter**: preserve concrete syntax, implement formatting rules
+1. **Formatter**: preserve concrete syntax, implement stable formatting (Phase 5)
+2. **Pattern matching parser**: extend parser to handle match expressions
 3. **Advanced ownership analysis**: move semantics, lifetime tracking
-4. **Pattern matching parser**: extend parser to handle match expressions
+4. **Module system**: implement imports and module loading
+5. **Enhanced collections**: sets, maps, string operations
+6. **REPL**: interactive read-eval-print loop
 
 ## Recent work
 - Implemented complete indentation-aware lexer (18 tests)
 - Implemented comprehensive parser with Pratt parsing (26 tests)
 - Expanded AST with all node types
-- **Implemented semantic analyzer with symbol tables and type checking (31 tests)**
-- Successfully analyzes example programs with full error reporting
-- All quality checks pass (pytest, ruff, mypy)
+- Implemented semantic analyzer with symbol tables and type checking (31 tests)
+- **Implemented interpreter with runtime execution engine (42 tests)**
+- Successfully executes example programs: hello.aster, sum_to.aster
+- Recursive functions work correctly: factorial(5)=120, fibonacci(10)=55
+- All 119 tests passing, all quality checks pass (pytest, ruff, mypy)

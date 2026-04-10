@@ -26,11 +26,11 @@
 - [ ] effect tracking prototype
 
 ## Phase 4: interpreter
-- [ ] runtime value model
-- [ ] environments and closures
+- [x] runtime value model
+- [x] environments and closures
 - [ ] pattern matching execution
 - [ ] module execution
-- [ ] error reporting
+- [x] error reporting
 - [ ] REPL
 
 ## Phase 5: formatter
