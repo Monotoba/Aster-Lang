@@ -1,7 +1,7 @@
 # STATUS
 
 ## Repository status
-Phase 4 (interpreter) complete. Aster programs can now be executed! Ready for Phase 5 (formatter) or advanced features.
+Phase 5 (formatter) complete. Aster programs can be parsed, executed, and formatted. Ready for Phase 6 (compiler) or advanced features.
 
 ## What exists
 - project layout and setup scripts
@@ -11,7 +11,8 @@ Phase 4 (interpreter) complete. Aster programs can now be executed! Ready for Ph
 - **Comprehensive AST** with all node types (declarations, statements, expressions, types)
 - **Complete semantic analyzer** with symbol tables and type checking
 - **Complete interpreter** with runtime execution engine
-- **119 passing tests** covering lexer, parser, semantic analysis, interpreter, and all language constructs
+- **Complete formatter** with idempotent canonical output
+- **166 passing tests** covering lexer, parser, semantic analysis, interpreter, formatter, and all language constructs
 - language and toolchain docs
 - Bottlecaps-compatible EBNF grammar files
 - AI workflow docs and recovery docs
@@ -65,10 +66,19 @@ Phase 4 (interpreter) complete. Aster programs can now be executed! Ready for Ph
 - advanced collections (sets, maps)
 - string operations and methods
 
+## Formatter Features
+- All declaration types formatted (fn, let, typealias, use)
+- All statement types formatted (let, assign, if/else, while, for, break, continue, return)
+- All expression types formatted with correct operator precedence parenthesisation
+- Type expressions (simple, generic, function types)
+- 4-space indentation, blank lines between declarations
+- Idempotent: `format(format(x)) == format(x)`
+- `aster fmt <file>` command works end-to-end
+
 ## Current recommendation
 Next steps (choose based on goals):
-1. **Formatter**: preserve concrete syntax, implement stable formatting (Phase 5)
-2. **Pattern matching parser**: extend parser to handle match expressions
+1. **Pattern matching parser**: extend parser to handle match expressions (Phase 2 backlog)
+2. **REPL**: interactive read-eval-print loop (Phase 4 backlog)
 3. **Advanced ownership analysis**: move semantics, lifetime tracking
 4. **Module system**: implement imports and module loading
 5. **Enhanced collections**: sets, maps, string operations
@@ -79,7 +89,8 @@ Next steps (choose based on goals):
 - Implemented comprehensive parser with Pratt parsing (26 tests)
 - Expanded AST with all node types
 - Implemented semantic analyzer with symbol tables and type checking (31 tests)
-- **Implemented interpreter with runtime execution engine (42 tests)**
-- Successfully executes example programs: hello.aster, sum_to.aster
-- Recursive functions work correctly: factorial(5)=120, fibonacci(10)=55
-- All 119 tests passing, all quality checks pass (pytest, ruff, mypy)
+- Implemented interpreter with runtime execution engine (42 tests)
+- **Implemented formatter with idempotent canonical output (47 tests)**
+- `aster fmt` command formats Aster source files
+- `aster run` command executes Aster programs
+- All 166 tests passing, all quality checks pass (pytest, ruff, mypy)

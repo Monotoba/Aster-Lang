@@ -34,12 +34,12 @@
 - [ ] REPL
 
 ## Phase 5: formatter
-- [ ] concrete syntax tree preservation strategy
-- [ ] formatter style guide
-- [ ] stable formatting of declarations
-- [ ] stable formatting of expressions
+- [x] concrete syntax tree preservation strategy
+- [x] formatter style guide
+- [x] stable formatting of declarations
+- [x] stable formatting of expressions
 - [ ] comments preservation
-- [ ] idempotence tests
+- [x] idempotence tests
 
 ## Phase 6: compiler
 - [ ] define HIR
