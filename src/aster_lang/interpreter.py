@@ -108,10 +108,15 @@ class FunctionValue(Value):
 
 @dataclass(frozen=True)
 class BuiltinFunction(Value):
-    """Built-in function."""
+    """Built-in function.
+
+    ``func`` receives the full argument list; ``arity`` is the expected count
+    (-1 means variadic).
+    """
 
     name: str
-    func: Callable[[Value], Value]
+    func: Callable[[list[Value]], Value]
+    arity: int = -1
 
     def __str__(self) -> str:
         return f"<builtin {self.name}>"
@@ -207,14 +212,15 @@ class Interpreter:
     def _initialize_builtins(self) -> None:
         """Initialize built-in functions."""
 
-        def builtin_print(arg: Value) -> Value:
-            self.output.append(str(arg))
+        def builtin_print(args: list[Value]) -> Value:
+            self.output.append(str(args[0]))
             return NIL
 
-        def builtin_str(arg: Value) -> Value:
-            return StringValue(str(arg))
+        def builtin_str(args: list[Value]) -> Value:
+            return StringValue(str(args[0]))
 
-        def builtin_int(arg: Value) -> Value:
+        def builtin_int(args: list[Value]) -> Value:
+            arg = args[0]
             if isinstance(arg, IntValue):
                 return arg
             if isinstance(arg, StringValue):
@@ -226,7 +232,8 @@ class Interpreter:
                 return IntValue(1 if arg.value else 0)
             raise InterpreterError(f"Cannot convert {type(arg).__name__} to Int")
 
-        def builtin_len(arg: Value) -> Value:
+        def builtin_len(args: list[Value]) -> Value:
+            arg = args[0]
             if isinstance(arg, StringValue):
                 return IntValue(len(arg.value))
             if isinstance(arg, ListValue):
@@ -235,10 +242,45 @@ class Interpreter:
                 return IntValue(len(arg.elements))
             raise InterpreterError(f"len() not supported for {type(arg).__name__}")
 
-        self.global_env.define("print", BuiltinFunction("print", builtin_print))
-        self.global_env.define("str", BuiltinFunction("str", builtin_str))
-        self.global_env.define("int", BuiltinFunction("int", builtin_int))
-        self.global_env.define("len", BuiltinFunction("len", builtin_len))
+        def builtin_abs(args: list[Value]) -> Value:
+            arg = args[0]
+            if not isinstance(arg, IntValue):
+                raise InterpreterError("abs() requires an integer")
+            return IntValue(abs(arg.value))
+
+        def builtin_max(args: list[Value]) -> Value:
+            a, b = args[0], args[1]
+            if not isinstance(a, IntValue) or not isinstance(b, IntValue):
+                raise InterpreterError("max() requires integers")
+            return IntValue(max(a.value, b.value))
+
+        def builtin_min(args: list[Value]) -> Value:
+            a, b = args[0], args[1]
+            if not isinstance(a, IntValue) or not isinstance(b, IntValue):
+                raise InterpreterError("min() requires integers")
+            return IntValue(min(a.value, b.value))
+
+        def builtin_range(args: list[Value]) -> Value:
+            if len(args) == 1:
+                n = args[0]
+                if not isinstance(n, IntValue):
+                    raise InterpreterError("range() requires integers")
+                return ListValue(tuple(IntValue(i) for i in range(n.value)))
+            if len(args) == 2:
+                start, stop = args[0], args[1]
+                if not isinstance(start, IntValue) or not isinstance(stop, IntValue):
+                    raise InterpreterError("range() requires integers")
+                return ListValue(tuple(IntValue(i) for i in range(start.value, stop.value)))
+            raise InterpreterError(f"range() takes 1 or 2 arguments, got {len(args)}")
+
+        self.global_env.define("print", BuiltinFunction("print", builtin_print, arity=1))
+        self.global_env.define("str", BuiltinFunction("str", builtin_str, arity=1))
+        self.global_env.define("int", BuiltinFunction("int", builtin_int, arity=1))
+        self.global_env.define("len", BuiltinFunction("len", builtin_len, arity=1))
+        self.global_env.define("abs", BuiltinFunction("abs", builtin_abs, arity=1))
+        self.global_env.define("max", BuiltinFunction("max", builtin_max, arity=2))
+        self.global_env.define("min", BuiltinFunction("min", builtin_min, arity=2))
+        self.global_env.define("range", BuiltinFunction("range", builtin_range, arity=-1))
 
     def interpret(self, module: ast.Module) -> None:
         """Interpret a module."""
@@ -573,10 +615,10 @@ class Interpreter:
 
         # Built-in function
         if isinstance(func, BuiltinFunction):
-            if len(args) != 1:
-                msg = f"Built-in {func.name} expects 1 argument, got {len(args)}"
+            if func.arity >= 0 and len(args) != func.arity:
+                msg = f"Built-in {func.name} expects {func.arity} argument(s), got {len(args)}"
                 raise InterpreterError(msg, expr)
-            return func.func(args[0])
+            return func.func(args)
 
         # User-defined function
         elif isinstance(func, FunctionValue):

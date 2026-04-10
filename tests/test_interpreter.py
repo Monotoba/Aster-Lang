@@ -612,3 +612,48 @@ def test_string_equality() -> None:
     result = interpret_source(src)
     assert result.error is None
     assert result.output == "yes"
+
+
+# Built-in: abs, max, min, range
+
+
+def test_builtin_abs() -> None:
+    src = "fn main():\n    print(abs(-5))\n    print(abs(3))\n"
+    result = interpret_source(src)
+    assert result.error is None
+    assert result.output == "5\n3"
+
+
+def test_builtin_max() -> None:
+    src = "fn main():\n    print(max(3, 7))\n    print(max(10, 2))\n"
+    result = interpret_source(src)
+    assert result.error is None
+    assert result.output == "7\n10"
+
+
+def test_builtin_min() -> None:
+    src = "fn main():\n    print(min(3, 7))\n    print(min(10, 2))\n"
+    result = interpret_source(src)
+    assert result.error is None
+    assert result.output == "3\n2"
+
+
+def test_builtin_range_one_arg() -> None:
+    src = "fn main():\n    for i in range(3):\n        print(i)\n"
+    result = interpret_source(src)
+    assert result.error is None
+    assert result.output == "0\n1\n2"
+
+
+def test_builtin_range_two_args() -> None:
+    src = "fn main():\n    for i in range(2, 5):\n        print(i)\n"
+    result = interpret_source(src)
+    assert result.error is None
+    assert result.output == "2\n3\n4"
+
+
+def test_builtin_range_used_with_len() -> None:
+    src = "fn main():\n    xs := range(10)\n    print(len(xs))\n"
+    result = interpret_source(src)
+    assert result.error is None
+    assert result.output == "10"

@@ -47,7 +47,12 @@ def main(argv: list[str] | None = None) -> int:
     if args.command == "build":
         source = args.path.read_text(encoding="utf-8")
         artifact = compile_source(source)
-        print(artifact.summary())
+        if artifact.errors:
+            print(artifact.summary())
+            return 1
+        out_path = args.path.with_suffix(".py")
+        out_path.write_text(artifact.code, encoding="utf-8")
+        print(f"Compiled {args.path} → {out_path}  ({artifact.summary()})")
         return 0
 
     if args.command == "repl":

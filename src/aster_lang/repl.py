@@ -45,13 +45,13 @@ class ReplSession:
         self.interpreter = Interpreter()
 
         # Patch print to emit directly, not buffer
-        def live_print(arg: Value) -> Value:
-            print(str(arg))
+        def live_print(args: list[Value]) -> Value:
+            print(str(args[0]))
             return NIL
 
         from aster_lang.interpreter import BuiltinFunction
 
-        self.interpreter.global_env.define("print", BuiltinFunction("print", live_print))
+        self.interpreter.global_env.define("print", BuiltinFunction("print", live_print, arity=1))
 
     def execute(self, source: str) -> str | None:
         """Execute one REPL chunk.
