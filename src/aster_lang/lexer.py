@@ -36,6 +36,7 @@ class TokenKind(Enum):
     ARROW = auto()  # ->
     EQ = auto()  # ==
     NE = auto()  # !=
+    EQUALS = auto()  # = (single, used in type aliases)
     LT = auto()  # <
     LE = auto()  # <=
     GT = auto()  # >
@@ -365,6 +366,7 @@ class Lexer:
             ".": TokenKind.DOT,
             "<": TokenKind.LT,
             ">": TokenKind.GT,
+            "=": TokenKind.EQUALS,
         }
 
         if ch in single_char_tokens:

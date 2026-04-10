@@ -172,7 +172,7 @@ class Parser:
                     break
             self.expect(TokenKind.RBRACKET)
 
-        self.expect(TokenKind.EQ, "Expected '=' in type alias")
+        self.expect(TokenKind.EQUALS, "Expected '=' in type alias")
         type_expr = self.parse_type_expr()
         self.skip_newlines()
 
