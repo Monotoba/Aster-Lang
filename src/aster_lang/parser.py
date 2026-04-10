@@ -651,3 +651,25 @@ def parse_module(source: str) -> ast.Module:
     """Parse source code into an AST Module."""
     parser = Parser(source)
     return parser.parse_module()
+
+
+def parse_repl_input(source: str) -> list[ast.Decl | ast.Stmt]:
+    """Parse a REPL input that may contain declarations, statements, or expressions.
+
+    Returns a flat list of Decl and Stmt nodes for the REPL to process one by one.
+    Declarations (fn, typealias, use, pub) are parsed as Decl; everything else as Stmt.
+    """
+    parser = Parser(source)
+    items: list[ast.Decl | ast.Stmt] = []
+    _DECL_STARTS = (TokenKind.FN, TokenKind.TYPEALIAS, TokenKind.USE, TokenKind.PUB)
+    while not parser.check(TokenKind.EOF):
+        parser.skip_newlines()
+        if parser.check(TokenKind.EOF):
+            break
+        if parser.check(*_DECL_STARTS):
+            items.append(parser.parse_top_level_item())
+        else:
+            # Statements cover: let, assign, if, while, for, match, return,
+            # break, continue, and bare expressions (including `x := expr`).
+            items.append(parser.parse_statement())
+    return items

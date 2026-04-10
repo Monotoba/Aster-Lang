@@ -6,6 +6,7 @@ from pathlib import Path
 from aster_lang.compiler import compile_source
 from aster_lang.formatter import format_source
 from aster_lang.interpreter import interpret_source
+from aster_lang.repl import run_repl
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -21,6 +22,7 @@ def build_parser() -> argparse.ArgumentParser:
     build_p = sub.add_parser("build", help="compile Aster source")
     build_p.add_argument("path", type=Path)
 
+    sub.add_parser("repl", help="start interactive REPL")
     sub.add_parser("version", help="show version")
 
     return parser
@@ -46,6 +48,10 @@ def main(argv: list[str] | None = None) -> int:
         source = args.path.read_text(encoding="utf-8")
         artifact = compile_source(source)
         print(artifact.summary())
+        return 0
+
+    if args.command == "repl":
+        run_repl()
         return 0
 
     if args.command == "version":
