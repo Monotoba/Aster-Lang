@@ -1,7 +1,7 @@
 # STATUS
 
 ## Repository status
-Phase 2 (lexer and parser) complete. Ready for Phase 3 (semantic analysis) or Phase 4 (interpreter).
+Phase 3 (semantic analysis) complete. Ready for Phase 4 (interpreter) or Phase 5 (formatter).
 
 ## What exists
 - project layout and setup scripts
@@ -9,7 +9,8 @@ Phase 2 (lexer and parser) complete. Ready for Phase 3 (semantic analysis) or Ph
 - **Complete lexer** with indentation handling (INDENT/DEDENT tokens)
 - **Complete parser** with Pratt parsing for expressions
 - **Comprehensive AST** with all node types (declarations, statements, expressions, types)
-- **47 passing tests** covering lexer, parser, and all language constructs
+- **Complete semantic analyzer** with symbol tables and type checking
+- **78 passing tests** covering lexer, parser, semantic analysis, and all language constructs
 - language and toolchain docs
 - Bottlecaps-compatible EBNF grammar files
 - AI workflow docs and recovery docs
@@ -32,22 +33,34 @@ Phase 2 (lexer and parser) complete. Ready for Phase 3 (semantic analysis) or Ph
 - Type expressions: simple types, function types, qualified names
 - Successfully parses example programs (hello.aster, sum_to.aster)
 
+## Semantic Analysis Features
+- Symbol table with hierarchical scopes
+- Name resolution and duplicate detection
+- Type inference for all expressions
+- Type checking for operators, assignments, function calls
+- Mutability checking (immutable vs mutable variables)
+- Control flow validation (if/while require Bool conditions)
+- Built-in functions (print)
+- Comprehensive error reporting
+
 ## What does not yet exist
-- semantic analysis (symbol tables, type checking)
-- runtime / interpreter execution
+- runtime / interpreter execution engine
 - real formatter
 - real compiler backend
-- pattern matching (grammar defined, parser not yet implemented)
+- pattern matching parser (grammar defined, parser not yet implemented)
+- advanced ownership analysis (basic mutability checking only)
 
 ## Current recommendation
 Next steps (choose based on goals):
-1. **Semantic analysis**: symbol tables, type checking, ownership analysis
-2. **Interpreter**: runtime value model, execution engine for basic programs
-3. **Formatter**: preserve concrete syntax, implement formatting rules
+1. **Interpreter**: runtime value model, execution engine to run Aster programs
+2. **Formatter**: preserve concrete syntax, implement formatting rules
+3. **Advanced ownership analysis**: move semantics, lifetime tracking
 4. **Pattern matching parser**: extend parser to handle match expressions
 
 ## Recent work
 - Implemented complete indentation-aware lexer (18 tests)
 - Implemented comprehensive parser with Pratt parsing (26 tests)
 - Expanded AST with all node types
+- **Implemented semantic analyzer with symbol tables and type checking (31 tests)**
+- Successfully analyzes example programs with full error reporting
 - All quality checks pass (pytest, ruff, mypy)

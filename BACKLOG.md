@@ -18,10 +18,10 @@
 - [ ] add parse tree round-trip debug printer
 
 ## Phase 3: semantic model
-- [ ] symbol tables
+- [x] symbol tables
 - [ ] module loader
-- [ ] type expression resolver
-- [ ] ownership / borrow checking prototype
+- [x] type expression resolver
+- [ ] ownership / borrow checking prototype (basic mutability checking done)
 - [ ] trait resolution prototype
 - [ ] effect tracking prototype
 
