@@ -560,3 +560,55 @@ def test_match_demo_example() -> None:
     result = interpret_source(src)
     assert result.error is None
     assert result.output == "zero\none\nmany"
+
+
+# String operations
+
+
+def test_string_concatenation() -> None:
+    src = 'fn main():\n    x := "hello" + ", " + "world"\n    print(x)\n'
+    result = interpret_source(src)
+    assert result.error is None
+    assert result.output == "hello, world"
+
+
+def test_builtin_len_string() -> None:
+    src = 'fn main():\n    print(len("hello"))\n'
+    result = interpret_source(src)
+    assert result.error is None
+    assert result.output == "5"
+
+
+def test_builtin_len_list() -> None:
+    src = "fn main():\n    print(len([1, 2, 3]))\n"
+    result = interpret_source(src)
+    assert result.error is None
+    assert result.output == "3"
+
+
+def test_builtin_str_int() -> None:
+    src = 'fn main():\n    x := str(42)\n    print("value is " + x)\n'
+    result = interpret_source(src)
+    assert result.error is None
+    assert result.output == "value is 42"
+
+
+def test_builtin_int_string() -> None:
+    src = 'fn main():\n    x := int("99")\n    print(x + 1)\n'
+    result = interpret_source(src)
+    assert result.error is None
+    assert result.output == "100"
+
+
+def test_builtin_int_bool() -> None:
+    src = "fn main():\n    print(int(true))\n    print(int(false))\n"
+    result = interpret_source(src)
+    assert result.error is None
+    assert result.output == "1\n0"
+
+
+def test_string_equality() -> None:
+    src = 'fn main():\n    x := "hi"\n    if x == "hi":\n        print("yes")\n'
+    result = interpret_source(src)
+    assert result.error is None
+    assert result.output == "yes"

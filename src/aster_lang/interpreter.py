@@ -211,7 +211,34 @@ class Interpreter:
             self.output.append(str(arg))
             return NIL
 
+        def builtin_str(arg: Value) -> Value:
+            return StringValue(str(arg))
+
+        def builtin_int(arg: Value) -> Value:
+            if isinstance(arg, IntValue):
+                return arg
+            if isinstance(arg, StringValue):
+                try:
+                    return IntValue(int(arg.value))
+                except ValueError as exc:
+                    raise InterpreterError(f"Cannot convert {arg.value!r} to Int") from exc
+            if isinstance(arg, BoolValue):
+                return IntValue(1 if arg.value else 0)
+            raise InterpreterError(f"Cannot convert {type(arg).__name__} to Int")
+
+        def builtin_len(arg: Value) -> Value:
+            if isinstance(arg, StringValue):
+                return IntValue(len(arg.value))
+            if isinstance(arg, ListValue):
+                return IntValue(len(arg.elements))
+            if isinstance(arg, TupleValue):
+                return IntValue(len(arg.elements))
+            raise InterpreterError(f"len() not supported for {type(arg).__name__}")
+
         self.global_env.define("print", BuiltinFunction("print", builtin_print))
+        self.global_env.define("str", BuiltinFunction("str", builtin_str))
+        self.global_env.define("int", BuiltinFunction("int", builtin_int))
+        self.global_env.define("len", BuiltinFunction("len", builtin_len))
 
     def interpret(self, module: ast.Module) -> None:
         """Interpret a module."""
@@ -466,8 +493,13 @@ class Interpreter:
 
         # Arithmetic operators
         if expr.operator in ("+", "-", "*", "/", "%"):
+            # String concatenation
+            if expr.operator == "+" and isinstance(left, StringValue):
+                if isinstance(right, StringValue):
+                    return StringValue(left.value + right.value)
+                raise InterpreterError("String + requires a string on the right", expr)
             if not isinstance(left, IntValue) or not isinstance(right, IntValue):
-                raise InterpreterError("Arithmetic requires integers", expr)
+                raise InterpreterError("Arithmetic requires integers (or strings for +)", expr)
 
             if expr.operator == "+":
                 return IntValue(left.value + right.value)
