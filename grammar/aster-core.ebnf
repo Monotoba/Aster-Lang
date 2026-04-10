@@ -1,0 +1,164 @@
+CoreModule ::= TopLevelItem* EOF
+
+TopLevelItem ::= ( Visibility? ( FunctionDecl | TypeAliasDecl | ImportDecl | LetDecl ) ) NEWLINE*
+
+Visibility ::= "pub"
+
+ImportDecl ::= "use" QualifiedName (
+    ":" Identifier ( "," Identifier )*
+  | "as" Identifier
+)?
+
+TypeAliasDecl ::= "typealias" Identifier TypeParams? "=" TypeExpr
+
+FunctionDecl ::= "fn" Identifier ParamList ReturnType? ":" Block
+
+LetDecl ::= "mut"? Identifier TypeAnnotation? ":=" Expression
+
+ParamList ::= "(" ParamDeclList? ")"
+
+ParamDeclList ::= ParamDecl ( "," ParamDecl )* ","?
+
+ParamDecl ::= Identifier TypeAnnotation?
+
+ReturnType ::= "->" TypeExpr
+
+TypeParams ::= "[" Identifier ( "," Identifier )* "]"
+
+TypeAnnotation ::= ":" TypeExpr
+
+TypeExpr ::= SimpleType
+           | "Fn" "(" TypeExprList? ")" "->" TypeExpr
+
+TypeExprList ::= TypeExpr ( "," TypeExpr )*
+
+SimpleType ::= QualifiedName TypeArgs?
+
+TypeArgs ::= "[" TypeExprList? "]"
+
+Block ::= NEWLINE INDENT Statement+ DEDENT
+
+Statement ::= (
+    LetStmt
+  | AssignStmt
+  | ReturnStmt
+  | IfStmt
+  | WhileStmt
+  | ForStmt
+  | BreakStmt
+  | ContinueStmt
+  | ExprStmt
+) NEWLINE*
+
+LetStmt ::= "mut"? Identifier TypeAnnotation? ":=" Expression
+
+AssignStmt ::= Expression "<-" Expression
+
+ReturnStmt ::= "return" Expression?
+
+IfStmt ::= "if" Expression ":" Block ElseClause?
+
+ElseClause ::= "else" ":" Block
+
+WhileStmt ::= "while" Expression ":" Block
+
+ForStmt ::= "for" Identifier "in" Expression ":" Block
+
+BreakStmt ::= "break"
+
+ContinueStmt ::= "continue"
+
+MatchStmt ::= "match" Expression ":" NEWLINE INDENT MatchArm+ DEDENT
+
+MatchArm ::= Pattern ":" ( Expression | Block ) NEWLINE*
+
+Pattern ::= "_"
+          | Literal
+          | Identifier
+
+ExprStmt ::= Expression
+
+Expression ::= OrExpr
+
+OrExpr ::= AndExpr ( "or" AndExpr )*
+
+AndExpr ::= CompareExpr ( "and" CompareExpr )*
+
+CompareExpr ::= AddExpr ( CompareOp AddExpr )*
+
+CompareOp ::= "==" | "!=" | "<" | "<=" | ">" | ">="
+
+AddExpr ::= MulExpr ( ( "+" | "-" ) MulExpr )*
+
+MulExpr ::= UnaryExpr ( ( "*" | "/" | "%" ) UnaryExpr )*
+
+UnaryExpr ::= ( "-" | "not" ) UnaryExpr
+            | PostfixExpr
+
+PostfixExpr ::= PrimaryExpr PostfixOp*
+
+PostfixOp ::= "(" ArgumentList? ")"
+            | "[" Expression "]"
+            | "." Identifier
+
+ArgumentList ::= Expression ( "," Expression )* ","?
+
+PrimaryExpr ::= Literal
+              | QualifiedName
+              | "(" Expression ")"
+              | TupleExpr
+              | ListExpr
+              | RecordExpr
+              | LambdaExpr
+
+TupleExpr ::= "(" Expression "," Expression ( "," Expression )* ","? ")"
+
+ListExpr ::= "[" ExpressionList? "]"
+
+ExpressionList ::= Expression ( "," Expression )* ","?
+
+RecordExpr ::= "{" RecordFieldList? "}"
+
+RecordFieldList ::= RecordField ( "," RecordField )* ","?
+
+RecordField ::= Identifier ":" Expression
+
+LambdaExpr ::= Identifier "->" Expression
+             | "(" LambdaParamList? ")" "->" ( Expression | ":" Block )
+
+LambdaParamList ::= LambdaParam ( "," LambdaParam )* ","?
+
+LambdaParam ::= Identifier TypeAnnotation?
+
+QualifiedName ::= Identifier ( "." Identifier )*
+
+Literal ::= IntegerLiteral
+          | StringLiteral
+          | "true"
+          | "false"
+          | "nil"
+
+IntegerLiteral ::= Digit+
+
+StringLiteral ::= '"' StringChar* '"'
+
+StringChar ::= EscapeSequence
+             | [^"\\]
+
+EscapeSequence ::= "\\" ( '"' | "\\" | "n" | "r" | "t" )
+
+Identifier ::= IdentifierStart IdentifierPart*
+
+IdentifierStart ::= [A-Za-z_]
+
+IdentifierPart ::= [A-Za-z0-9_]
+
+Digit ::= [0-9]
+
+NEWLINE ::= #xA
+
+INDENT ::= "INDENT"
+
+DEDENT ::= "DEDENT"
+
+EOF ::= "EOF"

@@ -430,6 +430,8 @@ class SemanticAnalyzer:
             self.analyze_for_stmt(stmt)
         elif isinstance(stmt, ast.BreakStmt | ast.ContinueStmt):
             pass  # No analysis needed
+        elif isinstance(stmt, ast.MatchStmt):
+            self.analyze_match_stmt(stmt)
         elif isinstance(stmt, ast.ExprStmt):
             self.infer_expr_type(stmt.expr)
 
@@ -548,6 +550,24 @@ class SemanticAnalyzer:
             self.analyze_statement(s)
 
         self.symbol_table.exit_scope()
+
+    def analyze_match_stmt(self, stmt: ast.MatchStmt) -> None:
+        """Analyze a match statement."""
+        self.infer_expr_type(stmt.subject)
+        for arm in stmt.arms:
+            self.symbol_table.enter_scope("<match-arm>")
+            # If binding pattern, define the bound variable
+            if isinstance(arm.pattern, ast.BindingPattern):
+                bound = Symbol(
+                    name=arm.pattern.name,
+                    kind=SymbolKind.VARIABLE,
+                    type=UNKNOWN_TYPE,
+                    declaration_node=stmt,
+                )
+                self.symbol_table.define(bound)
+            for s in arm.body:
+                self.analyze_statement(s)
+            self.symbol_table.exit_scope()
 
     # Type inference
 

@@ -295,3 +295,56 @@ def test_round_trip_sum_to() -> None:
     assert "while i <= n:" in result
     assert "total <- total + i" in result
     assert "return total" in result
+
+
+# Match statement formatting
+
+
+def test_format_match_inline_expr_arms() -> None:
+    """Inline expression-statement arms stay on one line."""
+    src = "fn f():\n" "    match x:\n" "        0: x\n" "        _: y\n"
+    result = fmt(src)
+    assert "match x:" in result
+    assert "    0: x" in result
+    assert "    _: y" in result
+
+
+def test_format_match_return_arms_use_block() -> None:
+    """Return-statement arms are formatted as indented blocks."""
+    src = "fn f():\n" "    match x:\n" "        0: return 0\n" "        _: return 1\n"
+    result = fmt(src)
+    assert "match x:" in result
+    assert "    0:" in result
+    assert "        return 0" in result
+
+
+def test_format_match_block_arms() -> None:
+    src = (
+        "fn classify(n: Int) -> String:\n"
+        "    match n:\n"
+        "        0:\n"
+        '            return "zero"\n'
+        "        _:\n"
+        '            return "many"\n'
+    )
+    result = fmt(src)
+    assert "match n:" in result
+    assert "    0:" in result
+    assert '        return "zero"' in result
+    assert "    _:" in result
+
+
+def test_format_match_idempotent() -> None:
+    src = (
+        "fn classify(n: Int) -> String:\n"
+        "    match n:\n"
+        "        0:\n"
+        '            return "zero"\n'
+        "        1:\n"
+        '            return "one"\n'
+        "        _:\n"
+        '            return "many"\n'
+    )
+    once = fmt(src)
+    twice = fmt(once)
+    assert once == twice

@@ -374,6 +374,10 @@ class Parser:
             self.skip_newlines()
             return ast.ContinueStmt()
 
+        # Match statement
+        if self.check(TokenKind.MATCH):
+            return self.parse_match_stmt()
+
         # Expression statement (includes assignments)
         expr = self.parse_expression()
 
@@ -386,6 +390,75 @@ class Parser:
 
         self.skip_newlines()
         return ast.ExprStmt(expr=expr)
+
+    def parse_match_stmt(self) -> ast.MatchStmt:
+        """Parse: match expr: NEWLINE INDENT arm+ DEDENT"""
+        self.expect(TokenKind.MATCH)
+        subject = self.parse_expression()
+        self.expect(TokenKind.COLON)
+        self.skip_newlines()
+        self.expect(TokenKind.INDENT)
+
+        arms: list[ast.MatchArm] = []
+        while not self.check(TokenKind.DEDENT, TokenKind.EOF):
+            self.skip_newlines()
+            if self.check(TokenKind.DEDENT, TokenKind.EOF):
+                break
+            arms.append(self.parse_match_arm())
+
+        self.expect(TokenKind.DEDENT)
+        return ast.MatchStmt(subject=subject, arms=arms)
+
+    def parse_match_arm(self) -> ast.MatchArm:
+        """Parse a single match arm: pattern: (expr | block)"""
+        pattern = self.parse_pattern()
+        self.expect(TokenKind.COLON)
+
+        # Block arm: pattern: NEWLINE INDENT stmts DEDENT
+        if self.check(TokenKind.NEWLINE, TokenKind.INDENT):
+            body = self.parse_block()
+            return ast.MatchArm(pattern=pattern, body=body)
+
+        # Inline arm: pattern: stmt NEWLINE
+        stmt = self.parse_statement()
+        return ast.MatchArm(pattern=pattern, body=[stmt])
+
+    def parse_pattern(self) -> ast.Pattern:
+        """Parse a match pattern: literal | _ (wildcard) | identifier (binding)"""
+        # Wildcard
+        if self.check(TokenKind.IDENTIFIER) and self.current.text == "_":
+            self.advance()
+            return ast.WildcardPattern()
+
+        # Negative integer literal: -N
+        if self.check(TokenKind.MINUS):
+            self.advance()
+            tok = self.expect(TokenKind.INTEGER)
+            return ast.LiteralPattern(literal=ast.IntegerLiteral(value=-int(tok.text)))
+
+        # Literal patterns
+        if self.check(TokenKind.INTEGER):
+            tok = self.advance()
+            return ast.LiteralPattern(literal=ast.IntegerLiteral(value=int(tok.text)))
+        if self.check(TokenKind.STRING):
+            tok = self.advance()
+            return ast.LiteralPattern(literal=ast.StringLiteral(value=tok.text))
+        if self.check(TokenKind.TRUE):
+            self.advance()
+            return ast.LiteralPattern(literal=ast.BoolLiteral(value=True))
+        if self.check(TokenKind.FALSE):
+            self.advance()
+            return ast.LiteralPattern(literal=ast.BoolLiteral(value=False))
+        if self.check(TokenKind.NIL):
+            self.advance()
+            return ast.LiteralPattern(literal=ast.NilLiteral())
+
+        # Binding pattern: any identifier
+        if self.check(TokenKind.IDENTIFIER):
+            tok = self.advance()
+            return ast.BindingPattern(name=tok.text)
+
+        raise ParseError(f"Expected pattern, got {self.current.kind.name}", self.current)
 
     # Expressions (Pratt parsing)
 

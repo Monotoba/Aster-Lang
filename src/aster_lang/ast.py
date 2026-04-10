@@ -101,6 +101,56 @@ class LetDecl(Decl):
     is_mutable: bool = False
 
 
+# Patterns (used in match arms)
+
+
+@dataclass(slots=True)
+class Pattern(Node):
+    """Base class for match patterns."""
+
+    pass
+
+
+@dataclass(slots=True)
+class WildcardPattern(Pattern):
+    """Wildcard pattern: _"""
+
+    pass
+
+
+@dataclass(slots=True)
+class LiteralPattern(Pattern):
+    """Literal pattern: 0, "hello", true, nil"""
+
+    literal: IntegerLiteral | StringLiteral | BoolLiteral | NilLiteral
+
+
+@dataclass(slots=True)
+class BindingPattern(Pattern):
+    """Binding pattern: name — captures matched value into a variable."""
+
+    name: str
+
+
+# Match
+
+
+@dataclass(slots=True)
+class MatchArm(Node):
+    """A single arm in a match statement: pattern: body"""
+
+    pattern: Pattern
+    body: list[Stmt]
+
+
+@dataclass(slots=True)
+class MatchStmt(Stmt):
+    """Match statement: match expr: arms"""
+
+    subject: Expr
+    arms: list[MatchArm]
+
+
 # Statements
 
 

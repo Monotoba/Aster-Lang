@@ -140,10 +140,38 @@ class Formatter:
             self._emit("break")
         elif isinstance(stmt, ast.ContinueStmt):
             self._emit("continue")
+        elif isinstance(stmt, ast.MatchStmt):
+            self._format_match_stmt(stmt)
         elif isinstance(stmt, ast.ExprStmt):
             self._emit(self._format_expr(stmt.expr))
         else:
             self._emit(f"# (unknown stmt: {type(stmt).__name__})")
+
+    def _format_match_stmt(self, stmt: ast.MatchStmt) -> None:
+        self._emit(f"match {self._format_expr(stmt.subject)}:")
+        self._indent()
+        for arm in stmt.arms:
+            pat = self._format_pattern(arm.pattern)
+            # Single inline ExprStmt arm → keep on one line
+            if len(arm.body) == 1 and isinstance(arm.body[0], ast.ExprStmt):
+                val = self._format_expr(arm.body[0].expr)
+                self._emit(f"{pat}: {val}")
+            else:
+                self._emit(f"{pat}:")
+                self._indent()
+                for s in arm.body:
+                    self._format_stmt(s)
+                self._dedent()
+        self._dedent()
+
+    def _format_pattern(self, pattern: ast.Pattern) -> str:
+        if isinstance(pattern, ast.WildcardPattern):
+            return "_"
+        if isinstance(pattern, ast.BindingPattern):
+            return pattern.name
+        if isinstance(pattern, ast.LiteralPattern):
+            return self._format_expr(pattern.literal)
+        return "(# unknown pattern #)"
 
     def _format_if_stmt(self, stmt: ast.IfStmt) -> None:
         self._emit(f"if {self._format_expr(stmt.condition)}:")

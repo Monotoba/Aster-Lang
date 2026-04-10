@@ -336,8 +336,47 @@ class Interpreter:
         elif isinstance(stmt, ast.ContinueStmt):
             raise ContinueException()
 
+        elif isinstance(stmt, ast.MatchStmt):
+            self._execute_match(stmt)
+
         elif isinstance(stmt, ast.ExprStmt):
             self.evaluate_expr(stmt.expr)
+
+    def _execute_match(self, stmt: ast.MatchStmt) -> None:
+        """Execute a match statement."""
+        subject = self.evaluate_expr(stmt.subject)
+        for arm in stmt.arms:
+            binding_name, matched = self._match_pattern(arm.pattern, subject)
+            if matched:
+                self.current_env = self.current_env.create_child()
+                try:
+                    if binding_name is not None:
+                        self.current_env.define(binding_name, subject, is_mutable=False)
+                    for s in arm.body:
+                        self.execute_statement(s)
+                finally:
+                    assert self.current_env.parent is not None
+                    self.current_env = self.current_env.parent
+                return
+        # No arm matched — no error, execution continues
+
+    def _match_pattern(self, pattern: ast.Pattern, value: Value) -> tuple[str | None, bool]:
+        """Return (binding_name_or_None, matched)."""
+        if isinstance(pattern, ast.WildcardPattern):
+            return (None, True)
+        if isinstance(pattern, ast.BindingPattern):
+            return (pattern.name, True)
+        if isinstance(pattern, ast.LiteralPattern):
+            lit = pattern.literal
+            if isinstance(lit, ast.IntegerLiteral):
+                return (None, isinstance(value, IntValue) and value.value == lit.value)
+            if isinstance(lit, ast.StringLiteral):
+                return (None, isinstance(value, StringValue) and value.value == lit.value)
+            if isinstance(lit, ast.BoolLiteral):
+                return (None, isinstance(value, BoolValue) and value.value == lit.value)
+            if isinstance(lit, ast.NilLiteral):
+                return (None, isinstance(value, NilValue))
+        return (None, False)
 
     def execute_block(self, statements: list[ast.Stmt]) -> None:
         """Execute a block of statements."""

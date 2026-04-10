@@ -1,0 +1,8 @@
+Suggested commit message forms:
+
+docs(language): refine ownership and reference model
+feat(parser): add Pratt parser for postfix and binary operators
+feat(interpreter): implement integer arithmetic and bindings
+feat(formatter): canonicalize indentation and trailing commas
+test(lexer): add coverage for string escapes and comments
+chore(repo): tighten CI and bootstrap scripts

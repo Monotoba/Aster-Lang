@@ -448,3 +448,115 @@ fn main():
     print(fib(10))
 """)
     assert result.output == "55"
+
+
+# Match statement
+
+
+def test_match_integer_literal() -> None:
+    src = (
+        "fn classify(n: Int) -> String:\n"
+        "    match n:\n"
+        "        0:\n"
+        '            return "zero"\n'
+        "        1:\n"
+        '            return "one"\n'
+        "        _:\n"
+        '            return "many"\n'
+        "fn main():\n"
+        "    print(classify(0))\n"
+        "    print(classify(1))\n"
+        "    print(classify(5))\n"
+    )
+    result = interpret_source(src)
+    assert result.error is None
+    assert result.output == "zero\none\nmany"
+
+
+def test_match_wildcard_only() -> None:
+    src = (
+        "fn f(x: Int) -> Int:\n"
+        "    match x:\n"
+        "        _:\n"
+        "            return 99\n"
+        "fn main():\n"
+        "    print(f(42))\n"
+    )
+    result = interpret_source(src)
+    assert result.error is None
+    assert result.output == "99"
+
+
+def test_match_binding_pattern() -> None:
+    src = (
+        "fn double(x: Int) -> Int:\n"
+        "    match x:\n"
+        "        n:\n"
+        "            return n + n\n"
+        "fn main():\n"
+        "    print(double(7))\n"
+    )
+    result = interpret_source(src)
+    assert result.error is None
+    assert result.output == "14"
+
+
+def test_match_string_pattern() -> None:
+    src = (
+        "fn greet(name: String) -> String:\n"
+        "    match name:\n"
+        '        "world":\n'
+        '            return "hello, world!"\n'
+        "        _:\n"
+        '            return "hello, stranger"\n'
+        "fn main():\n"
+        '    print(greet("world"))\n'
+        '    print(greet("alice"))\n'
+    )
+    result = interpret_source(src)
+    assert result.error is None
+    assert result.output == "hello, world!\nhello, stranger"
+
+
+def test_match_bool_pattern() -> None:
+    src = (
+        "fn describe(b: Bool) -> String:\n"
+        "    match b:\n"
+        "        true:\n"
+        '            return "yes"\n'
+        "        false:\n"
+        '            return "no"\n'
+        "        _:\n"
+        '            return "?"\n'
+        "fn main():\n"
+        "    print(describe(true))\n"
+        "    print(describe(false))\n"
+    )
+    result = interpret_source(src)
+    assert result.error is None
+    assert result.output == "yes\nno"
+
+
+def test_match_no_arm_matches() -> None:
+    """When no arm matches the subject, execution continues without error."""
+    src = (
+        "fn f():\n"
+        "    match 99:\n"
+        "        0:\n"
+        "            return 0\n"
+        "fn main():\n"
+        '    print("done")\n'
+    )
+    result = interpret_source(src)
+    assert result.error is None
+    assert result.output == "done"
+
+
+def test_match_demo_example() -> None:
+    """The updated match_demo.aster example should execute correctly."""
+    import pathlib
+
+    src = pathlib.Path("examples/match_demo.aster").read_text()
+    result = interpret_source(src)
+    assert result.error is None
+    assert result.output == "zero\none\nmany"

@@ -1,0 +1,13 @@
+fn classify(n: Int) -> String:
+    match n:
+        0:
+            return "zero"
+        1:
+            return "one"
+        _:
+            return "many"
+
+fn main():
+    print(classify(0))
+    print(classify(1))
+    print(classify(42))

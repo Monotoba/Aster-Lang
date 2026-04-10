@@ -380,3 +380,65 @@ def test_parse_sum_to_example() -> None:
     assert len(func.params) == 1
     assert func.return_type is not None
     assert len(func.body) == 4  # two lets, while, return
+
+
+# Match statement
+
+
+def test_parse_match_literal_arms() -> None:
+    src = (
+        "fn f():\n"
+        "    match x:\n"
+        "        0: return 1\n"
+        "        1: return 2\n"
+        "        _: return 3\n"
+    )
+    module = parse_module(src)
+    fn = module.declarations[0]
+    assert isinstance(fn, ast.FunctionDecl)
+    match_stmt = fn.body[0]
+    assert isinstance(match_stmt, ast.MatchStmt)
+    assert len(match_stmt.arms) == 3
+    assert isinstance(match_stmt.arms[0].pattern, ast.LiteralPattern)
+    assert isinstance(match_stmt.arms[2].pattern, ast.WildcardPattern)
+
+
+def test_parse_match_block_arms() -> None:
+    src = (
+        "fn classify(n: Int) -> String:\n"
+        "    match n:\n"
+        "        0:\n"
+        '            return "zero"\n'
+        "        _:\n"
+        '            return "many"\n'
+    )
+    module = parse_module(src)
+    fn = module.declarations[0]
+    assert isinstance(fn, ast.FunctionDecl)
+    match_stmt = fn.body[0]
+    assert isinstance(match_stmt, ast.MatchStmt)
+    assert len(match_stmt.arms) == 2
+    arm0 = match_stmt.arms[0]
+    assert isinstance(arm0.pattern, ast.LiteralPattern)
+    assert isinstance(arm0.body[0], ast.ReturnStmt)
+
+
+def test_parse_match_binding_pattern() -> None:
+    src = "fn f():\n" "    match x:\n" "        n: return n\n"
+    module = parse_module(src)
+    fn = module.declarations[0]
+    assert isinstance(fn, ast.FunctionDecl)
+    match_stmt = fn.body[0]
+    assert isinstance(match_stmt, ast.MatchStmt)
+    assert isinstance(match_stmt.arms[0].pattern, ast.BindingPattern)
+    assert match_stmt.arms[0].pattern.name == "n"
+
+
+def test_parse_match_string_pattern() -> None:
+    src = "fn f():\n" "    match s:\n" '        "hi": return 1\n' "        _: return 0\n"
+    module = parse_module(src)
+    fn = module.declarations[0]
+    assert isinstance(fn, ast.FunctionDecl)
+    match_stmt = fn.body[0]
+    assert isinstance(match_stmt, ast.MatchStmt)
+    assert isinstance(match_stmt.arms[0].pattern, ast.LiteralPattern)
