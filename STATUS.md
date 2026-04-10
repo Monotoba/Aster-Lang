@@ -12,7 +12,8 @@ Phase 5 (formatter) complete. Aster programs can be parsed, executed, and format
 - **Complete semantic analyzer** with symbol tables and type checking
 - **Complete interpreter** with runtime execution engine
 - **Complete formatter** with idempotent canonical output
-- **166 passing tests** covering lexer, parser, semantic analysis, interpreter, formatter, and all language constructs
+- **Match statement** with literal, wildcard, and binding patterns
+- **181 passing tests** covering all phases and language constructs
 - language and toolchain docs
 - Bottlecaps-compatible EBNF grammar files
 - AI workflow docs and recovery docs
@@ -77,8 +78,11 @@ Phase 5 (formatter) complete. Aster programs can be parsed, executed, and format
 
 ## Current recommendation
 Next steps (choose based on goals):
-1. **Pattern matching parser**: extend parser to handle match expressions (Phase 2 backlog)
-2. **REPL**: interactive read-eval-print loop (Phase 4 backlog)
+1. **REPL**: interactive read-eval-print loop
+2. **Negative integer literals in expressions** (currently only in patterns)
+3. **String concatenation / string operations**
+4. **Advanced patterns**: range patterns, tuple/list destructuring
+5. **Compiler backend** (Phase 6)
 3. **Advanced ownership analysis**: move semantics, lifetime tracking
 4. **Module system**: implement imports and module loading
 5. **Enhanced collections**: sets, maps, string operations

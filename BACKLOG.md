@@ -14,7 +14,7 @@
 - [x] add lexer golden tests
 - [x] implement parser for declarations
 - [x] implement Pratt parser for expressions
-- [ ] implement pattern parser (for match expressions)
+- [x] implement pattern parser (for match expressions)
 - [ ] add parse tree round-trip debug printer
 
 ## Phase 3: semantic model
