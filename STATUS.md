@@ -1,7 +1,7 @@
 # STATUS
 
 ## Repository status
-Phase 5 (formatter) complete. Aster programs can be parsed, executed, and formatted. Ready for Phase 6 (compiler) or advanced features.
+Phases 2–5 complete. The language is fully usable: parse, format, execute, and interact via REPL.
 
 ## What exists
 - project layout and setup scripts
@@ -13,7 +13,9 @@ Phase 5 (formatter) complete. Aster programs can be parsed, executed, and format
 - **Complete interpreter** with runtime execution engine
 - **Complete formatter** with idempotent canonical output
 - **Match statement** with literal, wildcard, and binding patterns
-- **181 passing tests** covering all phases and language constructs
+- **Interactive REPL** (`aster repl`) with persistent state and multi-line input
+- **String operations**: `+` concatenation, `len()`, `str()`, `int()` built-ins
+- **205 passing tests** covering all phases and language constructs
 - language and toolchain docs
 - Bottlecaps-compatible EBNF grammar files
 - AI workflow docs and recovery docs
@@ -78,11 +80,11 @@ Phase 5 (formatter) complete. Aster programs can be parsed, executed, and format
 
 ## Current recommendation
 Next steps (choose based on goals):
-1. **REPL**: interactive read-eval-print loop
-2. **Negative integer literals in expressions** (currently only in patterns)
-3. **String concatenation / string operations**
-4. **Advanced patterns**: range patterns, tuple/list destructuring
-5. **Compiler backend** (Phase 6)
+1. **Compiler backend** (Phase 6): bytecode or transpile to Python
+2. **Advanced patterns**: range patterns, tuple/list destructuring in match
+3. **Module system**: implement `use` imports between .aster files
+4. **Ownership analysis prototype** (Phase 3 backlog)
+5. **Standard library**: math, string utilities, I/O
 3. **Advanced ownership analysis**: move semantics, lifetime tracking
 4. **Module system**: implement imports and module loading
 5. **Enhanced collections**: sets, maps, string operations
