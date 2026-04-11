@@ -1,25 +1,37 @@
 # STATUS
 
 ## Repository status
-Phases 2–5 complete. The language is fully usable: parse, format, execute, and interact via REPL.
+Phases 2–5 are largely complete. The language can parse, format, analyze, execute, and interact via the REPL, with file-based module imports, manifest-configured module roots and dependency mapping, package naming, parent package-root lookup, `pub`-aware exports for functions/bindings/type aliases, local destructuring bindings, binding or-patterns, structural match arm compilation, qualified type names in annotations, and an AST pretty-printer.
 
 ## What exists
 - project layout and setup scripts
-- Python package skeleton with CLI
+- Python package skeleton with CLI (`run`, `fmt`, `check`, `build`, `ast`, `repl`, `version`)
 - **Complete lexer** with indentation handling (INDENT/DEDENT tokens)
-- **Complete parser** with Pratt parsing for expressions
+- **Complete parser** with Pratt parsing for expressions; type annotations on destructuring bindings rejected at parse level
 - **Comprehensive AST** with all node types (declarations, statements, expressions, types)
 - **Complete semantic analyzer** with symbol tables and type checking
 - **Complete interpreter** with runtime execution engine
 - **Complete formatter** with idempotent canonical output
-- **Match statement** with literal, wildcard, and binding patterns
+- **Match statement** with literal, wildcard, binding, tuple, list, record, or-patterns (including binding or-patterns), and trailing rest patterns
+- **Local destructuring bindings** for tuples, lists, and records
+- **Basic module imports** for sibling `.aster` files via `use mod`, `use mod as alias`, and `use mod: name`
+- **Manifest-configured module roots** via `aster.toml` (`[modules].search_roots`)
+- **Manifest `[dependencies]`** table with local path entries; `--dep NAME=PATH` and `--search-root PATH` CLI overrides on `run`/`check`/`build`
+- **Manifest package naming** via `[package].name`
+- **Parent package-root lookup** for dotted imports such as `use lib.helpers`
+- **`pub`-aware exports** for imported top-level functions, bindings, and type aliases
+- **`typealias` declarations** registered in symbol table; `pub typealias` exported and importable; qualified type names (`mod.Vec`, `alias.Vec`) usable in annotations
+- **AST pretty-printer** (`aster ast <file>`) for debugging parse output
 - **Interactive REPL** (`aster repl`) with persistent state and multi-line input
 - **String operations**: `+` concatenation, `len()`, `str()`, `int()` built-ins
-- **205 passing tests** covering all phases and language constructs
+- **411 passing tests** covering parser, semantics, interpreter, formatter, CLI, compiler, REPL, AST printer, typed HIR, and the experimental bytecode VM backend
 - language and toolchain docs
 - Bottlecaps-compatible EBNF grammar files
 - AI workflow docs and recovery docs
-- compiler / formatter scaffolds (non-functional)
+- **Python transpiler backend** with structural match arm conditions (list/tuple/record patterns), binding or-pattern compilation with nested-if extraction
+- **Recursive build output**: `aster build` emits a runnable `__aster_build__/` dir with compiled modules under `_aster/`
+- **Build output controls**: `aster build --out-dir DIR` and `--clean`
+- **Lockfile support**: `aster lock` writes `aster.lock`; `aster check/build --lockfile` use a pinned module resolution config
 
 ## Lexer Features
 - TokenKind enum with all language tokens (keywords, operators, literals)
@@ -31,8 +43,8 @@ Phases 2–5 complete. The language is fully usable: parse, format, execute, and
 
 ## Parser Features
 - Recursive descent parsing with Pratt expression parsing
-- All declarations: functions, type aliases, imports, let declarations
-- All statements: let, assign, return, if/else, while, for, break, continue
+- All declarations: functions, type aliases, imports, top-level bindings
+- All statements: bindings, assign, return, if/else, while, for, break, continue
 - All expressions: binary, unary, call, index, member access, literals
 - Collection expressions: lists, tuples, records
 - Type expressions: simple types, function types, qualified names
@@ -43,6 +55,19 @@ Phases 2–5 complete. The language is fully usable: parse, format, execute, and
 - Name resolution and duplicate detection
 - Type inference for all expressions
 - Type checking for operators, assignments, function calls
+- Imported function signatures resolved from sibling modules
+- Missing-module and cyclic-import diagnostics surfaced through semantic analysis and CLI execution
+- Imports resolve only `pub` top-level declarations from sibling modules
+- Manifest-configured module roots resolved from `aster.toml`
+- Current-package import prefixes resolved through `package.name`
+- Module resolution can search parent directories for dotted package roots
+- Or-patterns for non-binding and binding alternatives (name-consistency validated)
+- Trailing rest patterns for tuple and list matches
+- Tuple, list, and record pattern bindings with arity/field validation
+- Tuple, list, and record destructuring in local bindings
+- Destructuring binding diagnostics for arity and missing fields
+- `typealias` declarations registered in symbol table; `pub typealias` exported
+- Qualified type names (`mod.Vec`, `alias.Vec`) resolved in type annotations via namespace import exports
 - Mutability checking (immutable vs mutable variables)
 - Control flow validation (if/while require Bool conditions)
 - Built-in functions (print)
@@ -52,26 +77,37 @@ Phases 2–5 complete. The language is fully usable: parse, format, execute, and
 - Runtime value model: Int, String, Bool, Nil, List, Tuple, Record, Function
 - Environment with variable bindings and mutability tracking
 - Expression evaluation: arithmetic, comparison, logical, unary operators
-- Statement execution: let, assign, return, if/else, while, for, break, continue
+- Statement execution: bindings, assign, return, if/else, while, for, break, continue
 - Function calls with closures and parameter passing
 - Built-in functions (print with newline separation)
 - Collection operations: list/tuple creation, indexing, record member access
+- Tuple-pattern destructuring with nested bindings in match arms
+- List-pattern destructuring with nested bindings in match arms
+- Record-pattern destructuring with nested bindings in match arms
+- Or-pattern matching for multiple alternatives in a single arm
+- Trailing rest-pattern matching for tuples and lists
+- Local tuple/list/record destructuring bindings, including list rest capture
+- Module namespace values with named and aliased imports
+- Missing-module and cyclic-import errors reported from `aster run`
+- Private top-level declarations remain module-local at runtime
+- Manifest-configured project roots and module search paths
+- Manifest-configured current package prefix imports
+- Parent-directory package-root resolution for dotted imports
 - Auto-execution of main() function
 - Recursive function support (factorial, fibonacci work correctly)
 - Error reporting with source node context
 
 ## What does not yet exist
-- formatter (preserve concrete syntax, implement formatting rules)
 - compiler backend (bytecode or native)
-- pattern matching parser (grammar defined, parser not yet implemented)
 - advanced ownership analysis (basic mutability checking only)
-- module system and imports
 - advanced collections (sets, maps)
-- string operations and methods
+- comment-preserving formatting (needs CST/trivia-aware implementation work)
+- richer pattern forms such as non-trailing rest patterns
+- trait resolution and effect tracking prototypes
 
 ## Formatter Features
-- All declaration types formatted (fn, let, typealias, use)
-- All statement types formatted (let, assign, if/else, while, for, break, continue, return)
+- All declaration types formatted (fn, bindings, typealias, use)
+- All statement types formatted (bindings, assign, if/else, while, for, break, continue, return)
 - All expression types formatted with correct operator precedence parenthesisation
 - Type expressions (simple, generic, function types)
 - 4-space indentation, blank lines between declarations
@@ -80,23 +116,21 @@ Phases 2–5 complete. The language is fully usable: parse, format, execute, and
 
 ## Current recommendation
 Next steps (choose based on goals):
-1. **Compiler backend** (Phase 6): bytecode or transpile to Python
-2. **Advanced patterns**: range patterns, tuple/list destructuring in match
-3. **Module system**: implement `use` imports between .aster files
-4. **Ownership analysis prototype** (Phase 3 backlog)
-5. **Standard library**: math, string utilities, I/O
-3. **Advanced ownership analysis**: move semantics, lifetime tracking
-4. **Module system**: implement imports and module loading
-5. **Enhanced collections**: sets, maps, string operations
-6. **REPL**: interactive read-eval-print loop
-
-## Recent work
-- Implemented complete indentation-aware lexer (18 tests)
-- Implemented comprehensive parser with Pratt parsing (26 tests)
-- Expanded AST with all node types
-- Implemented semantic analyzer with symbol tables and type checking (31 tests)
-- Implemented interpreter with runtime execution engine (42 tests)
-- **Implemented formatter with idempotent canonical output (47 tests)**
-- `aster fmt` command formats Aster source files
-- `aster run` command executes Aster programs
-- All 166 tests passing, all quality checks pass (pytest, ruff, mypy)
+1. **Formatter**: comment preservation (CST/trivia-aware formatting)
+2. **Ownership analysis prototype**: move semantics and lifetime tracking
+3. **Compiler backend**: typed IR and bytecode or native backend exploration
+- Added semantic import resolution for named imports and missing-export diagnostics
+- Wired `aster run <file>` to resolve imports relative to the executed file
+- Added runnable import examples and updated user-facing docs
+- Added tuple-pattern parsing, formatting, semantic checks, and runtime destructuring
+- Added list-pattern parsing, formatting, semantic checks, and runtime destructuring
+- Added record-pattern parsing, formatting, semantic checks, and runtime destructuring
+- Improved missing-module and cyclic-import diagnostics in semantic analysis and CLI execution
+- Added `pub`-aware exports for imported functions and top-level bindings
+- Added or-pattern parsing, formatting, semantic checks, and runtime matching
+- Added trailing rest-pattern parsing, formatting, semantic checks, and runtime matching
+- Added parent package-root module resolution for CLI, interpreter, and semantic analysis
+- Added local tuple/list/record destructuring bindings across parser, formatter, semantics, interpreter, and transpiler
+- Added `aster.toml`-driven module search roots shared by runtime and semantic analysis
+- Added `package.name` support for current-package import prefixes
+- Full suite currently passes with 411 tests

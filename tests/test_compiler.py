@@ -49,6 +49,16 @@ def test_transpile_mutable_let() -> None:
     assert "x = 0" in code
 
 
+def test_transpile_tuple_destructuring_binding() -> None:
+    code = py("fn main():\n    (x, y) := pair\n")
+    assert "(x, y) = pair" in code
+
+
+def test_transpile_list_destructuring_binding_with_rest() -> None:
+    code = py("fn main():\n    [head, *tail] := items\n")
+    assert "[head, *tail] = items" in code
+
+
 def test_transpile_bool_literals() -> None:
     code = py("x := true\ny := false\n")
     assert "x = True" in code
@@ -112,6 +122,31 @@ def test_transpile_match_binding() -> None:
     assert "else:" in code
     assert "x = n" in code
     assert "return x + x" in code
+
+
+def test_transpile_match_or_pattern_binding_irrefutable() -> None:
+    # Binding or-pattern: both alternatives are the same binding name.
+    # Should emit `else:` (irrefutable) and inject the binding assignment.
+    src = "fn f(n: Int) -> Int:\n" "    match n:\n" "        x | x:\n" "            return x\n"
+    code = py(src)
+    assert "else:" in code
+    assert "x = n" in code
+    assert "return x" in code
+
+
+def test_transpile_match_or_pattern_literal_preserved() -> None:
+    # Literal-only or-pattern should still emit an elif condition, not else.
+    src = (
+        "fn f(n: Int) -> Int:\n"
+        "    match n:\n"
+        "        1 | 2:\n"
+        "            return 10\n"
+        "        _:\n"
+        "            return 0\n"
+    )
+    code = py(src)
+    assert "n == 1" in code and "n == 2" in code and "or" in code
+    assert "return 10" in code
 
 
 # ------------------------------------------------------------------
@@ -216,3 +251,50 @@ def test_run_match_classify() -> None:
         "    print(classify(5))\n"
     )
     assert run_py(src) == "zero\none\nmany"
+
+
+def test_run_match_list_pattern_binding() -> None:
+    src = (
+        "fn head(items: List) -> Int:\n"
+        "    match items:\n"
+        "        [x, *rest]:\n"
+        "            return x\n"
+        "        _:\n"
+        "            return 0\n"
+        "fn main():\n"
+        "    print(head([42, 1, 2]))\n"
+        "    print(head([]))\n"
+    )
+    assert run_py(src) == "42\n0"
+
+
+def test_run_match_list_pattern_literal_guard() -> None:
+    src = (
+        "fn check(items: List) -> String:\n"
+        "    match items:\n"
+        "        [0, x]:\n"
+        '            return "starts with zero"\n'
+        "        _:\n"
+        '            return "other"\n'
+        "fn main():\n"
+        "    print(check([0, 5]))\n"
+        "    print(check([1, 5]))\n"
+    )
+    assert run_py(src) == "starts with zero\nother"
+
+
+def test_run_match_or_pattern_structural_binding() -> None:
+    # Or-pattern where both alternatives bind the same name from different positions.
+    src = (
+        "fn extract(items: List) -> Int:\n"
+        "    match items:\n"
+        "        [x, 0] | [0, x]:\n"
+        "            return x\n"
+        "        _:\n"
+        "            return -1\n"
+        "fn main():\n"
+        "    print(extract([7, 0]))\n"
+        "    print(extract([0, 3]))\n"
+        "    print(extract([1, 2]))\n"
+    )
+    assert run_py(src) == "7\n3\n-1"

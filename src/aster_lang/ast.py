@@ -93,12 +93,13 @@ class ImportDecl(Decl):
 
 @dataclass(slots=True)
 class LetDecl(Decl):
-    """Top-level let declaration: mut? name: Type := expr"""
+    """Top-level binding declaration: pub? mut? name: Type := expr"""
 
     name: str
     type_annotation: TypeExpr | None
     initializer: Expr
     is_mutable: bool = False
+    is_public: bool = False
 
 
 # Patterns (used in match arms)
@@ -132,6 +133,49 @@ class BindingPattern(Pattern):
     name: str
 
 
+@dataclass(slots=True)
+class OrPattern(Pattern):
+    """Or-pattern: p1 | p2 | ..."""
+
+    alternatives: list[Pattern]
+
+
+@dataclass(slots=True)
+class RestPattern(Pattern):
+    """Rest pattern: *name"""
+
+    name: str
+
+
+@dataclass(slots=True)
+class TuplePattern(Pattern):
+    """Tuple pattern: (p1, p2, ...)"""
+
+    elements: list[Pattern]
+
+
+@dataclass(slots=True)
+class ListPattern(Pattern):
+    """List pattern: [p1, p2, ...]"""
+
+    elements: list[Pattern]
+
+
+@dataclass(slots=True)
+class RecordPatternField(Node):
+    """Record pattern field: name or name: pattern"""
+
+    name: str
+    pattern: Pattern
+
+
+@dataclass(slots=True)
+class RecordPattern(Pattern):
+    """Record pattern: {field1: p1, field2}"""
+
+    fields: list[RecordPatternField]
+
+
 # Match
 
 
@@ -156,12 +200,19 @@ class MatchStmt(Stmt):
 
 @dataclass(slots=True)
 class LetStmt(Stmt):
-    """Let statement: mut? name: Type := expr"""
+    """Binding statement: mut? name: Type := expr"""
 
-    name: str
+    pattern: Pattern
     type_annotation: TypeExpr | None
     initializer: Expr
     is_mutable: bool = False
+
+    @property
+    def name(self) -> str:
+        """Return the bound name for simple identifier bindings."""
+        if isinstance(self.pattern, BindingPattern):
+            return self.pattern.name
+        raise AttributeError("Destructuring binding statement has no single name")
 
 
 @dataclass(slots=True)
@@ -392,3 +443,19 @@ class FunctionType(TypeExpr):
 
     param_types: list[TypeExpr]
     return_type: TypeExpr
+
+
+@dataclass(slots=True)
+class BorrowTypeExpr(TypeExpr):
+    """Borrowed reference type: &T or &mut T"""
+
+    inner: TypeExpr
+    is_mutable: bool = False
+
+
+@dataclass(slots=True)
+class PointerTypeExpr(TypeExpr):
+    """Smart/raw pointer type: *own T, *shared T, *weak T, *raw T"""
+
+    pointer_kind: str
+    inner: TypeExpr

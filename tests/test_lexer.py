@@ -70,7 +70,7 @@ def test_identifiers() -> None:
 
 def test_operators() -> None:
     """Test operator tokenization."""
-    source = ":= <- -> == != < <= > >= + - * / % ."
+    source = ":= <- -> == != < <= > >= + - * / % & . |"
     tokens = tokenize(source)
 
     expected_kinds = [
@@ -88,7 +88,9 @@ def test_operators() -> None:
         TokenKind.STAR,
         TokenKind.SLASH,
         TokenKind.PERCENT,
+        TokenKind.AMP,
         TokenKind.DOT,
+        TokenKind.PIPE,
         TokenKind.EOF,
     ]
 

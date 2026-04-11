@@ -1,18 +1,11 @@
 # NEXT STEPS
 
-1. Define token enum and token dataclass.
-2. Implement source span tracking.
-3. Implement comment and whitespace handling policy.
-4. Implement indentation token emission.
-5. Add lexer tests for:
-   - indentation changes
-   - comments
-   - string escapes
-   - numbers
-   - keywords vs identifiers
-6. Add parser tests for:
-   - import declarations
-   - type aliases
-   - function declarations
-   - arithmetic expressions
-7. Commit after lexer milestone.
+1. Decide on a CST/trivia strategy for the comment-preserving formatter (attachment model vs. separate trivia stream).
+2. Decide how far the ownership/borrow checking prototype should go beyond the current non-enforcing warnings (move semantics, aliasing rules, lifetimes).
+3. Decide whether trait resolution or effect tracking prototype should come next in Phase 3.
+4. Decide whether nested/mixed structural or-patterns inside tuple or list elements need compiler test coverage.
+5. Decide whether non-trailing or multiple rest patterns belong in the language.
+6. Start comment-preserving formatter work once the AST/CST strategy is chosen.
+7. Docs cleanup: clarify that bindings are `:=`/`mut` (no `let` keyword), even though AST nodes are named `LetDecl`/`LetStmt`.
+8. Backend: expand VM coverage toward interpreter parity (mutability enforcement, destructuring bindings, more lvalue forms).
+9. Backend: consider a `--backend vm` option for `aster run/build` once VM coverage is sufficient.

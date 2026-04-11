@@ -46,7 +46,9 @@ class TokenKind(Enum):
     STAR = auto()  # *
     SLASH = auto()  # /
     PERCENT = auto()  # %
+    AMP = auto()  # &
     DOT = auto()  # .
+    PIPE = auto()  # |
 
     # Delimiters
     LPAREN = auto()  # (
@@ -119,6 +121,18 @@ class Token:
 
     def __repr__(self) -> str:
         return f"Token({self.kind.name}, {self.text!r}, {self.start.line}:{self.start.column})"
+
+
+@dataclass(slots=True)
+class LexerState:
+    """Serializable lexer state for speculative parsing."""
+
+    pos: int
+    line: int
+    column: int
+    indent_stack: list[int]
+    pending_tokens: list[Token]
+    at_line_start: bool
 
 
 class Lexer:
@@ -363,7 +377,9 @@ class Lexer:
             "*": TokenKind.STAR,
             "/": TokenKind.SLASH,
             "%": TokenKind.PERCENT,
+            "&": TokenKind.AMP,
             ".": TokenKind.DOT,
+            "|": TokenKind.PIPE,
             "<": TokenKind.LT,
             ">": TokenKind.GT,
             "=": TokenKind.EQUALS,
@@ -387,6 +403,26 @@ class Lexer:
             if token.kind == TokenKind.EOF:
                 break
         return tokens
+
+    def snapshot(self) -> LexerState:
+        """Capture lexer state for backtracking."""
+        return LexerState(
+            pos=self.pos,
+            line=self.line,
+            column=self.column,
+            indent_stack=self.indent_stack.copy(),
+            pending_tokens=self.pending_tokens.copy(),
+            at_line_start=self.at_line_start,
+        )
+
+    def restore(self, state: LexerState) -> None:
+        """Restore lexer state from a snapshot."""
+        self.pos = state.pos
+        self.line = state.line
+        self.column = state.column
+        self.indent_stack = state.indent_stack.copy()
+        self.pending_tokens = state.pending_tokens.copy()
+        self.at_line_start = state.at_line_start
 
 
 def tokenize(source: str) -> list[Token]:

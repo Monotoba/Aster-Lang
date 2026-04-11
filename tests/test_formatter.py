@@ -42,6 +42,10 @@ def test_format_let_decl_with_type() -> None:
     assert fmt("x: Int := 42") == "x: Int := 42\n"
 
 
+def test_format_public_let_decl() -> None:
+    assert fmt("pub answer := 42") == "pub answer := 42\n"
+
+
 def test_format_function_no_params_no_return() -> None:
     src = 'fn main():\n    print("hello")'
     result = fmt(src)
@@ -52,6 +56,17 @@ def test_format_function_with_params_and_return() -> None:
     src = "fn add(a: Int, b: Int) -> Int:\n    return a + b"
     result = fmt(src)
     assert result == "fn add(a: Int, b: Int) -> Int:\n    return a + b\n"
+
+
+def test_format_ownership_and_fn_types() -> None:
+    src = (
+        "fn f(a: &Int, b: &mut String, c: *own Node, d: Fn(Int) -> Int) -> *raw Byte:\n"
+        "    return a"
+    )
+    assert fmt(src) == (
+        "fn f(a: &Int, b: &mut String, c: *own Node, d: Fn(Int) -> Int) -> *raw Byte:\n"
+        "    return a\n"
+    )
 
 
 def test_format_multiple_declarations_blank_line() -> None:
@@ -348,3 +363,95 @@ def test_format_match_idempotent() -> None:
     once = fmt(src)
     twice = fmt(once)
     assert once == twice
+
+
+def test_format_match_tuple_pattern() -> None:
+    src = (
+        "fn classify(pair: Pair):\n"
+        "    match pair:\n"
+        "        (0,x): return x\n"
+        "        _: return 0\n"
+    )
+    result = fmt(src)
+    assert "match pair:" in result
+    assert "    (0, x):" in result
+    assert "        return x" in result
+
+
+def test_format_match_list_pattern() -> None:
+    src = (
+        "fn classify(items):\n"
+        "    match items:\n"
+        "        [0,x]: return x\n"
+        "        _: return 0\n"
+    )
+    result = fmt(src)
+    assert "match items:" in result
+    assert "    [0, x]:" in result
+    assert "        return x" in result
+
+
+def test_format_match_record_pattern() -> None:
+    src = (
+        "fn classify(point):\n"
+        "    match point:\n"
+        "        {x:0,y}: return y\n"
+        "        _: return 0\n"
+    )
+    result = fmt(src)
+    assert "match point:" in result
+    assert "    {x: 0, y}:" in result
+    assert "        return y" in result
+
+
+def test_format_match_or_pattern() -> None:
+    src = (
+        "fn classify(value):\n"
+        "    match value:\n"
+        "        0|1: return 1\n"
+        "        _: return 0\n"
+    )
+    result = fmt(src)
+    assert "match value:" in result
+    assert "    0 | 1:" in result
+    assert "        return 1" in result
+
+
+def test_format_match_list_rest_pattern() -> None:
+    src = (
+        "fn classify(items):\n"
+        "    match items:\n"
+        "        [head,*tail]: return head\n"
+        "        _: return 0\n"
+    )
+    result = fmt(src)
+    assert "    [head, *tail]:" in result
+
+
+def test_format_match_tuple_rest_pattern() -> None:
+    src = (
+        "fn classify(value):\n"
+        "    match value:\n"
+        "        (head,*tail): return head\n"
+        "        _: return 0\n"
+    )
+    result = fmt(src)
+    assert "    (head, *tail):" in result
+
+
+def test_format_tuple_destructuring_binding_statement() -> None:
+    src = "fn f():\n    (x,y) := pair\n"
+    result = fmt(src)
+    assert "    (x, y) := pair" in result
+
+
+def test_format_list_destructuring_binding_statement() -> None:
+    src = "fn f():\n    [head,*tail] := items\n"
+    result = fmt(src)
+    assert "    [head, *tail] := items" in result
+
+
+def test_format_record_destructuring_binding_statement() -> None:
+    src = "fn f():\n    {x,y} := point\n"
+    result = fmt(src)
+    assert "    {x, y} := point" in result

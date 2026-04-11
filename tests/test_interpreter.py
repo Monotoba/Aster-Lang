@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from pathlib import Path
+
 from aster_lang.interpreter import interpret_source
 
 # Literals and basic expressions
@@ -146,6 +148,38 @@ def test_logical_or() -> None:
     print(x)
 """)
     assert result.output == "true"
+
+
+def test_logical_and_short_circuits() -> None:
+    result = interpret_source(
+        """fn f() -> Bool:
+    print("f")
+    return false
+fn t() -> Bool:
+    print("t")
+    return true
+fn main():
+    x := f() and t()
+    print(x)
+"""
+    )
+    assert result.output == "f\nfalse"
+
+
+def test_logical_or_short_circuits() -> None:
+    result = interpret_source(
+        """fn t() -> Bool:
+    print("t")
+    return true
+fn f() -> Bool:
+    print("f")
+    return false
+fn main():
+    x := t() or f()
+    print(x)
+"""
+    )
+    assert result.output == "t\ntrue"
 
 
 def test_logical_not() -> None:
@@ -337,6 +371,28 @@ fn main():
     assert result.output == "0\n10"
 
 
+def test_lambda_expression_call() -> None:
+    result = interpret_source(
+        """fn main():
+    inc := x -> x + 1
+    print(inc(41))
+"""
+    )
+    assert result.output == "42"
+
+
+def test_lambda_closure_captures_by_reference() -> None:
+    result = interpret_source(
+        """fn main():
+    mut x := 1
+    f := (y) -> x + y
+    x <- 10
+    print(f(2))
+"""
+    )
+    assert result.output == "12"
+
+
 # Collections
 
 
@@ -357,6 +413,17 @@ def test_list_indexing() -> None:
     print(x[2])
 """)
     assert result.output == "10\n30"
+
+
+def test_list_index_assignment() -> None:
+    """Test list index assignment (copy-update-store)."""
+    result = interpret_source("""fn main():
+    mut xs := [1, 2]
+    xs[0] <- 9
+    print(xs[0])
+""")
+    assert result.error is None
+    assert result.output == "9"
 
 
 def test_tuple_creation() -> None:
@@ -385,6 +452,17 @@ def test_record_member_access() -> None:
     print(x.name)
 """)
     assert result.output == "42"
+
+
+def test_record_member_assignment() -> None:
+    """Test record member assignment (copy-update-store)."""
+    result = interpret_source("""fn main():
+    mut r := {x: 1}
+    r.x <- 7
+    print(r.x)
+""")
+    assert result.error is None
+    assert result.output == "7"
 
 
 # Built-in functions
@@ -560,6 +638,380 @@ def test_match_demo_example() -> None:
     result = interpret_source(src)
     assert result.error is None
     assert result.output == "zero\none\nmany"
+
+
+def test_match_tuple_pattern_with_binding() -> None:
+    src = (
+        "fn second_if_zero(pair) -> Int:\n"
+        "    match pair:\n"
+        "        (0, x):\n"
+        "            return x\n"
+        "        _:\n"
+        "            return -1\n"
+        "fn main():\n"
+        "    print(second_if_zero((0, 7)))\n"
+        "    print(second_if_zero((1, 7)))\n"
+    )
+    result = interpret_source(src)
+    assert result.error is None
+    assert result.output == "7\n-1"
+
+
+def test_match_nested_tuple_pattern() -> None:
+    src = (
+        "fn f(value) -> Int:\n"
+        "    match value:\n"
+        "        ((1, x), y):\n"
+        "            return x + y\n"
+        "        _:\n"
+        "            return 0\n"
+        "fn main():\n"
+        "    print(f(((1, 2), 3)))\n"
+    )
+    result = interpret_source(src)
+    assert result.error is None
+    assert result.output == "5"
+
+
+def test_match_list_pattern_with_binding() -> None:
+    src = (
+        "fn second_if_zero(items) -> Int:\n"
+        "    match items:\n"
+        "        [0, x]:\n"
+        "            return x\n"
+        "        _:\n"
+        "            return -1\n"
+        "fn main():\n"
+        "    print(second_if_zero([0, 7]))\n"
+        "    print(second_if_zero([1, 7]))\n"
+    )
+    result = interpret_source(src)
+    assert result.error is None
+    assert result.output == "7\n-1"
+
+
+def test_match_nested_list_pattern() -> None:
+    src = (
+        "fn f(value) -> Int:\n"
+        "    match value:\n"
+        "        [[1, x], y]:\n"
+        "            return x + y\n"
+        "        _:\n"
+        "            return 0\n"
+        "fn main():\n"
+        "    print(f([[1, 2], 3]))\n"
+    )
+    result = interpret_source(src)
+    assert result.error is None
+    assert result.output == "5"
+
+
+def test_match_record_pattern_with_binding() -> None:
+    src = (
+        "fn y_if_x_zero(point) -> Int:\n"
+        "    match point:\n"
+        "        {x: 0, y}:\n"
+        "            return y\n"
+        "        _:\n"
+        "            return -1\n"
+        "fn main():\n"
+        "    print(y_if_x_zero({x: 0, y: 7}))\n"
+        "    print(y_if_x_zero({x: 1, y: 7}))\n"
+    )
+    result = interpret_source(src)
+    assert result.error is None
+    assert result.output == "7\n-1"
+
+
+def test_match_nested_record_pattern() -> None:
+    src = (
+        "fn f(value) -> Int:\n"
+        "    match value:\n"
+        "        {point: {x: 1, y}, z}:\n"
+        "            return y + z\n"
+        "        _:\n"
+        "            return 0\n"
+        "fn main():\n"
+        "    print(f({point: {x: 1, y: 2}, z: 3}))\n"
+    )
+    result = interpret_source(src)
+    assert result.error is None
+    assert result.output == "5"
+
+
+def test_match_or_pattern_literals() -> None:
+    src = (
+        "fn classify(n: Int) -> Int:\n"
+        "    match n:\n"
+        "        0 | 1:\n"
+        "            return 10\n"
+        "        _:\n"
+        "            return 0\n"
+        "fn main():\n"
+        "    print(classify(0))\n"
+        "    print(classify(1))\n"
+        "    print(classify(2))\n"
+    )
+    result = interpret_source(src)
+    assert result.error is None
+    assert result.output == "10\n10\n0"
+
+
+def test_match_or_pattern_consistent_binding() -> None:
+    # Both alternatives of the or-pattern bind x; arm body uses x
+    src = (
+        "fn pick(n: Int) -> Int:\n"
+        "    match n:\n"
+        "        x | x:\n"
+        "            return x + 100\n"
+        "        _:\n"
+        "            return 0\n"
+        "fn main():\n"
+        "    print(pick(5))\n"
+        "    print(pick(7))\n"
+    )
+    result = interpret_source(src)
+    assert result.error is None
+    assert result.output == "105\n107"
+
+
+def test_match_list_rest_pattern() -> None:
+    src = (
+        "fn describe(items) -> Int:\n"
+        "    match items:\n"
+        "        [head, *tail]:\n"
+        "            return len(tail)\n"
+        "        _:\n"
+        "            return -1\n"
+        "fn main():\n"
+        "    print(describe([1, 2, 3]))\n"
+        "    print(describe([]))\n"
+    )
+    result = interpret_source(src)
+    assert result.error is None
+    assert result.output == "2\n-1"
+
+
+def test_match_tuple_rest_pattern() -> None:
+    src = (
+        "fn describe(value) -> Int:\n"
+        "    match value:\n"
+        "        (head, *tail):\n"
+        "            return len(tail)\n"
+        "        _:\n"
+        "            return -1\n"
+        "fn main():\n"
+        "    print(describe((1, 2, 3)))\n"
+        "    print(describe(()))\n"
+    )
+    result = interpret_source(src)
+    assert result.error is None
+    assert result.output == "2\n-1"
+
+
+def test_import_named_function_from_sibling_module(tmp_path: Path) -> None:
+    """Named imports should load sibling .aster modules relative to the caller."""
+    (tmp_path / "helpers.aster").write_text(
+        "pub fn double(x: Int) -> Int:\n" "    return x + x\n",
+        encoding="utf-8",
+    )
+
+    result = interpret_source(
+        "use helpers: double\n" "fn main():\n" "    print(double(21))\n",
+        base_dir=tmp_path,
+    )
+
+    assert result.error is None
+    assert result.output == "42"
+
+
+def test_import_module_namespace_from_sibling_module(tmp_path: Path) -> None:
+    """Plain module imports should bind a namespace object using the module name."""
+    (tmp_path / "math_utils.aster").write_text(
+        "pub fn answer() -> Int:\n" "    return 42\n",
+        encoding="utf-8",
+    )
+
+    result = interpret_source(
+        "use math_utils\n" "fn main():\n" "    print(math_utils.answer())\n",
+        base_dir=tmp_path,
+    )
+
+    assert result.error is None
+    assert result.output == "42"
+
+
+def test_import_missing_module_reports_error(tmp_path: Path) -> None:
+    result = interpret_source(
+        "use missing\n" "fn main():\n" '    print("nope")\n',
+        base_dir=tmp_path,
+    )
+
+    assert result.error is not None
+    assert "Module not found" in result.error
+
+
+def test_import_cycle_reports_error(tmp_path: Path) -> None:
+    (tmp_path / "a.aster").write_text("use b\nfn value() -> Int:\n    return 1\n", encoding="utf-8")
+    (tmp_path / "b.aster").write_text("use a\nfn value() -> Int:\n    return 2\n", encoding="utf-8")
+
+    result = interpret_source(
+        "use a\n" "fn main():\n" "    print(a.value())\n",
+        base_dir=tmp_path,
+    )
+
+    assert result.error is not None
+    assert "Cyclic import detected" in result.error
+
+
+def test_import_resolves_parent_package_root(tmp_path: Path) -> None:
+    lib_dir = tmp_path / "lib"
+    lib_dir.mkdir()
+    (lib_dir / "helpers.aster").write_text(
+        "pub fn answer() -> Int:\n" "    return 42\n",
+        encoding="utf-8",
+    )
+    app_dir = tmp_path / "app"
+    app_dir.mkdir()
+
+    result = interpret_source(
+        "use lib.helpers\n" "fn main():\n" "    print(helpers.answer())\n",
+        base_dir=app_dir,
+    )
+
+    assert result.error is None
+    assert result.output == "42"
+
+
+def test_import_resolves_manifest_module_root(tmp_path: Path) -> None:
+    (tmp_path / "aster.toml").write_text(
+        "[modules]\n" 'search_roots = ["src"]\n',
+        encoding="utf-8",
+    )
+    src_dir = tmp_path / "src"
+    src_dir.mkdir()
+    (src_dir / "helpers.aster").write_text(
+        "pub fn answer() -> Int:\n" "    return 42\n",
+        encoding="utf-8",
+    )
+    app_dir = tmp_path / "app"
+    app_dir.mkdir()
+
+    result = interpret_source(
+        "use helpers\n" "fn main():\n" "    print(helpers.answer())\n",
+        base_dir=app_dir,
+    )
+
+    assert result.error is None
+    assert result.output == "42"
+
+
+def test_import_resolves_current_package_name_prefix(tmp_path: Path) -> None:
+    (tmp_path / "aster.toml").write_text(
+        "[package]\n" 'name = "app"\n' "[modules]\n" 'search_roots = ["src"]\n',
+        encoding="utf-8",
+    )
+    src_dir = tmp_path / "src"
+    src_dir.mkdir()
+    (src_dir / "helpers.aster").write_text(
+        "pub fn answer() -> Int:\n" "    return 42\n",
+        encoding="utf-8",
+    )
+    app_dir = tmp_path / "app"
+    app_dir.mkdir()
+
+    result = interpret_source(
+        "use app.helpers\n" "fn main():\n" "    print(helpers.answer())\n",
+        base_dir=app_dir,
+    )
+
+    assert result.error is None
+    assert result.output == "42"
+
+
+def test_invalid_manifest_package_name_reports_error(tmp_path: Path) -> None:
+    (tmp_path / "aster.toml").write_text(
+        "[package]\n" "name = 42\n",
+        encoding="utf-8",
+    )
+
+    result = interpret_source(
+        "use missing\n" "fn main():\n" '    print("nope")\n',
+        base_dir=tmp_path,
+    )
+
+    assert result.error is not None
+    assert "package.name must be a string" in result.error
+
+
+def test_import_private_name_reports_error(tmp_path: Path) -> None:
+    (tmp_path / "helpers.aster").write_text(
+        "fn hidden() -> Int:\n" "    return 7\n" "pub fn shown() -> Int:\n" "    return 42\n",
+        encoding="utf-8",
+    )
+
+    result = interpret_source(
+        "use helpers: hidden\n" "fn main():\n" "    print(hidden())\n",
+        base_dir=tmp_path,
+    )
+
+    assert result.error is not None
+    assert "has no public export 'hidden'" in result.error
+
+
+def test_import_public_names_only_in_module_namespace(tmp_path: Path) -> None:
+    (tmp_path / "helpers.aster").write_text(
+        "hidden := 7\n" "pub answer := 42\n",
+        encoding="utf-8",
+    )
+
+    result = interpret_source(
+        "use helpers\n" "fn main():\n" "    print(helpers.answer)\n",
+        base_dir=tmp_path,
+    )
+
+    assert result.error is None
+    assert result.output == "42"
+
+    private_result = interpret_source(
+        "use helpers\n" "fn main():\n" "    print(helpers.hidden)\n",
+        base_dir=tmp_path,
+    )
+    assert private_result.error is not None
+    assert "has no export 'hidden'" in private_result.error
+
+
+def test_tuple_destructuring_binding_statement() -> None:
+    src = "fn main():\n" "    (x, y) := (2, 3)\n" "    print(x + y)\n"
+    result = interpret_source(src)
+    assert result.error is None
+    assert result.output == "5"
+
+
+def test_list_destructuring_binding_statement_with_rest() -> None:
+    src = (
+        "fn main():\n"
+        "    [head, *tail] := [1, 2, 3]\n"
+        "    print(head)\n"
+        "    print(len(tail))\n"
+    )
+    result = interpret_source(src)
+    assert result.error is None
+    assert result.output == "1\n2"
+
+
+def test_record_destructuring_binding_statement() -> None:
+    src = "fn main():\n" "    {x, y} := {x: 4, y: 9}\n" "    print(x + y)\n"
+    result = interpret_source(src)
+    assert result.error is None
+    assert result.output == "13"
+
+
+def test_destructuring_binding_mismatch_reports_error() -> None:
+    src = "fn main():\n" "    (x, y) := (1,)\n" "    print(x)\n"
+    result = interpret_source(src)
+    assert result.error is not None
+    assert "Binding pattern does not match initializer" in result.error
 
 
 # String operations

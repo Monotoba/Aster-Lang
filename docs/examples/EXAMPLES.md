@@ -98,7 +98,226 @@ point := {x: 4, y: 7}
 ### Description
 Constructs a record value.
 
-## 7. Borrowed reference sketch
+## 7. Module import
+
+### Source
+```aster
+use helpers
+
+fn main():
+    print(helpers.double(21))
+```
+
+### Description
+Loads a sibling module and calls a `pub` exported function through the module namespace.
+
+### Expected output
+`42`
+
+## 8. Tuple pattern match
+
+### Source
+```aster
+fn main():
+    pair := (0, 7)
+    match pair:
+        (0, x):
+            print(x)
+        _:
+            print(0)
+```
+
+### Description
+Destructures a tuple in a `match` arm and binds the second element.
+
+### Expected output
+`7`
+
+## 9. List pattern match
+
+### Source
+```aster
+fn main():
+    items := [0, 7]
+    match items:
+        [0, x]:
+            print(x)
+        _:
+            print(0)
+```
+
+### Description
+Destructures a fixed-length list in a `match` arm and binds the second element.
+
+### Expected output
+`7`
+
+## 10. Record pattern match
+
+### Source
+```aster
+fn main():
+    point := {x: 0, y: 7}
+    match point:
+        {x: 0, y}:
+            print(y)
+        _:
+            print(0)
+```
+
+### Description
+Destructures a record in a `match` arm and binds a field using shorthand syntax.
+
+### Expected output
+`7`
+
+## 11. Or-pattern match
+
+### Source
+```aster
+fn main():
+    n := 1
+    match n:
+        0 | 1:
+            print(10)
+        _:
+            print(0)
+```
+
+### Description
+Matches multiple literal alternatives in a single arm.
+
+### Expected output
+`10`
+
+## 12. Rest pattern match
+
+### Source
+```aster
+fn main():
+    items := [1, 2, 3]
+    match items:
+        [head, *tail]:
+            print(len(tail))
+        _:
+            print(0)
+```
+
+### Description
+Matches a list with a head element and captures the remaining tail.
+
+### Expected output
+`2`
+
+## 13. Parent Package Root Import
+
+### Source
+`app/main.aster`
+
+```aster
+use lib.helpers
+
+fn main():
+    print(helpers.answer())
+```
+
+`lib/helpers.aster`
+
+```aster
+pub fn answer() -> Int:
+    return 42
+```
+
+### Description
+Resolves a dotted module path by searching the current directory and then parent directories.
+
+### Expected output
+`42`
+
+## 14. Manifest Module Root Import
+
+### Source
+`aster.toml`
+
+```toml
+[modules]
+search_roots = ["src"]
+```
+
+`app/main.aster`
+
+```aster
+use helpers
+
+fn main():
+    print(helpers.answer())
+```
+
+`src/helpers.aster`
+
+```aster
+pub fn answer() -> Int:
+    return 42
+```
+
+### Description
+Resolves imports from explicit project-relative module roots declared in `aster.toml`.
+
+### Expected output
+`42`
+
+## 15. Current Package Prefix Import
+
+### Source
+`aster.toml`
+
+```toml
+[package]
+name = "app"
+
+[modules]
+search_roots = ["src"]
+```
+
+`app/main.aster`
+
+```aster
+use app.helpers
+
+fn main():
+    print(helpers.answer())
+```
+
+`src/helpers.aster`
+
+```aster
+pub fn answer() -> Int:
+    return 42
+```
+
+### Description
+Resolves an import through the current package name declared in `aster.toml`.
+
+### Expected output
+`42`
+
+## 16. Local Destructuring Binding
+
+### Source
+```aster
+fn main():
+    [head, *tail] := [1, 2, 3]
+    {x, y} := {x: head, y: len(tail)}
+    print(x + y)
+```
+
+### Description
+Uses list and record destructuring in local bindings outside `match`.
+
+### Expected output
+`3`
+
+## 17. Borrowed reference sketch
 
 ### Source
 ```aster
@@ -109,7 +328,7 @@ fn first(xs: &List[Int]) -> &Int:
 ### Description
 Demonstrates the intended syntax for shared borrowed references.
 
-## 8. Owning pointer sketch
+## 15. Owning pointer sketch
 
 ### Source
 ```aster

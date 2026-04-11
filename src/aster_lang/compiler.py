@@ -49,10 +49,17 @@ class CompilationArtifact:
 class Transpiler:
     """Walk an Aster AST and emit Python source."""
 
-    def __init__(self) -> None:
+    def __init__(
+        self,
+        *,
+        module_import_prefix: str | None = None,
+        aster_module_labels: frozenset[str] = frozenset(),
+    ) -> None:
         self._lines: list[str] = []
         self._depth: int = 0
         self._has_main: bool = False
+        self._module_import_prefix = module_import_prefix
+        self._aster_module_labels = aster_module_labels
 
     # ------------------------------------------------------------------
     # Output helpers
@@ -116,20 +123,31 @@ class Transpiler:
 
     def _transpile_import(self, decl: ast.ImportDecl) -> None:
         module_path = ".".join(decl.module.parts)
+        is_aster_module = module_path in self._aster_module_labels
+        full_path = module_path
+        if self._module_import_prefix and is_aster_module:
+            full_path = f"{self._module_import_prefix}.{module_path}"
         if decl.alias:
-            self._emit(f"import {module_path} as {decl.alias}")
-        elif decl.imports:
+            self._emit(f"import {full_path} as {decl.alias}")
+            return
+        if decl.imports:
             names = ", ".join(decl.imports)
-            self._emit(f"from {module_path} import {names}")
+            self._emit(f"from {full_path} import {names}")
+            return
+
+        # Namespace import: bind the module namespace to the last name by default.
+        binding_name = decl.module.parts[-1]
+        if "." in module_path or (self._module_import_prefix and is_aster_module):
+            self._emit(f"import {full_path} as {binding_name}")
         else:
-            self._emit(f"import {module_path}")
+            self._emit(f"import {full_path}")
 
     # ------------------------------------------------------------------
     # Statements
 
     def _transpile_stmt(self, stmt: ast.Stmt) -> None:
         if isinstance(stmt, ast.LetStmt):
-            self._emit(f"{stmt.name} = {self._expr(stmt.initializer)}")
+            self._emit(f"{self._binding_target(stmt.pattern)} = {self._expr(stmt.initializer)}")
         elif isinstance(stmt, ast.AssignStmt):
             self._emit(f"{self._expr(stmt.target)} = {self._expr(stmt.value)}")
         elif isinstance(stmt, ast.ReturnStmt):
@@ -193,13 +211,26 @@ class Transpiler:
             elif isinstance(pat, ast.LiteralPattern):
                 lit_py = self._expr(pat.literal)
                 self._emit(f"{keyword} {subj} == {lit_py}:")
+            elif isinstance(pat, ast.OrPattern):
+                if self._or_pattern_is_irrefutable(pat):
+                    self._emit("else:")
+                    has_wildcard_or_binding = True
+                else:
+                    cond = self._pattern_cond(pat, subj)
+                    self._emit(f"{keyword} {cond}:")
+            elif isinstance(pat, ast.ListPattern | ast.TuplePattern | ast.RecordPattern):
+                cond = self._pattern_cond(pat, subj)
+                self._emit(f"{keyword} {cond}:")
             else:
                 self._emit(f"{keyword} True:  # unknown pattern")
 
             self._depth += 1
-            # For binding patterns inject the bound variable
             if isinstance(pat, ast.BindingPattern):
                 self._emit(f"{pat.name} = {subj}")
+            elif isinstance(
+                pat, ast.OrPattern | ast.ListPattern | ast.TuplePattern | ast.RecordPattern
+            ):
+                self._pattern_emit_bindings(pat, subj)
             for s in arm.body:
                 self._transpile_stmt(s)
             self._depth -= 1
@@ -208,6 +239,128 @@ class Transpiler:
                 break  # wildcard/binding arm must be last
 
         # If there were no wildcard/binding arms, no else needed
+
+    def _or_pattern_is_irrefutable(self, pat: ast.OrPattern) -> bool:
+        """Return True if at least one alternative always matches (binding or wildcard)."""
+        return any(
+            isinstance(alt, ast.BindingPattern | ast.WildcardPattern) for alt in pat.alternatives
+        )
+
+    def _pattern_cond(self, pattern: ast.Pattern, subj: str) -> str:
+        """Return a Python boolean expression for matching subj against pattern."""
+        if isinstance(pattern, ast.WildcardPattern | ast.BindingPattern | ast.RestPattern):
+            return "True"
+        if isinstance(pattern, ast.LiteralPattern):
+            return f"{subj} == {self._expr(pattern.literal)}"
+        if isinstance(pattern, ast.ListPattern):
+            return self._sequence_pattern_cond(pattern.elements, subj, "list")
+        if isinstance(pattern, ast.TuplePattern):
+            return self._sequence_pattern_cond(pattern.elements, subj, "tuple")
+        if isinstance(pattern, ast.RecordPattern):
+            return self._record_pattern_cond(pattern, subj)
+        if isinstance(pattern, ast.OrPattern):
+            parts = [f"({self._pattern_cond(alt, subj)})" for alt in pattern.alternatives]
+            return " or ".join(parts)
+        return "True"  # unhandled pattern kind
+
+    def _sequence_pattern_cond(self, elements: list[ast.Pattern], subj: str, kind: str) -> str:
+        """Condition for a list or tuple pattern against subj."""
+        has_rest = any(isinstance(e, ast.RestPattern) for e in elements)
+        non_rest = [e for e in elements if not isinstance(e, ast.RestPattern)]
+        n = len(non_rest)
+
+        parts: list[str] = [f"isinstance({subj}, {kind})"]
+        if has_rest:
+            if n > 0:
+                parts.append(f"len({subj}) >= {n}")
+        else:
+            parts.append(f"len({subj}) == {n}")
+
+        for i, elem in enumerate(elements):
+            if isinstance(elem, ast.RestPattern):
+                continue
+            cond = self._pattern_cond(elem, f"{subj}[{i}]")
+            if cond != "True":
+                parts.append(cond)
+
+        return " and ".join(parts)
+
+    def _record_pattern_cond(self, pattern: ast.RecordPattern, subj: str) -> str:
+        """Condition for a record pattern against subj."""
+        parts: list[str] = [f"isinstance({subj}, dict)"]
+        for f in pattern.fields:
+            parts.append(f'"{f.name}" in {subj}')
+            cond = self._pattern_cond(f.pattern, f'{subj}["{f.name}"]')
+            if cond != "True":
+                parts.append(cond)
+        return " and ".join(parts)
+
+    def _pattern_emit_bindings(self, pattern: ast.Pattern, subj: str) -> None:
+        """Emit Python assignment statements for all bindings introduced by pattern."""
+        if isinstance(pattern, ast.BindingPattern | ast.RestPattern):
+            self._emit(f"{pattern.name} = {subj}")
+        elif isinstance(pattern, ast.ListPattern | ast.TuplePattern):
+            for i, elem in enumerate(pattern.elements):
+                if isinstance(elem, ast.RestPattern):
+                    self._pattern_emit_bindings(elem, f"{subj}[{i}:]")
+                else:
+                    self._pattern_emit_bindings(elem, f"{subj}[{i}]")
+        elif isinstance(pattern, ast.RecordPattern):
+            for field in pattern.fields:
+                self._pattern_emit_bindings(field.pattern, f'{subj}["{field.name}"]')
+        elif isinstance(pattern, ast.OrPattern):
+            # Skip entirely when no alternative introduces a binding.
+            if not any(self._pattern_has_bindings(alt) for alt in pattern.alternatives):
+                return
+            if self._or_pattern_is_irrefutable(pattern):
+                for alt in pattern.alternatives:
+                    if isinstance(alt, ast.BindingPattern):
+                        self._emit(f"{alt.name} = {subj}")
+                        return
+            else:
+                # Refutable: emit nested if/else to pick the matching alternative
+                first = True
+                for alt in pattern.alternatives:
+                    cond = self._pattern_cond(alt, subj)
+                    kw = "if" if first else "elif"
+                    first = False
+                    self._emit(f"{kw} {cond}:")
+                    self._depth += 1
+                    self._pattern_emit_bindings(alt, subj)
+                    self._depth -= 1
+        # WildcardPattern, LiteralPattern: no bindings
+
+    def _pattern_has_bindings(self, pattern: ast.Pattern) -> bool:
+        """Return True if pattern introduces any variable binding."""
+        if isinstance(pattern, ast.BindingPattern | ast.RestPattern):
+            return True
+        if isinstance(pattern, ast.OrPattern):
+            return any(self._pattern_has_bindings(alt) for alt in pattern.alternatives)
+        if isinstance(pattern, ast.ListPattern | ast.TuplePattern):
+            return any(self._pattern_has_bindings(e) for e in pattern.elements)
+        if isinstance(pattern, ast.RecordPattern):
+            return any(self._pattern_has_bindings(f.pattern) for f in pattern.fields)
+        return False
+
+    def _binding_target(self, pattern: ast.Pattern) -> str:
+        """Translate a local binding pattern to a Python assignment target."""
+        if isinstance(pattern, ast.BindingPattern):
+            return pattern.name
+        if isinstance(pattern, ast.WildcardPattern):
+            return "_"
+        if isinstance(pattern, ast.RestPattern):
+            return f"*{pattern.name}"
+        if isinstance(pattern, ast.TuplePattern):
+            inner = ", ".join(self._binding_target(element) for element in pattern.elements)
+            if len(pattern.elements) == 1:
+                inner += ","
+            return f"({inner})"
+        if isinstance(pattern, ast.ListPattern):
+            inner = ", ".join(self._binding_target(element) for element in pattern.elements)
+            return f"[{inner}]"
+        raise ValueError(
+            f"Compiler does not support destructuring binding pattern " f"{type(pattern).__name__}"
+        )
 
     # ------------------------------------------------------------------
     # Expressions

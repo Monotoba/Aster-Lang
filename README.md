@@ -72,13 +72,21 @@ python -m aster_lang --help
 
 ## Current state
 
-This repo is intentionally a **strong scaffold**, not a completed implementation.
-The goal is to provide:
+The repository has moved well beyond the initial scaffold. It now includes:
 
-- coherent language direction
-- practical project structure
-- test and tooling discipline
-- continuity documents for long-running development
+- working lexer, parser, semantic analyzer, interpreter, formatter, REPL, and Python transpiler
+- full `match` statement support: literal, wildcard, binding, tuple, list, record, or-patterns, and trailing rest patterns — including binding or-patterns and structural match arm compilation in the transpiler
+- local destructuring bindings for tuples, lists, and records
+- file-based module imports with `pub`-aware exports for functions, bindings, and type aliases
+- `typealias` declarations registered in the symbol table and exportable across modules; qualified type names (`mod.Vec`) usable in annotations
+- manifest-based module configuration via `aster.toml`: `[package].name`, `[modules].search_roots`, and `[dependencies]` with local path entries
+- `--dep NAME=PATH` and `--search-root PATH` CLI flags on `run`, `check`, and `build` to override manifest resolution
+- semantic-only lint (`aster check <file>`) for CI workflows
+- recursive build output (`aster build <file>`) emits a runnable `__aster_build__/` directory
+- `aster build --out-dir <dir>` and `--clean` for build artifact control
+- `aster lock <file>` to write `aster.lock`, and `--lockfile` on `check/build` for pinned resolution
+- AST pretty-printer (`aster ast <file>`) for debugging parse output
+- 411 passing tests
 
 ## License
 

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from aster_lang import ast
-from aster_lang.lexer import Lexer, Token, TokenKind
+from aster_lang.lexer import Lexer, LexerState, Token, TokenKind
 
 
 class ParseError(Exception):
@@ -19,6 +19,16 @@ class Parser:
         self.lexer = Lexer(source)
         self.current = self.lexer.next_token()
         self.previous: Token | None = None
+
+    def snapshot(self) -> tuple[Token, Token | None, LexerState]:
+        """Capture parser state for backtracking."""
+        return (self.current, self.previous, self.lexer.snapshot())
+
+    def restore(self, state: tuple[Token, Token | None, LexerState]) -> None:
+        """Restore parser state from a snapshot."""
+        self.current = state[0]
+        self.previous = state[1]
+        self.lexer.restore(state[2])
 
     # Token management
 
@@ -81,7 +91,7 @@ class Parser:
         elif self.check(TokenKind.USE):
             return self.parse_import_decl()
         elif self.check(TokenKind.MUT, TokenKind.IDENTIFIER):
-            # Top-level let declaration
+            # Top-level binding declaration
             is_mutable = self.match(TokenKind.MUT)
             if not self.check(TokenKind.IDENTIFIER):
                 raise ParseError("Expected identifier", self.current)
@@ -92,7 +102,7 @@ class Parser:
             if self.match(TokenKind.COLON):
                 type_annotation = self.parse_type_expr()
 
-            self.expect(TokenKind.BIND, "Expected ':=' in let declaration")
+            self.expect(TokenKind.BIND, "Expected ':=' in binding declaration")
             initializer = self.parse_expression()
             self.skip_newlines()
 
@@ -101,6 +111,7 @@ class Parser:
                 type_annotation=type_annotation,
                 initializer=initializer,
                 is_mutable=is_mutable,
+                is_public=is_public,
             )
         else:
             raise ParseError(f"Expected declaration, got {self.current.kind.name}", self.current)
@@ -212,22 +223,46 @@ class Parser:
 
     def parse_type_expr(self) -> ast.TypeExpr:
         """Parse a type expression."""
+        # Borrowed references: &T, &mut T
+        if self.match(TokenKind.AMP):
+            is_mut = self.match(TokenKind.MUT)
+            inner = self.parse_type_expr()
+            return ast.BorrowTypeExpr(inner=inner, is_mutable=is_mut)
+
+        # Pointer types: *own T, *shared T, *weak T, *raw T
+        if self.match(TokenKind.STAR):
+            kind_tok = self.expect(TokenKind.IDENTIFIER)
+            inner = self.parse_type_expr()
+            return ast.PointerTypeExpr(pointer_kind=kind_tok.text, inner=inner)
+
         # Function type: Fn(T1, T2) -> T3
+        # Parseable as either the identifier "Fn" (preferred) or legacy "fn" keyword.
+        if self.check(TokenKind.IDENTIFIER) and self.current.text == "Fn":
+            self.advance()
+            self.expect(TokenKind.LPAREN)
+            param_types: list[ast.TypeExpr] = []
+            if not self.check(TokenKind.RPAREN):
+                while True:
+                    param_types.append(self.parse_type_expr())
+                    if not self.match(TokenKind.COMMA):
+                        break
+            self.expect(TokenKind.RPAREN)
+            self.expect(TokenKind.ARROW)
+            return_type = self.parse_type_expr()
+            return ast.FunctionType(param_types=param_types, return_type=return_type)
+
         if self.check(TokenKind.FN):
             self.advance()
             self.expect(TokenKind.LPAREN)
-
             param_types = []
             if not self.check(TokenKind.RPAREN):
                 while True:
                     param_types.append(self.parse_type_expr())
                     if not self.match(TokenKind.COMMA):
                         break
-
             self.expect(TokenKind.RPAREN)
             self.expect(TokenKind.ARROW)
             return_type = self.parse_type_expr()
-
             return ast.FunctionType(param_types=param_types, return_type=return_type)
 
         # Simple type: Name or Name[T1, T2]
@@ -271,18 +306,23 @@ class Parser:
 
     def parse_statement(self) -> ast.Stmt:
         """Parse a statement."""
-        # Let statement: mut? name: Type := expr
-        if self.check(TokenKind.MUT, TokenKind.IDENTIFIER):
-            # Could be let statement or assignment - need to look ahead
+        # Binding statement: mut? name: Type := expr
+        if self.check(
+            TokenKind.MUT,
+            TokenKind.IDENTIFIER,
+            TokenKind.LPAREN,
+            TokenKind.LBRACKET,
+            TokenKind.LBRACE,
+        ):
+            # Could be a binding statement or assignment - need to look ahead
             if self.check(TokenKind.MUT):
-                # Definitely a let statement
+                # Definitely a binding statement
                 is_mutable = True
                 self.advance()
-                name_token = self.expect(TokenKind.IDENTIFIER)
-                name = name_token.text
+                pattern = self.parse_binding_pattern()
 
                 type_annotation = None
-                if self.match(TokenKind.COLON):
+                if isinstance(pattern, ast.BindingPattern) and self.match(TokenKind.COLON):
                     type_annotation = self.parse_type_expr()
 
                 self.expect(TokenKind.BIND)
@@ -290,31 +330,36 @@ class Parser:
                 self.skip_newlines()
 
                 return ast.LetStmt(
-                    name=name,
+                    pattern=pattern,
                     type_annotation=type_annotation,
                     initializer=initializer,
                     is_mutable=is_mutable,
                 )
             else:
-                # Could be let or assignment - parse as expression statement first
+                # Could be a binding or assignment - parse as expression statement first
                 # and check for := or <-
-                expr = self.parse_expression()
+                state = self.snapshot()
+                try:
+                    pattern = self.parse_binding_pattern()
+                except ParseError:
+                    self.restore(state)
+                    pattern = None
 
-                if self.check(TokenKind.BIND):
-                    # It's a let statement
-                    if not isinstance(expr, ast.Identifier):
-                        raise ParseError("Expected identifier in let statement", self.current)
+                if pattern is not None and self.check(TokenKind.BIND):
                     self.advance()  # consume :=
                     initializer = self.parse_expression()
                     self.skip_newlines()
 
                     return ast.LetStmt(
-                        name=expr.name,
+                        pattern=pattern,
                         type_annotation=None,
                         initializer=initializer,
                         is_mutable=False,
                     )
-                elif self.check(TokenKind.ASSIGN):
+                self.restore(state)
+                expr = self.parse_expression()
+
+                if self.check(TokenKind.ASSIGN):
                     # It's an assignment statement
                     self.advance()  # consume <-
                     assign_value = self.parse_expression()
@@ -424,7 +469,57 @@ class Parser:
         return ast.MatchArm(pattern=pattern, body=[stmt])
 
     def parse_pattern(self) -> ast.Pattern:
-        """Parse a match pattern: literal | _ (wildcard) | identifier (binding)"""
+        """Parse a match pattern."""
+        pattern = self.parse_pattern_atom()
+        alternatives = [pattern]
+        while self.match(TokenKind.PIPE):
+            alternatives.append(self.parse_pattern_atom())
+        if len(alternatives) == 1:
+            return pattern
+        return ast.OrPattern(alternatives=alternatives)
+
+    def parse_pattern_atom(self) -> ast.Pattern:
+        """Parse a non-or pattern atom."""
+        if self.match(TokenKind.STAR):
+            name_token = self.expect(
+                TokenKind.IDENTIFIER,
+                "Expected identifier after '*' in rest pattern",
+            )
+            return ast.RestPattern(name=name_token.text)
+        if self.match(TokenKind.LPAREN):
+            elements = [self.parse_pattern()]
+            self.expect(TokenKind.COMMA, "Expected ',' in tuple pattern")
+            while not self.check(TokenKind.RPAREN):
+                elements.append(self.parse_pattern())
+                if not self.match(TokenKind.COMMA):
+                    break
+            self.expect(TokenKind.RPAREN)
+            return ast.TuplePattern(elements=elements)
+        if self.match(TokenKind.LBRACKET):
+            elements = [self.parse_pattern()]
+            self.expect(TokenKind.COMMA, "Expected ',' in list pattern")
+            while not self.check(TokenKind.RBRACKET):
+                elements.append(self.parse_pattern())
+                if not self.match(TokenKind.COMMA):
+                    break
+            self.expect(TokenKind.RBRACKET)
+            return ast.ListPattern(elements=elements)
+        if self.match(TokenKind.LBRACE):
+            fields = []
+            if not self.check(TokenKind.RBRACE):
+                while True:
+                    name_token = self.expect(TokenKind.IDENTIFIER)
+                    pattern: ast.Pattern
+                    if self.match(TokenKind.COLON):
+                        pattern = self.parse_pattern()
+                    else:
+                        pattern = ast.BindingPattern(name=name_token.text)
+                    fields.append(ast.RecordPatternField(name=name_token.text, pattern=pattern))
+                    if not self.match(TokenKind.COMMA):
+                        break
+            self.expect(TokenKind.RBRACE)
+            return ast.RecordPattern(fields=fields)
+
         # Wildcard
         if self.check(TokenKind.IDENTIFIER) and self.current.text == "_":
             self.advance()
@@ -459,6 +554,59 @@ class Parser:
             return ast.BindingPattern(name=tok.text)
 
         raise ParseError(f"Expected pattern, got {self.current.kind.name}", self.current)
+
+    def parse_binding_pattern(self) -> ast.Pattern:
+        """Parse a binding-only pattern for local bindings."""
+        if self.match(TokenKind.STAR):
+            name_token = self.expect(
+                TokenKind.IDENTIFIER,
+                "Expected identifier after '*' in rest binding pattern",
+            )
+            return ast.RestPattern(name=name_token.text)
+        if self.match(TokenKind.LPAREN):
+            elements = [self.parse_binding_pattern()]
+            self.expect(TokenKind.COMMA, "Expected ',' in tuple binding pattern")
+            while not self.check(TokenKind.RPAREN):
+                elements.append(self.parse_binding_pattern())
+                if not self.match(TokenKind.COMMA):
+                    break
+            self.expect(TokenKind.RPAREN)
+            return ast.TuplePattern(elements=elements)
+        if self.match(TokenKind.LBRACKET):
+            elements = [self.parse_binding_pattern()]
+            self.expect(TokenKind.COMMA, "Expected ',' in list binding pattern")
+            while not self.check(TokenKind.RBRACKET):
+                elements.append(self.parse_binding_pattern())
+                if not self.match(TokenKind.COMMA):
+                    break
+            self.expect(TokenKind.RBRACKET)
+            return ast.ListPattern(elements=elements)
+        if self.match(TokenKind.LBRACE):
+            fields = []
+            if not self.check(TokenKind.RBRACE):
+                while True:
+                    name_token = self.expect(TokenKind.IDENTIFIER)
+                    if self.match(TokenKind.COLON):
+                        field_pattern = self.parse_binding_pattern()
+                    else:
+                        field_pattern = ast.BindingPattern(name=name_token.text)
+                    fields.append(
+                        ast.RecordPatternField(name=name_token.text, pattern=field_pattern)
+                    )
+                    if not self.match(TokenKind.COMMA):
+                        break
+            self.expect(TokenKind.RBRACE)
+            return ast.RecordPattern(fields=fields)
+        if self.check(TokenKind.IDENTIFIER) and self.current.text == "_":
+            self.advance()
+            return ast.WildcardPattern()
+        if self.check(TokenKind.IDENTIFIER):
+            tok = self.advance()
+            return ast.BindingPattern(name=tok.text)
+        raise ParseError(
+            f"Expected binding pattern, got {self.current.kind.name}",
+            self.current,
+        )
 
     # Expressions (Pratt parsing)
 
@@ -510,6 +658,62 @@ class Parser:
 
     def parse_primary(self) -> ast.Expr:
         """Parse a primary expression."""
+        # Lambda: x -> expr
+        if self.check(TokenKind.IDENTIFIER):
+            snap = self.snapshot()
+            try:
+                name_tok = self.advance()
+                type_ann: ast.TypeExpr | None = None
+                if self.match(TokenKind.COLON):
+                    type_ann = self.parse_type_expr()
+                if self.match(TokenKind.ARROW):
+                    # Block lambda: x -> : NEWLINE INDENT ...
+                    lambda_body: ast.Expr | list[ast.Stmt]
+                    if self.match(TokenKind.COLON):
+                        lambda_body = self.parse_block()
+                    else:
+                        lambda_body = self.parse_expression()
+                    return ast.LambdaExpr(
+                        params=[ast.LambdaParam(name=name_tok.text, type_annotation=type_ann)],
+                        body=lambda_body,
+                    )
+            except ParseError:
+                self.restore(snap)
+            else:
+                self.restore(snap)
+
+        # Lambda: (a, b: T) -> expr  or  (a, b) -> : block
+        if self.check(TokenKind.LPAREN):
+            snap = self.snapshot()
+            try:
+                self.advance()
+                params: list[ast.LambdaParam] = []
+                if not self.check(TokenKind.RPAREN):
+                    while True:
+                        if not self.check(TokenKind.IDENTIFIER):
+                            raise ParseError("Expected lambda parameter name", self.current)
+                        p_name = self.advance().text
+                        p_type: ast.TypeExpr | None = None
+                        if self.match(TokenKind.COLON):
+                            p_type = self.parse_type_expr()
+                        params.append(ast.LambdaParam(name=p_name, type_annotation=p_type))
+                        if not self.match(TokenKind.COMMA):
+                            break
+                        if self.check(TokenKind.RPAREN):
+                            break
+                self.expect(TokenKind.RPAREN)
+                if self.match(TokenKind.ARROW):
+                    lambda_body2: ast.Expr | list[ast.Stmt]
+                    if self.match(TokenKind.COLON):
+                        lambda_body2 = self.parse_block()
+                    else:
+                        lambda_body2 = self.parse_expression()
+                    return ast.LambdaExpr(params=params, body=lambda_body2)
+            except ParseError:
+                self.restore(snap)
+            else:
+                self.restore(snap)
+
         # Unary operators
         if self.check(TokenKind.MINUS, TokenKind.NOT):
             operator = self.advance().text
@@ -669,7 +873,7 @@ def parse_repl_input(source: str) -> list[ast.Decl | ast.Stmt]:
         if parser.check(*_DECL_STARTS):
             items.append(parser.parse_top_level_item())
         else:
-            # Statements cover: let, assign, if, while, for, match, return,
+            # Statements cover: bindings, assign, if, while, for, match, return,
             # break, continue, and bare expressions (including `x := expr`).
             items.append(parser.parse_statement())
     return items

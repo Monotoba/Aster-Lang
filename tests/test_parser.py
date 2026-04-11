@@ -54,6 +54,14 @@ def test_parse_nil_literal() -> None:
     assert isinstance(decl.initializer, ast.NilLiteral)
 
 
+def test_parse_public_let_decl() -> None:
+    module = parse_module("pub answer := 42\n")
+    decl = module.declarations[0]
+    assert isinstance(decl, ast.LetDecl)
+    assert decl.name == "answer"
+    assert decl.is_public is True
+
+
 # Binary expressions
 
 
@@ -187,8 +195,8 @@ def test_parse_record_expression() -> None:
 # Declarations
 
 
-def test_parse_let_declaration() -> None:
-    """Test parsing let declarations."""
+def test_parse_binding_declaration() -> None:
+    """Test parsing top-level binding declarations."""
     module = parse_module("x := 1\nmut y := 2\n")
     assert len(module.declarations) == 2
     decl1 = module.declarations[0]
@@ -217,6 +225,92 @@ def test_parse_function_declaration() -> None:
     assert len(func.body) == 1
 
 
+def test_parse_ownership_type_annotations() -> None:
+    """Test parsing ownership and reference type annotations."""
+    source = """fn f(a: &Int, b: &mut String, c: *own Node, d: *shared Graph) -> &Int:
+    return a
+"""
+    module = parse_module(source)
+    func = module.declarations[0]
+    assert isinstance(func, ast.FunctionDecl)
+
+    a_ty = func.params[0].type_annotation
+    assert isinstance(a_ty, ast.BorrowTypeExpr)
+    assert a_ty.is_mutable is False
+    assert isinstance(a_ty.inner, ast.SimpleType)
+    assert a_ty.inner.name.parts == ["Int"]
+
+    b_ty = func.params[1].type_annotation
+    assert isinstance(b_ty, ast.BorrowTypeExpr)
+    assert b_ty.is_mutable is True
+    assert isinstance(b_ty.inner, ast.SimpleType)
+    assert b_ty.inner.name.parts == ["String"]
+
+    c_ty = func.params[2].type_annotation
+    assert isinstance(c_ty, ast.PointerTypeExpr)
+    assert c_ty.pointer_kind == "own"
+    assert isinstance(c_ty.inner, ast.SimpleType)
+    assert c_ty.inner.name.parts == ["Node"]
+
+    d_ty = func.params[3].type_annotation
+    assert isinstance(d_ty, ast.PointerTypeExpr)
+    assert d_ty.pointer_kind == "shared"
+    assert isinstance(d_ty.inner, ast.SimpleType)
+    assert d_ty.inner.name.parts == ["Graph"]
+
+
+def test_parse_lambda_single_param_expression_body() -> None:
+    module = parse_module("inc := x -> x + 1\n")
+    decl = module.declarations[0]
+    assert isinstance(decl, ast.LetDecl)
+    assert decl.name == "inc"
+    lam = decl.initializer
+    assert isinstance(lam, ast.LambdaExpr)
+    assert [p.name for p in lam.params] == ["x"]
+    assert isinstance(lam.body, ast.BinaryExpr)
+    assert lam.body.operator == "+"
+
+
+def test_parse_lambda_paren_params_expression_body() -> None:
+    module = parse_module("add := (a, b: Int) -> a + b\n")
+    decl = module.declarations[0]
+    assert isinstance(decl, ast.LetDecl)
+    lam = decl.initializer
+    assert isinstance(lam, ast.LambdaExpr)
+    assert [p.name for p in lam.params] == ["a", "b"]
+    assert lam.params[1].type_annotation is not None
+    assert isinstance(lam.body, ast.BinaryExpr)
+
+
+def test_parse_lambda_block_body() -> None:
+    module = parse_module("inc := (x) -> :\n" "    return x + 1\n")
+    decl = module.declarations[0]
+    assert isinstance(decl, ast.LetDecl)
+    lam = decl.initializer
+    assert isinstance(lam, ast.LambdaExpr)
+    assert [p.name for p in lam.params] == ["x"]
+    assert isinstance(lam.body, list)
+    assert len(lam.body) == 1
+    assert isinstance(lam.body[0], ast.ReturnStmt)
+
+
+def test_parse_fn_type_expr() -> None:
+    """Test parsing Fn(...) -> ... type expressions."""
+    source = """fn apply(f: Fn(Int) -> Int, x: Int) -> Int:
+    return f(x)
+"""
+    module = parse_module(source)
+    func = module.declarations[0]
+    assert isinstance(func, ast.FunctionDecl)
+    f_ty = func.params[0].type_annotation
+    assert isinstance(f_ty, ast.FunctionType)
+    assert len(f_ty.param_types) == 1
+    assert isinstance(f_ty.param_types[0], ast.SimpleType)
+    assert f_ty.param_types[0].name.parts == ["Int"]
+    assert isinstance(f_ty.return_type, ast.SimpleType)
+    assert f_ty.return_type.name.parts == ["Int"]
+
+
 def test_parse_import_declaration() -> None:
     """Test parsing import declarations."""
     module = parse_module("use std.io\nuse std.math: sin, cos\n")
@@ -233,8 +327,8 @@ def test_parse_import_declaration() -> None:
 # Statements
 
 
-def test_parse_let_statement() -> None:
-    """Test parsing let statements in functions."""
+def test_parse_binding_statement() -> None:
+    """Test parsing binding statements in functions."""
     source = """fn test():
     x := 1
     mut y := 2
@@ -250,6 +344,49 @@ def test_parse_let_statement() -> None:
     assert stmt1.name == "x"
     assert not stmt1.is_mutable
     assert stmt2.is_mutable
+
+
+def test_parse_tuple_destructuring_binding_statement() -> None:
+    source = """fn test():
+    (x, y) := pair
+"""
+    module = parse_module(source)
+    func = module.declarations[0]
+    assert isinstance(func, ast.FunctionDecl)
+    stmt = func.body[0]
+    assert isinstance(stmt, ast.LetStmt)
+    assert isinstance(stmt.pattern, ast.TuplePattern)
+    assert len(stmt.pattern.elements) == 2
+    assert isinstance(stmt.pattern.elements[0], ast.BindingPattern)
+    assert isinstance(stmt.pattern.elements[1], ast.BindingPattern)
+
+
+def test_parse_list_destructuring_binding_statement() -> None:
+    source = """fn test():
+    [head, *tail] := items
+"""
+    module = parse_module(source)
+    func = module.declarations[0]
+    assert isinstance(func, ast.FunctionDecl)
+    stmt = func.body[0]
+    assert isinstance(stmt, ast.LetStmt)
+    assert isinstance(stmt.pattern, ast.ListPattern)
+    assert len(stmt.pattern.elements) == 2
+    assert isinstance(stmt.pattern.elements[0], ast.BindingPattern)
+    assert isinstance(stmt.pattern.elements[1], ast.RestPattern)
+
+
+def test_parse_record_destructuring_binding_statement() -> None:
+    source = """fn test():
+    {x, y} := point
+"""
+    module = parse_module(source)
+    func = module.declarations[0]
+    assert isinstance(func, ast.FunctionDecl)
+    stmt = func.body[0]
+    assert isinstance(stmt, ast.LetStmt)
+    assert isinstance(stmt.pattern, ast.RecordPattern)
+    assert [field.name for field in stmt.pattern.fields] == ["x", "y"]
 
 
 def test_parse_assignment_statement() -> None:
@@ -442,3 +579,101 @@ def test_parse_match_string_pattern() -> None:
     match_stmt = fn.body[0]
     assert isinstance(match_stmt, ast.MatchStmt)
     assert isinstance(match_stmt.arms[0].pattern, ast.LiteralPattern)
+
+
+def test_parse_match_tuple_pattern() -> None:
+    src = "fn f():\n" "    match pair:\n" "        (0, x): return x\n" "        _: return 0\n"
+    module = parse_module(src)
+    fn = module.declarations[0]
+    assert isinstance(fn, ast.FunctionDecl)
+    match_stmt = fn.body[0]
+    assert isinstance(match_stmt, ast.MatchStmt)
+    tuple_pattern = match_stmt.arms[0].pattern
+    assert isinstance(tuple_pattern, ast.TuplePattern)
+    assert len(tuple_pattern.elements) == 2
+    assert isinstance(tuple_pattern.elements[0], ast.LiteralPattern)
+    assert isinstance(tuple_pattern.elements[1], ast.BindingPattern)
+
+
+def test_parse_match_list_pattern() -> None:
+    src = "fn f():\n" "    match items:\n" "        [0, x]: return x\n" "        _: return 0\n"
+    module = parse_module(src)
+    fn = module.declarations[0]
+    assert isinstance(fn, ast.FunctionDecl)
+    match_stmt = fn.body[0]
+    assert isinstance(match_stmt, ast.MatchStmt)
+    list_pattern = match_stmt.arms[0].pattern
+    assert isinstance(list_pattern, ast.ListPattern)
+    assert len(list_pattern.elements) == 2
+    assert isinstance(list_pattern.elements[0], ast.LiteralPattern)
+    assert isinstance(list_pattern.elements[1], ast.BindingPattern)
+
+
+def test_parse_match_record_pattern() -> None:
+    src = "fn f():\n" "    match point:\n" "        {x: 0, y}: return y\n" "        _: return 0\n"
+    module = parse_module(src)
+    fn = module.declarations[0]
+    assert isinstance(fn, ast.FunctionDecl)
+    match_stmt = fn.body[0]
+    assert isinstance(match_stmt, ast.MatchStmt)
+    record_pattern = match_stmt.arms[0].pattern
+    assert isinstance(record_pattern, ast.RecordPattern)
+    assert len(record_pattern.fields) == 2
+    assert record_pattern.fields[0].name == "x"
+    assert isinstance(record_pattern.fields[0].pattern, ast.LiteralPattern)
+    assert record_pattern.fields[1].name == "y"
+    assert isinstance(record_pattern.fields[1].pattern, ast.BindingPattern)
+
+
+def test_parse_match_or_pattern() -> None:
+    src = "fn f():\n" "    match value:\n" "        0 | 1: return 1\n" "        _: return 0\n"
+    module = parse_module(src)
+    fn = module.declarations[0]
+    assert isinstance(fn, ast.FunctionDecl)
+    match_stmt = fn.body[0]
+    assert isinstance(match_stmt, ast.MatchStmt)
+    or_pattern = match_stmt.arms[0].pattern
+    assert isinstance(or_pattern, ast.OrPattern)
+    assert len(or_pattern.alternatives) == 2
+    assert isinstance(or_pattern.alternatives[0], ast.LiteralPattern)
+    assert isinstance(or_pattern.alternatives[1], ast.LiteralPattern)
+
+
+def test_parse_match_list_rest_pattern() -> None:
+    src = (
+        "fn f():\n"
+        "    match items:\n"
+        "        [head, *tail]: return head\n"
+        "        _: return 0\n"
+    )
+    module = parse_module(src)
+    fn = module.declarations[0]
+    assert isinstance(fn, ast.FunctionDecl)
+    match_stmt = fn.body[0]
+    assert isinstance(match_stmt, ast.MatchStmt)
+    list_pattern = match_stmt.arms[0].pattern
+    assert isinstance(list_pattern, ast.ListPattern)
+    assert len(list_pattern.elements) == 2
+    assert isinstance(list_pattern.elements[0], ast.BindingPattern)
+    assert isinstance(list_pattern.elements[1], ast.RestPattern)
+    assert list_pattern.elements[1].name == "tail"
+
+
+def test_parse_match_tuple_rest_pattern() -> None:
+    src = (
+        "fn f():\n"
+        "    match value:\n"
+        "        (head, *tail): return head\n"
+        "        _: return 0\n"
+    )
+    module = parse_module(src)
+    fn = module.declarations[0]
+    assert isinstance(fn, ast.FunctionDecl)
+    match_stmt = fn.body[0]
+    assert isinstance(match_stmt, ast.MatchStmt)
+    tuple_pattern = match_stmt.arms[0].pattern
+    assert isinstance(tuple_pattern, ast.TuplePattern)
+    assert len(tuple_pattern.elements) == 2
+    assert isinstance(tuple_pattern.elements[0], ast.BindingPattern)
+    assert isinstance(tuple_pattern.elements[1], ast.RestPattern)
+    assert tuple_pattern.elements[1].name == "tail"

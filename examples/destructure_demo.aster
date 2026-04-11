@@ -1,0 +1,4 @@
+fn main():
+    [head, *tail] := [1, 2, 3]
+    {x, y} := {x: head, y: len(tail)}
+    print(x + y)

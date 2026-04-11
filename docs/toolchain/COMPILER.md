@@ -4,6 +4,15 @@
 
 Compile Aster from source to an analyzable intermediate form and eventually to bytecode and/or native code.
 
+## Current Backends
+
+This repository currently includes:
+
+- a Python transpiler (`src/aster_lang/compiler.py`)
+- an experimental bytecode VM backend (`src/aster_lang/bytecode.py`, `src/aster_lang/vm.py`)
+
+The VM backend is documented in `docs/toolchain/VM.md`.
+
 ## Recommended pipeline
 
 1. source text

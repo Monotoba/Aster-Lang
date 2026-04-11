@@ -8,9 +8,11 @@ from __future__ import annotations
 from collections.abc import Callable
 from contextlib import suppress
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any
 
 from aster_lang import ast
+from aster_lang.module_resolution import ModuleResolutionError, resolve_module_path
 from aster_lang.parser import parse_module
 
 # Runtime Values
@@ -92,6 +94,17 @@ class RecordValue(Value):
     def __str__(self) -> str:
         fields_str = ", ".join(f"{k}: {v}" for k, v in self.fields.items())
         return f"{{{fields_str}}}"
+
+
+@dataclass(frozen=True)
+class ModuleValue(Value):
+    """Module namespace value."""
+
+    name: str
+    exports: dict[str, Value]
+
+    def __str__(self) -> str:
+        return f"<module {self.name}>"
 
 
 @dataclass(frozen=True)
@@ -203,10 +216,24 @@ class Environment:
 class Interpreter:
     """Interpreter for Aster programs."""
 
-    def __init__(self) -> None:
+    def __init__(
+        self,
+        *,
+        base_dir: Path | None = None,
+        dep_overrides: dict[str, Path] | None = None,
+        extra_roots: tuple[Path, ...] = (),
+        module_cache: dict[Path, ModuleValue] | None = None,
+        loading_modules: set[Path] | None = None,
+        output: list[str] | None = None,
+    ) -> None:
+        self.base_dir = base_dir
+        self.dep_overrides: dict[str, Path] = dep_overrides or {}
+        self.extra_roots: tuple[Path, ...] = extra_roots
+        self.module_cache = {} if module_cache is None else module_cache
+        self.loading_modules = set() if loading_modules is None else loading_modules
         self.global_env = Environment()
         self.current_env = self.global_env
-        self.output: list[str] = []
+        self.output = [] if output is None else output
         self._initialize_builtins()
 
     def _initialize_builtins(self) -> None:
@@ -282,12 +309,15 @@ class Interpreter:
         self.global_env.define("min", BuiltinFunction("min", builtin_min, arity=2))
         self.global_env.define("range", BuiltinFunction("range", builtin_range, arity=-1))
 
-    def interpret(self, module: ast.Module) -> None:
+    def interpret(self, module: ast.Module, *, auto_call_main: bool = True) -> None:
         """Interpret a module."""
         for decl in module.declarations:
             self.execute_declaration(decl)
 
         # If main() function exists, call it
+        if not auto_call_main:
+            return
+
         main_func = None
         with suppress(InterpreterError):
             main_func = self.current_env.get("main")
@@ -318,8 +348,7 @@ class Interpreter:
             value = self.evaluate_expr(decl.initializer)
             self.current_env.define(decl.name, value, decl.is_mutable)
         elif isinstance(decl, ast.ImportDecl):
-            # TODO: Implement module imports
-            pass
+            self.execute_import_decl(decl)
         elif isinstance(decl, ast.TypeAliasDecl):
             # Type aliases are compile-time only
             pass
@@ -330,19 +359,135 @@ class Interpreter:
         func = FunctionValue(params=param_names, body=tuple(decl.body), closure=self.current_env)
         self.current_env.define(decl.name, func)
 
+    def execute_import_decl(self, decl: ast.ImportDecl) -> None:
+        """Execute an import declaration."""
+        module_value = self._load_module(decl.module)
+
+        if decl.imports:
+            for name in decl.imports:
+                if name not in module_value.exports:
+                    raise InterpreterError(
+                        f"Module '{module_value.name}' has no public export '{name}'",
+                        decl,
+                    )
+                self.current_env.define(name, module_value.exports[name])
+            return
+
+        binding_name = decl.alias if decl.alias is not None else decl.module.parts[-1]
+        self.current_env.define(binding_name, module_value)
+
+    def _load_module(self, module_name: ast.QualifiedName) -> ModuleValue:
+        """Load a module from a sibling .aster file."""
+        module_path = self._resolve_module_path(module_name)
+        if module_path in self.module_cache:
+            return self.module_cache[module_path]
+        if module_path in self.loading_modules:
+            module_label = ".".join(module_name.parts)
+            raise InterpreterError(f"Cyclic import detected for module '{module_label}'")
+
+        self.loading_modules.add(module_path)
+        try:
+            source = module_path.read_text(encoding="utf-8")
+            module = parse_module(source)
+            module_interpreter = Interpreter(
+                base_dir=module_path.parent,
+                module_cache=self.module_cache,
+                loading_modules=self.loading_modules,
+                output=self.output,
+            )
+            module_interpreter.interpret(module, auto_call_main=False)
+
+            exports: dict[str, Value] = {}
+            for decl in module.declarations:
+                export_name = self._export_name(decl)
+                if export_name is None:
+                    continue
+                exports[export_name] = module_interpreter.global_env.get(export_name)
+
+            module_value = ModuleValue(".".join(module_name.parts), exports)
+            self.module_cache[module_path] = module_value
+            return module_value
+        finally:
+            self.loading_modules.remove(module_path)
+
+    def _resolve_module_path(self, module_name: ast.QualifiedName) -> Path:
+        """Resolve a dotted module name from the current base directory."""
+        try:
+            return resolve_module_path(
+                self.base_dir,
+                module_name.parts,
+                dep_overrides=self.dep_overrides or None,
+                extra_roots=self.extra_roots,
+            )
+        except ModuleResolutionError as exc:
+            raise InterpreterError(str(exc)) from exc
+
+    def _export_name(self, decl: ast.Decl) -> str | None:
+        """Return the runtime export name for a declaration."""
+        if isinstance(decl, ast.FunctionDecl | ast.LetDecl) and decl.is_public:
+            return decl.name
+        return None
+
     def execute_statement(self, stmt: ast.Stmt) -> None:
         """Execute a statement."""
         if isinstance(stmt, ast.LetStmt):
             value = self.evaluate_expr(stmt.initializer)
-            self.current_env.define(stmt.name, value, stmt.is_mutable)
+            self._bind_pattern(stmt.pattern, value, stmt.is_mutable, stmt)
 
         elif isinstance(stmt, ast.AssignStmt):
             value = self.evaluate_expr(stmt.value)
             if isinstance(stmt.target, ast.Identifier):
                 self.current_env.set(stmt.target.name, value)
-            else:
-                # TODO: Handle member access and index assignment
-                raise InterpreterError("Complex assignment targets not yet supported", stmt)
+                return
+
+            if isinstance(stmt.target, ast.MemberExpr):
+                # Only support `x.field <- v` where x is an identifier.
+                if not isinstance(stmt.target.obj, ast.Identifier):
+                    raise InterpreterError(
+                        "Member assignment only supported on identifier receivers",
+                        stmt,
+                    )
+                base = stmt.target.obj.name
+                base_val = self.current_env.get(base)
+                if not isinstance(base_val, RecordValue):
+                    got = type(base_val).__name__
+                    raise InterpreterError(f"Member assignment requires a record, got {got}", stmt)
+                new_fields = dict(base_val.fields)
+                new_fields[stmt.target.member] = value
+                self.current_env.set(base, RecordValue(new_fields))
+                return
+
+            if isinstance(stmt.target, ast.IndexExpr):
+                # Only support `x[i] <- v` where x is an identifier.
+                if not isinstance(stmt.target.obj, ast.Identifier):
+                    raise InterpreterError(
+                        "Index assignment only supported on identifier receivers",
+                        stmt,
+                    )
+                base = stmt.target.obj.name
+                base_val = self.current_env.get(base)
+                idx_val = self.evaluate_expr(stmt.target.index)
+                if isinstance(base_val, ListValue) and isinstance(idx_val, IntValue):
+                    idx = idx_val.value
+                    if idx < 0 or idx >= len(base_val.elements):
+                        raise InterpreterError(f"List index out of bounds: {idx}", stmt)
+                    elems = list(base_val.elements)
+                    elems[idx] = value
+                    self.current_env.set(base, ListValue(tuple(elems)))
+                    return
+                if isinstance(base_val, RecordValue) and isinstance(idx_val, StringValue):
+                    new_fields = dict(base_val.fields)
+                    new_fields[idx_val.value] = value
+                    self.current_env.set(base, RecordValue(new_fields))
+                    return
+                got_obj = type(base_val).__name__
+                got_idx = type(idx_val).__name__
+                raise InterpreterError(
+                    f"Unsupported index assignment: {got_obj}[{got_idx}]",
+                    stmt,
+                )
+
+            raise InterpreterError("Unsupported assignment target", stmt)
 
         elif isinstance(stmt, ast.ReturnStmt):
             value = self.evaluate_expr(stmt.value) if stmt.value else NIL
@@ -415,12 +560,13 @@ class Interpreter:
         """Execute a match statement."""
         subject = self.evaluate_expr(stmt.subject)
         for arm in stmt.arms:
-            binding_name, matched = self._match_pattern(arm.pattern, subject)
+            bindings: dict[str, Value] = {}
+            matched = self._match_pattern(arm.pattern, subject, bindings)
             if matched:
                 self.current_env = self.current_env.create_child()
                 try:
-                    if binding_name is not None:
-                        self.current_env.define(binding_name, subject, is_mutable=False)
+                    for binding_name, binding_value in bindings.items():
+                        self.current_env.define(binding_name, binding_value, is_mutable=False)
                     for s in arm.body:
                         self.execute_statement(s)
                 finally:
@@ -429,23 +575,163 @@ class Interpreter:
                 return
         # No arm matched — no error, execution continues
 
-    def _match_pattern(self, pattern: ast.Pattern, value: Value) -> tuple[str | None, bool]:
-        """Return (binding_name_or_None, matched)."""
+    def _match_pattern(
+        self,
+        pattern: ast.Pattern,
+        value: Value,
+        bindings: dict[str, Value],
+    ) -> bool:
+        """Return whether a pattern matches and populate any bindings."""
         if isinstance(pattern, ast.WildcardPattern):
-            return (None, True)
+            return True
         if isinstance(pattern, ast.BindingPattern):
-            return (pattern.name, True)
+            bindings[pattern.name] = value
+            return True
+        if isinstance(pattern, ast.OrPattern):
+            checkpoint = dict(bindings)
+            for alternative in pattern.alternatives:
+                trial_bindings = dict(checkpoint)
+                if self._match_pattern(alternative, value, trial_bindings):
+                    bindings.clear()
+                    bindings.update(trial_bindings)
+                    return True
+            bindings.clear()
+            bindings.update(checkpoint)
+            return False
+        if isinstance(pattern, ast.RestPattern):
+            bindings[pattern.name] = value
+            return True
         if isinstance(pattern, ast.LiteralPattern):
             lit = pattern.literal
             if isinstance(lit, ast.IntegerLiteral):
-                return (None, isinstance(value, IntValue) and value.value == lit.value)
+                return isinstance(value, IntValue) and value.value == lit.value
             if isinstance(lit, ast.StringLiteral):
-                return (None, isinstance(value, StringValue) and value.value == lit.value)
+                return isinstance(value, StringValue) and value.value == lit.value
             if isinstance(lit, ast.BoolLiteral):
-                return (None, isinstance(value, BoolValue) and value.value == lit.value)
+                return isinstance(value, BoolValue) and value.value == lit.value
             if isinstance(lit, ast.NilLiteral):
-                return (None, isinstance(value, NilValue))
-        return (None, False)
+                return isinstance(value, NilValue)
+        if isinstance(pattern, ast.TuplePattern):
+            if not isinstance(value, TupleValue):
+                return False
+            rest_index = self._rest_index(pattern.elements)
+            if rest_index is None and len(pattern.elements) != len(value.elements):
+                return False
+            if rest_index is not None and len(value.elements) < len(pattern.elements) - 1:
+                return False
+
+            checkpoint = dict(bindings)
+            if rest_index is None:
+                for subpattern, subvalue in zip(pattern.elements, value.elements, strict=False):
+                    if not self._match_pattern(subpattern, subvalue, bindings):
+                        bindings.clear()
+                        bindings.update(checkpoint)
+                        return False
+            else:
+                prefix = pattern.elements[:rest_index]
+                suffix = pattern.elements[rest_index + 1 :]
+                for subpattern, subvalue in zip(prefix, value.elements[:rest_index], strict=False):
+                    if not self._match_pattern(subpattern, subvalue, bindings):
+                        bindings.clear()
+                        bindings.update(checkpoint)
+                        return False
+                tuple_rest_value = TupleValue(
+                    value.elements[rest_index : len(value.elements) - len(suffix)]
+                )
+                if not self._match_pattern(
+                    pattern.elements[rest_index],
+                    tuple_rest_value,
+                    bindings,
+                ):
+                    bindings.clear()
+                    bindings.update(checkpoint)
+                    return False
+                suffix_values = value.elements[len(value.elements) - len(suffix) :]
+                for subpattern, subvalue in zip(suffix, suffix_values, strict=False):
+                    if not self._match_pattern(subpattern, subvalue, bindings):
+                        bindings.clear()
+                        bindings.update(checkpoint)
+                        return False
+            return True
+        if isinstance(pattern, ast.ListPattern):
+            if not isinstance(value, ListValue):
+                return False
+            rest_index = self._rest_index(pattern.elements)
+            if rest_index is None and len(pattern.elements) != len(value.elements):
+                return False
+            if rest_index is not None and len(value.elements) < len(pattern.elements) - 1:
+                return False
+
+            checkpoint = dict(bindings)
+            if rest_index is None:
+                for subpattern, subvalue in zip(pattern.elements, value.elements, strict=False):
+                    if not self._match_pattern(subpattern, subvalue, bindings):
+                        bindings.clear()
+                        bindings.update(checkpoint)
+                        return False
+            else:
+                prefix = pattern.elements[:rest_index]
+                suffix = pattern.elements[rest_index + 1 :]
+                for subpattern, subvalue in zip(prefix, value.elements[:rest_index], strict=False):
+                    if not self._match_pattern(subpattern, subvalue, bindings):
+                        bindings.clear()
+                        bindings.update(checkpoint)
+                        return False
+                list_rest_value = ListValue(
+                    value.elements[rest_index : len(value.elements) - len(suffix)]
+                )
+                if not self._match_pattern(
+                    pattern.elements[rest_index],
+                    list_rest_value,
+                    bindings,
+                ):
+                    bindings.clear()
+                    bindings.update(checkpoint)
+                    return False
+                suffix_values = value.elements[len(value.elements) - len(suffix) :]
+                for subpattern, subvalue in zip(suffix, suffix_values, strict=False):
+                    if not self._match_pattern(subpattern, subvalue, bindings):
+                        bindings.clear()
+                        bindings.update(checkpoint)
+                        return False
+            return True
+        if isinstance(pattern, ast.RecordPattern):
+            if not isinstance(value, RecordValue):
+                return False
+
+            checkpoint = dict(bindings)
+            for field in pattern.fields:
+                if field.name not in value.fields:
+                    bindings.clear()
+                    bindings.update(checkpoint)
+                    return False
+                if not self._match_pattern(field.pattern, value.fields[field.name], bindings):
+                    bindings.clear()
+                    bindings.update(checkpoint)
+                    return False
+            return True
+        return False
+
+    def _rest_index(self, elements: list[ast.Pattern]) -> int | None:
+        """Return the index of a rest pattern if one is present."""
+        for index, element in enumerate(elements):
+            if isinstance(element, ast.RestPattern):
+                return index
+        return None
+
+    def _bind_pattern(
+        self,
+        pattern: ast.Pattern,
+        value: Value,
+        is_mutable: bool,
+        node: ast.Node,
+    ) -> None:
+        """Bind a value to a local binding pattern."""
+        bindings: dict[str, Value] = {}
+        if not self._match_pattern(pattern, value, bindings):
+            raise InterpreterError("Binding pattern does not match initializer", node)
+        for name, bound_value in bindings.items():
+            self.current_env.define(name, bound_value, is_mutable)
 
     def execute_block(self, statements: list[ast.Stmt]) -> None:
         """Execute a block of statements."""
@@ -475,6 +761,12 @@ class Interpreter:
 
         elif isinstance(expr, ast.Identifier):
             return self.current_env.get(expr.name)
+
+        elif isinstance(expr, ast.LambdaExpr):
+            param_names = tuple(p.name for p in expr.params)
+            # Expression lambdas implicitly return the expression value.
+            body = tuple(expr.body) if isinstance(expr.body, list) else (ast.ReturnStmt(expr.body),)
+            return FunctionValue(params=param_names, body=body, closure=self.current_env)
 
         elif isinstance(expr, ast.BinaryExpr):
             return self.evaluate_binary_expr(expr)
@@ -506,6 +798,13 @@ class Interpreter:
                 if expr.member not in obj.fields:
                     raise InterpreterError(f"Record has no field '{expr.member}'", expr)
                 return obj.fields[expr.member]
+            if isinstance(obj, ModuleValue):
+                if expr.member not in obj.exports:
+                    raise InterpreterError(
+                        f"Module '{obj.name}' has no export '{expr.member}'",
+                        expr,
+                    )
+                return obj.exports[expr.member]
             raise InterpreterError(f"Cannot access member of {type(obj).__name__}", expr)
 
         elif isinstance(expr, ast.IndexExpr):
@@ -530,6 +829,28 @@ class Interpreter:
 
     def evaluate_binary_expr(self, expr: ast.BinaryExpr) -> Value:
         """Evaluate a binary expression."""
+        if expr.operator == "and":
+            left = self.evaluate_expr(expr.left)
+            if not isinstance(left, BoolValue):
+                raise InterpreterError("Logical operators require booleans", expr)
+            if not left.value:
+                return BoolValue(False)
+            right = self.evaluate_expr(expr.right)
+            if not isinstance(right, BoolValue):
+                raise InterpreterError("Logical operators require booleans", expr)
+            return BoolValue(right.value)
+
+        if expr.operator == "or":
+            left = self.evaluate_expr(expr.left)
+            if not isinstance(left, BoolValue):
+                raise InterpreterError("Logical operators require booleans", expr)
+            if left.value:
+                return BoolValue(True)
+            right = self.evaluate_expr(expr.right)
+            if not isinstance(right, BoolValue):
+                raise InterpreterError("Logical operators require booleans", expr)
+            return BoolValue(right.value)
+
         left = self.evaluate_expr(expr.left)
         right = self.evaluate_expr(expr.right)
 
@@ -576,17 +897,6 @@ class Interpreter:
         elif expr.operator in ("==", "!="):
             equal = self.values_equal(left, right)
             return BoolValue(equal if expr.operator == "==" else not equal)
-
-        # Logical operators
-        elif expr.operator == "and":
-            if not isinstance(left, BoolValue) or not isinstance(right, BoolValue):
-                raise InterpreterError("Logical operators require booleans", expr)
-            return BoolValue(left.value and right.value)
-
-        elif expr.operator == "or":
-            if not isinstance(left, BoolValue) or not isinstance(right, BoolValue):
-                raise InterpreterError("Logical operators require booleans", expr)
-            return BoolValue(left.value or right.value)
 
         raise InterpreterError(f"Unknown binary operator: {expr.operator}", expr)
 
@@ -668,11 +978,21 @@ class InterpretationResult:
     error: str | None = None
 
 
-def interpret_source(source: str) -> InterpretationResult:
+def interpret_source(
+    source: str,
+    *,
+    base_dir: Path | None = None,
+    dep_overrides: dict[str, Path] | None = None,
+    extra_roots: tuple[Path, ...] = (),
+) -> InterpretationResult:
     """Interpret Aster source code."""
     try:
         module = parse_module(source)
-        interpreter = Interpreter()
+        interpreter = Interpreter(
+            base_dir=base_dir,
+            dep_overrides=dep_overrides,
+            extra_roots=extra_roots,
+        )
         interpreter.interpret(module)
         output = "\n".join(interpreter.output)
         return InterpretationResult(output=output)

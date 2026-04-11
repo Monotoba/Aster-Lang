@@ -27,8 +27,16 @@ TypeParams ::= "[" Identifier ( "," Identifier )* "]"
 
 TypeAnnotation ::= ":" TypeExpr
 
-TypeExpr ::= SimpleType
+TypeExpr ::= BorrowType
+           | PointerType
+           | SimpleType
            | "Fn" "(" TypeExprList? ")" "->" TypeExpr
+
+BorrowType ::= "&" "mut"? TypeExpr
+
+PointerType ::= "*" PointerKind TypeExpr
+
+PointerKind ::= "own" | "shared" | "weak" | "raw"
 
 TypeExprList ::= TypeExpr ( "," TypeExpr )*
 

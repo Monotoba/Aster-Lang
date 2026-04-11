@@ -82,10 +82,11 @@ class Formatter:
         return param.name
 
     def _format_let_decl(self, decl: ast.LetDecl) -> None:
+        pub = "pub " if decl.is_public else ""
         mut = "mut " if decl.is_mutable else ""
         ann = f": {self._format_type(decl.type_annotation)}" if decl.type_annotation else ""
         val = self._format_expr(decl.initializer)
-        self._emit(f"{mut}{decl.name}{ann} := {val}")
+        self._emit(f"{pub}{mut}{decl.name}{ann} := {val}")
 
     def _format_import_decl(self, decl: ast.ImportDecl) -> None:
         module_str = ".".join(decl.module.parts)
@@ -111,7 +112,7 @@ class Formatter:
             mut = "mut " if stmt.is_mutable else ""
             ann = f": {self._format_type(stmt.type_annotation)}" if stmt.type_annotation else ""
             val = self._format_expr(stmt.initializer)
-            self._emit(f"{mut}{stmt.name}{ann} := {val}")
+            self._emit(f"{mut}{self._format_pattern(stmt.pattern)}{ann} := {val}")
         elif isinstance(stmt, ast.AssignStmt):
             target = self._format_expr(stmt.target)
             val = self._format_expr(stmt.value)
@@ -171,6 +172,27 @@ class Formatter:
             return pattern.name
         if isinstance(pattern, ast.LiteralPattern):
             return self._format_expr(pattern.literal)
+        if isinstance(pattern, ast.OrPattern):
+            return " | ".join(self._format_pattern(option) for option in pattern.alternatives)
+        if isinstance(pattern, ast.RestPattern):
+            return f"*{pattern.name}"
+        if isinstance(pattern, ast.TuplePattern):
+            inner = ", ".join(self._format_pattern(element) for element in pattern.elements)
+            return f"({inner})"
+        if isinstance(pattern, ast.ListPattern):
+            inner = ", ".join(self._format_pattern(element) for element in pattern.elements)
+            return f"[{inner}]"
+        if isinstance(pattern, ast.RecordPattern):
+            fields = []
+            for field in pattern.fields:
+                if (
+                    isinstance(field.pattern, ast.BindingPattern)
+                    and field.pattern.name == field.name
+                ):
+                    fields.append(field.name)
+                else:
+                    fields.append(f"{field.name}: {self._format_pattern(field.pattern)}")
+            return "{" + ", ".join(fields) + "}"
         return "(# unknown pattern #)"
 
     def _format_if_stmt(self, stmt: ast.IfStmt) -> None:
@@ -316,6 +338,12 @@ class Formatter:
             params = ", ".join(self._format_type(t) for t in type_expr.param_types)
             ret = self._format_type(type_expr.return_type)
             return f"Fn({params}) -> {ret}"
+        if isinstance(type_expr, ast.BorrowTypeExpr):
+            inner = self._format_type(type_expr.inner)
+            return f"&mut {inner}" if type_expr.is_mutable else f"&{inner}"
+        if isinstance(type_expr, ast.PointerTypeExpr):
+            inner = self._format_type(type_expr.inner)
+            return f"*{type_expr.pointer_kind} {inner}"
         return f"(# unknown type: {type(type_expr).__name__} #)"
 
 
