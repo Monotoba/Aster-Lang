@@ -1,0 +1,25 @@
+# Native Backend Feasibility Notes
+
+Goal: validate a first native backend target using the standard IR + adapter boundary.
+
+## Proposed target
+
+Start with C for the feasibility spike, then revisit LLVM/Wasm after the IR interface stabilizes.
+
+## Spike scope
+
+- Emit a single C translation unit for an Aster module.
+- Minimal runtime: `AsterValue` tagged union, string wrapper, basic helpers.
+- Build/run via system `cc`.
+
+## Minimal language coverage
+
+- Int arithmetic and comparisons.
+- `if/else`, `while`.
+- Function calls (no closures in spike).
+
+## Open questions
+
+- How much of the ownership surface should be represented in C stubs vs no-op?
+- How to map module imports in a C-only artifact (single TU vs per-module linking)?
+- What ABI conventions should be locked down for interop?

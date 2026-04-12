@@ -85,6 +85,7 @@ Start with a C backend for the feasibility spike:
 - Allows validating the standard IR + adapter boundary before LLVM/Wasm work.
 
 LLVM/Wasm remains a follow-on target once the IR interface stabilizes.
+See `docs/toolchain/NATIVE-BACKEND.md` for feasibility notes.
 
 ### Feasibility spike plan
 
