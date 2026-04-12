@@ -21,9 +21,12 @@ print(x)           →  print(x)          (built-in names map directly to Python
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from pathlib import Path
 
-from aster_lang import ast
+from aster_lang import ast, hir
+from aster_lang.module_resolution import ModuleSearchConfig
 from aster_lang.parser import parse_module
+from aster_lang.semantic import SemanticAnalyzer
 
 INDENT = "    "
 
@@ -484,3 +487,34 @@ def compile_source(source: str) -> CompilationArtifact:
         return CompilationArtifact(stage="python", code=code)
     except Exception as e:
         return CompilationArtifact(stage="python", errors=[str(e)])
+
+
+@dataclass(slots=True)
+class HIRBuildResult:
+    module: hir.HModule
+    errors: list[str] = field(default_factory=list)
+
+
+def build_hir(
+    *,
+    entry_path: Path,
+    dep_overrides: dict[str, Path] | None = None,
+    extra_roots: tuple[Path, ...] = (),
+    resolver_config: ModuleSearchConfig | None = None,
+) -> HIRBuildResult:
+    """Build an entry module into HIR."""
+    source = entry_path.read_text(encoding="utf-8")
+    module_ast = parse_module(source)
+    analyzer = SemanticAnalyzer(
+        base_dir=entry_path.parent,
+        dep_overrides=dep_overrides,
+        extra_roots=extra_roots,
+        resolver_config=resolver_config,
+    )
+    analyzer.analyze(module_ast)
+    if analyzer.has_errors():
+        return HIRBuildResult(
+            module=hir.HModule(decls=()),
+            errors=[e.message for e in analyzer.errors],
+        )
+    return HIRBuildResult(module=hir.lower_module(module_ast, analyzer))

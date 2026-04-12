@@ -1,4 +1,4 @@
-"""Build orchestration for compiling Aster projects to Python.
+"""Build orchestration for compiling Aster projects.
 
 The transpiler emits standard Python `import` statements. To make the output
 runnable, the builder recursively compiles imported `.aster` modules into a
@@ -14,7 +14,7 @@ from pathlib import Path
 
 from aster_lang import ast
 from aster_lang.bytecode import program_to_bytes, program_to_json
-from aster_lang.compiler import Transpiler
+from aster_lang.compiler import HIRBuildResult, Transpiler
 from aster_lang.module_resolution import (
     ModuleResolutionError,
     ModuleSearchConfig,
@@ -136,6 +136,24 @@ def build_project(
     except Exception as exc:
         result.errors.append(f"Internal error building entry module: {exc}")
     return result
+
+
+def build_project_hir(
+    *,
+    entry_path: Path,
+    dep_overrides: dict[str, Path] | None = None,
+    extra_roots: tuple[Path, ...] = (),
+    resolver_config: ModuleSearchConfig | None = None,
+) -> HIRBuildResult:
+    """Build an entry module into HIR."""
+    from aster_lang.compiler import build_hir
+
+    return build_hir(
+        entry_path=entry_path,
+        dep_overrides=dep_overrides,
+        extra_roots=extra_roots,
+        resolver_config=resolver_config,
+    )
 
 
 def build_project_vm(
