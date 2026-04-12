@@ -440,6 +440,20 @@ def test_vm_imports_sibling_module(tmp_path: Path) -> None:
     assert run_path_vm(program) == "42"
 
 
+def test_vm_module_missing_export(tmp_path: Path) -> None:
+    (tmp_path / "helpers.aster").write_text(
+        "pub fn answer() -> Int:\n    return 42\n",
+        encoding="utf-8",
+    )
+    program = tmp_path / "main.aster"
+    program.write_text(
+        "use helpers\nfn main():\n    print(helpers.nope)\n",
+        encoding="utf-8",
+    )
+    with pytest.raises(VMError, match="Module 'helpers' has no export 'nope'"):
+        run_path_vm(program)
+
+
 def test_vm_runs_for_loop_over_range_with_break_continue() -> None:
     src = (
         "fn main():\n"

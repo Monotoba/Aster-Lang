@@ -146,6 +146,12 @@ class _IndexCell(_RefCell):
 
 
 @dataclass(slots=True, frozen=True)
+class _ModuleValue:
+    name: str
+    exports: dict[str, object]
+
+
+@dataclass(slots=True, frozen=True)
 class _Closure:
     fn_id: str
     free: tuple[_RefCell, ...]
@@ -168,7 +174,7 @@ class VM:
         self.output: list[str] = []
         self._frames: list[_Frame] = []
         self._module_envs: dict[str, dict[str, _Cell]] = {}
-        self._module_exports: dict[str, dict[str, object]] = {}
+        self._module_exports: dict[str, _ModuleValue] = {}
         self._initializing: set[str] = set()
 
         BuiltinFn = Callable[[list[object]], object]
@@ -583,12 +589,17 @@ class VM:
                 if not isinstance(key_obj, str):
                     raise VMError("MEMBER key constant must be a string")
                 obj = frame.stack.pop()
-                if not isinstance(obj, dict):
-                    raise VMError(f"Cannot access member of {type(obj).__name__}")
-                if key_obj not in obj:
-                    raise VMError(f"Record has no field '{key_obj}'")
-                frame.stack.append(obj[key_obj])
-                continue
+                if isinstance(obj, _ModuleValue):
+                    if key_obj not in obj.exports:
+                        raise VMError(f"Module '{obj.name}' has no export '{key_obj}'")
+                    frame.stack.append(obj.exports[key_obj])
+                    continue
+                if isinstance(obj, dict):
+                    if key_obj not in obj:
+                        raise VMError(f"Record has no field '{key_obj}'")
+                    frame.stack.append(obj[key_obj])
+                    continue
+                raise VMError(f"Cannot access member of {type(obj).__name__}")
             if ins.op == Op.INDEX:
                 idx = frame.stack.pop()
                 obj = frame.stack.pop()
@@ -769,7 +780,7 @@ class VM:
         callee_module = closure.fn_id.split("::", 1)[0] if "::" in closure.fn_id else module_label
         return self._call_user(target, args, module_label=callee_module, free=closure.free)
 
-    def import_module(self, label: str) -> dict[str, object]:
+    def import_module(self, label: str) -> _ModuleValue:
         self._ensure_module_initialized(label)
         return self._module_exports[label]
 
@@ -797,7 +808,7 @@ class VM:
                     exports[export_name] = None if cell is None else cell.value
                 else:
                     raise VMError("Internal error: invalid export kind")
-            self._module_exports[label] = exports
+            self._module_exports[label] = _ModuleValue(name=label, exports=exports)
         finally:
             self._initializing.remove(label)
 
