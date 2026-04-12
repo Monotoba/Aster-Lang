@@ -124,6 +124,7 @@ Ownership and references, now including expression-level `&x` / `&mut x` borrowi
 - CLI test added for `aster vm`
 - CLI test added for `aster repl`
 - language reference now mentions `aster backends`
+- backend registry exposure follow-up marked partially addressed
 - backend adapter follow-ups added to NEXT-STEPS
 - backend adapter `aster backends` follow-up added
 - `aster backends` command implemented and documented

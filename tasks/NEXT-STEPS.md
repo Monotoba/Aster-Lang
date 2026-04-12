@@ -23,7 +23,7 @@ Caching/incremental notes:
 - Decide whether to reuse VM artifacts or introduce a dedicated cache format
 
 Backend adapter follow-ups:
-- Decide how to expose backend registry via CLI/help
+- Decide how to expose backend registry via CLI/help (partially addressed by `aster backends`)
 - Add a shared build result summary across adapters
 
 Native backend feasibility (near-term checklist):
