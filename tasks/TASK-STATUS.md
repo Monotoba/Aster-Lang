@@ -79,6 +79,7 @@ Ownership and references, now including expression-level `&x` / `&mut x` borrowi
 - VM `len()` error messages now use interpreter type names (e.g. `IntValue`)
 - VM `unicode_bytes` now masks output bytes (Byte-like ints) to match `ascii_bytes` semantics
 - semantic errors for `ord`/`ascii_bytes`/`unicode_bytes` now match interpreter wording (`expects String`)
+- record string indexing (`r["x"]`) now works in both interpreter and VM
 - `aster check/build --types loose|strict` added to optionally reject unknown-typed arithmetic/bitwise uses in strict mode
 - added a beginner tutorial track: 20 tutorials plus 6 progressively more complex runnable programs under `tutorials/` and `tutorials/programs/`
 

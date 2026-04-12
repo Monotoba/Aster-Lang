@@ -1175,6 +1175,11 @@ class Interpreter:
                 if idx < 0 or idx >= len(obj.elements):
                     raise InterpreterError(f"Tuple index out of bounds: {idx}", expr)
                 return obj.elements[idx]
+            elif isinstance(obj, RecordValue) and isinstance(index, StringValue):
+                key = index.value
+                if key not in obj.fields:
+                    raise InterpreterError(f"Missing record field '{key}'", expr)
+                return obj.fields[key]
             obj_type = type(obj).__name__
             index_type = type(index).__name__
             raise InterpreterError(f"Cannot index {obj_type} with {index_type}", expr)

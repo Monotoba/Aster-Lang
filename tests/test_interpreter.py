@@ -608,6 +608,15 @@ def test_record_creation() -> None:
     assert "b: 2" in result.output
 
 
+def test_record_string_indexing() -> None:
+    """Test record indexing with string keys."""
+    result = interpret_source("""fn main():
+    r := {x: 1}
+    print(r["x"])
+""")
+    assert result.output == "1"
+
+
 def test_record_member_access() -> None:
     """Test record member access."""
     result = interpret_source("""fn main():

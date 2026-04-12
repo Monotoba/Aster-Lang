@@ -350,6 +350,11 @@ def test_vm_supports_index_and_member_assignment() -> None:
     assert run_source_vm(src) == "9\n7"
 
 
+def test_vm_record_string_indexing() -> None:
+    src = "fn main():\n" "    r := {x: 1}\n" '    print(r["x"])\n'
+    assert run_source_vm(src) == "1"
+
+
 def test_vm_supports_nested_member_and_index_assignment() -> None:
     src = (
         "fn main():\n"

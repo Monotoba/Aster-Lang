@@ -81,6 +81,8 @@ nums := [1, 2, 3]
 ### Record
 ```aster
 point := {x: 10, y: 20}
+print(point.x)
+print(point["x"])
 ```
 
 ### Tuple
