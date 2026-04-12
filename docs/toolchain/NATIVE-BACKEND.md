@@ -23,3 +23,9 @@ Start with C for the feasibility spike, then revisit LLVM/Wasm after the IR inte
 - How much of the ownership surface should be represented in C stubs vs no-op?
 - How to map module imports in a C-only artifact (single TU vs per-module linking)?
 - What ABI conventions should be locked down for interop?
+
+## Next actions
+
+- Decide whether the spike should emit one C file per module or a single merged TU.
+- Define the minimal `AsterValue` tag set for the spike (Int/Bool/Nil/String).
+- Prototype a `cc` build step in the adapter harness once IR emission exists.
