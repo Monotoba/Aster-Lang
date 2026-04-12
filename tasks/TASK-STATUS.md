@@ -81,6 +81,7 @@ Ownership and references, now including expression-level `&x` / `&mut x` borrowi
 - semantic errors for `ord`/`ascii_bytes`/`unicode_bytes` now match interpreter wording (`expects String`)
 - record string indexing (`r["x"]`) now works in both interpreter and VM
 - VM now rejects `&mut` borrows of immutable bindings and assignment through immutable references
+- VM now enforces `mut` on globals and captured variables (assign and `&mut` require `mut`)
 - `aster check/build --types loose|strict` added to optionally reject unknown-typed arithmetic/bitwise uses in strict mode
 - added a beginner tutorial track: 20 tutorials plus 6 progressively more complex runnable programs under `tutorials/` and `tutorials/programs/`
 

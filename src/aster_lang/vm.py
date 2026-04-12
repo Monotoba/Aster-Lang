@@ -904,41 +904,42 @@ class _Compiler:
                     emit(Op.STORE, src_slot)
                     _compile_destructure(stmt.pattern, src_slot, is_mutable=stmt.is_mutable)
                 return
+
+            def _emit_store_name(name: str) -> None:
+                if name in free_map:
+                    if name in free_ref_slots:
+                        if name not in free_ref_mutable:
+                            raise VMError(f"Cannot assign through immutable reference '{name}'")
+                        emit(Op.STORE_FREE, free_map[name])
+                        return
+                    if name not in free_mutable:
+                        raise VMError(f"Cannot assign to immutable binding '{name}'")
+                    emit(Op.STORE_FREE, free_map[name])
+                    return
+                try:
+                    slot = lookup(name)
+                    if slot not in mut_slots and slot not in ref_slots:
+                        raise VMError(f"Cannot assign to immutable binding '{name}'")
+                    if slot in ref_slots and slot not in ref_mutable_slots:
+                        raise VMError(f"Cannot assign through immutable reference '{name}'")
+                    emit(Op.STORE, slot)
+                    return
+                except VMError as exc:
+                    if "immutable" in str(exc):
+                        raise
+                    if name in global_ref_mutable and not global_ref_mutable[name]:
+                        raise VMError(
+                            f"Cannot assign through immutable reference '{name}'"
+                        ) from None
+                    if name in global_mutable and not global_mutable[name]:
+                        raise VMError(f"Cannot assign to immutable variable '{name}'") from None
+                    emit(Op.STORE_GLOBAL, self._const(name))
+                    return
+
             if isinstance(stmt, ast.AssignStmt):
                 if isinstance(stmt.target, ast.Identifier):
                     compile_expr(stmt.value)
-                    if stmt.target.name in free_map:
-                        if (
-                            stmt.target.name in free_ref_slots
-                            and stmt.target.name not in free_ref_mutable
-                        ):
-                            raise VMError(
-                                f"Cannot assign through immutable reference '{stmt.target.name}'"
-                            )
-                        emit(Op.STORE_FREE, free_map[stmt.target.name])
-                        return
-                    try:
-                        slot = lookup(stmt.target.name)
-                        if slot not in mut_slots and slot not in ref_slots:
-                            raise VMError(
-                                f"Cannot assign to immutable binding '{stmt.target.name}'"
-                            )
-                        if slot in ref_slots and slot not in ref_mutable_slots:
-                            raise VMError(
-                                f"Cannot assign through immutable reference '{stmt.target.name}'"
-                            )
-                        emit(Op.STORE, slot)
-                    except VMError as exc:
-                        if "immutable" in str(exc):
-                            raise
-                        if (
-                            stmt.target.name in global_ref_mutable
-                            and not global_ref_mutable[stmt.target.name]
-                        ):
-                            raise VMError(
-                                f"Cannot assign through immutable reference '{stmt.target.name}'"
-                            ) from None
-                        emit(Op.STORE_GLOBAL, self._const(stmt.target.name))
+                    _emit_store_name(stmt.target.name)
                     return
                 if isinstance(stmt.target, ast.UnaryExpr) and stmt.target.operator == "*":
                     # Deref assignment: *p <- v
@@ -946,18 +947,7 @@ class _Compiler:
                     if isinstance(op, ast.Identifier):
                         # Same behavior as `p <- v` in the implicit-deref model.
                         compile_expr(stmt.value)
-                        if op.name in free_map:
-                            emit(Op.STORE_FREE, free_map[op.name])
-                            return
-                        try:
-                            slot = lookup(op.name)
-                            if slot not in mut_slots and slot not in ref_slots:
-                                raise VMError(f"Cannot assign to immutable binding '{op.name}'")
-                            emit(Op.STORE, slot)
-                        except VMError as exc:
-                            if "immutable" in str(exc):
-                                raise
-                            emit(Op.STORE_GLOBAL, self._const(op.name))
+                        _emit_store_name(op.name)
                         return
                     compile_expr(op)  # push cell
                     compile_expr(stmt.value)  # push value

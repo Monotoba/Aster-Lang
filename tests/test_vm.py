@@ -25,23 +25,23 @@ def test_vm_runs_arithmetic_and_function_call() -> None:
 
 
 def test_vm_runs_lambda_expression_call() -> None:
-    src = "fn main():\n" "    inc := x -> x + 1\n" "    print(inc(41))\n"
+    src = "fn main():\n    inc := x -> x + 1\n    print(inc(41))\n"
     assert run_source_vm(src) == "42"
 
 
 def test_vm_runs_min_max() -> None:
-    src = "fn main():\n" "    print(max(3, 7))\n" "    print(min(3, 7))\n"
+    src = "fn main():\n    print(max(3, 7))\n    print(min(3, 7))\n"
     assert run_source_vm(src) == "7\n3"
 
 
 def test_vm_print_rejects_multiple_args() -> None:
-    src = "fn main():\n" "    print(1, 2)\n"
+    src = "fn main():\n    print(1, 2)\n"
     with pytest.raises(VMError, match="Built-in print expects 1 argument"):
         run_source_vm(src)
 
 
 def test_vm_int_conversions() -> None:
-    src = "fn main():\n" "    print(int(true))\n" "    print(int(false))\n" '    print(int("99"))\n'
+    src = 'fn main():\n    print(int(true))\n    print(int(false))\n    print(int("99"))\n'
     assert run_source_vm(src) == "1\n0\n99"
 
 
@@ -62,7 +62,7 @@ def test_vm_len_record() -> None:
 
 
 def test_vm_str_formats_values() -> None:
-    src = "fn main():\n" "    print(str(true))\n" "    print(str(nil))\n" "    print(str({x: 2}))\n"
+    src = "fn main():\n    print(str(true))\n    print(str(nil))\n    print(str({x: 2}))\n"
     assert run_source_vm(src) == "true\nnil\n{x: 2}"
 
 
@@ -119,13 +119,7 @@ def test_vm_range_rejects_bool() -> None:
 
 
 def test_vm_runs_lambda_closure_captures_by_reference() -> None:
-    src = (
-        "fn main():\n"
-        "    mut x := 1\n"
-        "    f := (y) -> x + y\n"
-        "    x <- 10\n"
-        "    print(f(2))\n"
-    )
+    src = "fn main():\n    mut x := 1\n    f := (y) -> x + y\n    x <- 10\n    print(f(2))\n"
     assert run_source_vm(src) == "12"
 
 
@@ -190,12 +184,12 @@ def test_vm_mut_borrow_can_target_nested_index_chain() -> None:
 
 
 def test_vm_mut_borrow_can_target_computed_record_member() -> None:
-    src = "fn main():\n" "    p := &mut {x: 1}.x\n" "    p <- 7\n" "    print(*p)\n"
+    src = "fn main():\n    p := &mut {x: 1}.x\n    p <- 7\n    print(*p)\n"
     assert run_source_vm(src) == "7"
 
 
 def test_vm_mut_borrow_can_target_computed_list_index() -> None:
-    src = "fn main():\n" "    p := &mut [1, 2][0]\n" "    p <- 9\n" "    print(*p)\n"
+    src = "fn main():\n    p := &mut [1, 2][0]\n    p <- 9\n    print(*p)\n"
     assert run_source_vm(src) == "9"
 
 
@@ -211,14 +205,26 @@ def test_vm_assign_through_immutable_reference_rejected() -> None:
         run_source_vm(src)
 
 
+def test_vm_assign_to_immutable_global_rejected() -> None:
+    src = "x := 1\n\nfn bump():\n    x <- 2\n\nfn main():\n    bump()\n"
+    with pytest.raises(VMError, match="Cannot assign to immutable variable 'x'"):
+        run_source_vm(src)
+
+
+def test_vm_mut_borrow_immutable_global_rejected() -> None:
+    src = "x := 1\n\nfn bump(y: &mut Int):\n    y <- y + 1\n\nfn main():\n    bump(&mut x)\n"
+    with pytest.raises(VMError, match="Cannot take &mut of immutable variable 'x'"):
+        run_source_vm(src)
+
+
+def test_vm_assign_to_immutable_captured_rejected() -> None:
+    src = "fn main():\n    x := 1\n    f := () -> :\n        x <- 2\n    f()\n"
+    with pytest.raises(VMError, match="Cannot assign to immutable variable 'x'"):
+        run_source_vm(src)
+
+
 def test_vm_runs_if_else() -> None:
-    src = (
-        "fn main():\n"
-        "    if 1 < 2:\n"
-        '        print("yes")\n'
-        "    else:\n"
-        '        print("no")\n'
-    )
+    src = 'fn main():\n    if 1 < 2:\n        print("yes")\n    else:\n        print("no")\n'
     assert run_source_vm(src) == "yes"
 
 
@@ -363,7 +369,7 @@ def test_vm_supports_index_and_member_assignment() -> None:
 
 
 def test_vm_record_string_indexing() -> None:
-    src = "fn main():\n" "    r := {x: 1}\n" '    print(r["x"])\n'
+    src = 'fn main():\n    r := {x: 1}\n    print(r["x"])\n'
     assert run_source_vm(src) == "1"
 
 
@@ -380,7 +386,7 @@ def test_vm_supports_nested_member_and_index_assignment() -> None:
 
 
 def test_vm_supports_computed_member_and_index_assignment() -> None:
-    src = "fn main():\n" "    {x: 1}.x <- 7\n" "    [1, 2][0] <- 9\n" '    print("ok")\n'
+    src = 'fn main():\n    {x: 1}.x <- 7\n    [1, 2][0] <- 9\n    print("ok")\n'
     assert run_source_vm(src) == "ok"
 
 
@@ -408,7 +414,7 @@ def test_vm_imports_sibling_module(tmp_path: Path) -> None:
     )
     program = tmp_path / "main.aster"
     program.write_text(
-        "use helpers\n" "fn main():\n" "    print(helpers.answer())\n",
+        "use helpers\nfn main():\n    print(helpers.answer())\n",
         encoding="utf-8",
     )
     assert run_path_vm(program) == "42"
@@ -435,19 +441,17 @@ def test_vm_runs_for_loop_over_range_with_break_continue() -> None:
 
 
 def test_vm_tuple_destructuring_binding() -> None:
-    src = "fn main():\n" "    (a, b) := (10, 20)\n" "    print(a)\n" "    print(b)\n"
+    src = "fn main():\n    (a, b) := (10, 20)\n    print(a)\n    print(b)\n"
     assert run_source_vm(src) == "10\n20"
 
 
 def test_vm_list_destructuring_binding_with_rest() -> None:
-    src = (
-        "fn main():\n" "    [head, *tail] := [1, 2, 3]\n" "    print(head)\n" "    print(tail[0])\n"
-    )
+    src = "fn main():\n    [head, *tail] := [1, 2, 3]\n    print(head)\n    print(tail[0])\n"
     assert run_source_vm(src) == "1\n2"
 
 
 def test_vm_record_destructuring_binding() -> None:
-    src = "fn main():\n" "    {x, y} := {x: 7, y: 9}\n" "    print(x)\n" "    print(y)\n"
+    src = "fn main():\n    {x, y} := {x: 7, y: 9}\n    print(x)\n    print(y)\n"
     assert run_source_vm(src) == "7\n9"
 
 
@@ -465,13 +469,7 @@ def test_vm_nested_tuple_destructuring() -> None:
 
 
 def test_vm_mutable_destructuring_binding_allows_reassign() -> None:
-    src = (
-        "fn main():\n"
-        "    mut (a, b) := (1, 2)\n"
-        "    a <- 99\n"
-        "    print(a)\n"
-        "    print(b)\n"
-    )
+    src = "fn main():\n    mut (a, b) := (1, 2)\n    a <- 99\n    print(a)\n    print(b)\n"
     assert run_source_vm(src) == "99\n2"
 
 
@@ -480,7 +478,7 @@ def test_vm_mutable_destructuring_binding_allows_reassign() -> None:
 
 
 def test_vm_immutable_binding_rejects_reassign() -> None:
-    src = "fn main():\n" "    x := 1\n" "    x <- 2\n"
+    src = "fn main():\n    x := 1\n    x <- 2\n"
     try:
         run_source_vm(src)
     except VMError as exc:
@@ -490,5 +488,5 @@ def test_vm_immutable_binding_rejects_reassign() -> None:
 
 
 def test_vm_mutable_binding_allows_reassign() -> None:
-    src = "fn main():\n" "    mut x := 1\n" "    x <- 42\n" "    print(x)\n"
+    src = "fn main():\n    mut x := 1\n    x <- 42\n    print(x)\n"
     assert run_source_vm(src) == "42"

@@ -212,6 +212,49 @@ def test_assign_through_immutable_reference_rejected() -> None:
     assert "Cannot assign through immutable reference 'p'" in result.error
 
 
+def test_assign_to_immutable_global_rejected() -> None:
+    result = interpret_source(
+        """x := 1
+
+fn bump():
+    x <- 2
+
+fn main():
+    bump()
+"""
+    )
+    assert result.error is not None
+    assert "Cannot assign to immutable variable 'x'" in result.error
+
+
+def test_mut_borrow_immutable_global_rejected() -> None:
+    result = interpret_source(
+        """x := 1
+
+fn bump(y: &mut Int):
+    y <- y + 1
+
+fn main():
+    bump(&mut x)
+"""
+    )
+    assert result.error is not None
+    assert "Cannot take &mut of immutable variable 'x'" in result.error
+
+
+def test_assign_to_immutable_captured_rejected() -> None:
+    result = interpret_source(
+        """fn main():
+    x := 1
+    f := () -> :
+        x <- 2
+    f()
+"""
+    )
+    assert result.error is not None
+    assert "Cannot assign to immutable variable 'x'" in result.error
+
+
 def test_collection_equality() -> None:
     result = interpret_source(
         """fn main():
@@ -925,12 +968,7 @@ def test_match_bool_pattern() -> None:
 def test_match_no_arm_matches() -> None:
     """When no arm matches the subject, execution continues without error."""
     src = (
-        "fn f():\n"
-        "    match 99:\n"
-        "        0:\n"
-        "            return 0\n"
-        "fn main():\n"
-        '    print("done")\n'
+        'fn f():\n    match 99:\n        0:\n            return 0\nfn main():\n    print("done")\n'
     )
     result = interpret_source(src)
     assert result.error is None
@@ -1119,12 +1157,12 @@ def test_match_tuple_rest_pattern() -> None:
 def test_import_named_function_from_sibling_module(tmp_path: Path) -> None:
     """Named imports should load sibling .aster modules relative to the caller."""
     (tmp_path / "helpers.aster").write_text(
-        "pub fn double(x: Int) -> Int:\n" "    return x + x\n",
+        "pub fn double(x: Int) -> Int:\n    return x + x\n",
         encoding="utf-8",
     )
 
     result = interpret_source(
-        "use helpers: double\n" "fn main():\n" "    print(double(21))\n",
+        "use helpers: double\nfn main():\n    print(double(21))\n",
         base_dir=tmp_path,
     )
 
@@ -1135,12 +1173,12 @@ def test_import_named_function_from_sibling_module(tmp_path: Path) -> None:
 def test_import_module_namespace_from_sibling_module(tmp_path: Path) -> None:
     """Plain module imports should bind a namespace object using the module name."""
     (tmp_path / "math_utils.aster").write_text(
-        "pub fn answer() -> Int:\n" "    return 42\n",
+        "pub fn answer() -> Int:\n    return 42\n",
         encoding="utf-8",
     )
 
     result = interpret_source(
-        "use math_utils\n" "fn main():\n" "    print(math_utils.answer())\n",
+        "use math_utils\nfn main():\n    print(math_utils.answer())\n",
         base_dir=tmp_path,
     )
 
@@ -1150,7 +1188,7 @@ def test_import_module_namespace_from_sibling_module(tmp_path: Path) -> None:
 
 def test_import_missing_module_reports_error(tmp_path: Path) -> None:
     result = interpret_source(
-        "use missing\n" "fn main():\n" '    print("nope")\n',
+        'use missing\nfn main():\n    print("nope")\n',
         base_dir=tmp_path,
     )
 
@@ -1163,7 +1201,7 @@ def test_import_cycle_reports_error(tmp_path: Path) -> None:
     (tmp_path / "b.aster").write_text("use a\nfn value() -> Int:\n    return 2\n", encoding="utf-8")
 
     result = interpret_source(
-        "use a\n" "fn main():\n" "    print(a.value())\n",
+        "use a\nfn main():\n    print(a.value())\n",
         base_dir=tmp_path,
     )
 
@@ -1175,14 +1213,14 @@ def test_import_resolves_parent_package_root(tmp_path: Path) -> None:
     lib_dir = tmp_path / "lib"
     lib_dir.mkdir()
     (lib_dir / "helpers.aster").write_text(
-        "pub fn answer() -> Int:\n" "    return 42\n",
+        "pub fn answer() -> Int:\n    return 42\n",
         encoding="utf-8",
     )
     app_dir = tmp_path / "app"
     app_dir.mkdir()
 
     result = interpret_source(
-        "use lib.helpers\n" "fn main():\n" "    print(helpers.answer())\n",
+        "use lib.helpers\nfn main():\n    print(helpers.answer())\n",
         base_dir=app_dir,
     )
 
@@ -1192,20 +1230,20 @@ def test_import_resolves_parent_package_root(tmp_path: Path) -> None:
 
 def test_import_resolves_manifest_module_root(tmp_path: Path) -> None:
     (tmp_path / "aster.toml").write_text(
-        "[modules]\n" 'search_roots = ["src"]\n',
+        '[modules]\nsearch_roots = ["src"]\n',
         encoding="utf-8",
     )
     src_dir = tmp_path / "src"
     src_dir.mkdir()
     (src_dir / "helpers.aster").write_text(
-        "pub fn answer() -> Int:\n" "    return 42\n",
+        "pub fn answer() -> Int:\n    return 42\n",
         encoding="utf-8",
     )
     app_dir = tmp_path / "app"
     app_dir.mkdir()
 
     result = interpret_source(
-        "use helpers\n" "fn main():\n" "    print(helpers.answer())\n",
+        "use helpers\nfn main():\n    print(helpers.answer())\n",
         base_dir=app_dir,
     )
 
@@ -1215,20 +1253,20 @@ def test_import_resolves_manifest_module_root(tmp_path: Path) -> None:
 
 def test_import_resolves_current_package_name_prefix(tmp_path: Path) -> None:
     (tmp_path / "aster.toml").write_text(
-        "[package]\n" 'name = "app"\n' "[modules]\n" 'search_roots = ["src"]\n',
+        '[package]\nname = "app"\n[modules]\nsearch_roots = ["src"]\n',
         encoding="utf-8",
     )
     src_dir = tmp_path / "src"
     src_dir.mkdir()
     (src_dir / "helpers.aster").write_text(
-        "pub fn answer() -> Int:\n" "    return 42\n",
+        "pub fn answer() -> Int:\n    return 42\n",
         encoding="utf-8",
     )
     app_dir = tmp_path / "app"
     app_dir.mkdir()
 
     result = interpret_source(
-        "use app.helpers\n" "fn main():\n" "    print(helpers.answer())\n",
+        "use app.helpers\nfn main():\n    print(helpers.answer())\n",
         base_dir=app_dir,
     )
 
@@ -1238,12 +1276,12 @@ def test_import_resolves_current_package_name_prefix(tmp_path: Path) -> None:
 
 def test_invalid_manifest_package_name_reports_error(tmp_path: Path) -> None:
     (tmp_path / "aster.toml").write_text(
-        "[package]\n" "name = 42\n",
+        "[package]\nname = 42\n",
         encoding="utf-8",
     )
 
     result = interpret_source(
-        "use missing\n" "fn main():\n" '    print("nope")\n',
+        'use missing\nfn main():\n    print("nope")\n',
         base_dir=tmp_path,
     )
 
@@ -1253,12 +1291,12 @@ def test_invalid_manifest_package_name_reports_error(tmp_path: Path) -> None:
 
 def test_import_private_name_reports_error(tmp_path: Path) -> None:
     (tmp_path / "helpers.aster").write_text(
-        "fn hidden() -> Int:\n" "    return 7\n" "pub fn shown() -> Int:\n" "    return 42\n",
+        "fn hidden() -> Int:\n    return 7\npub fn shown() -> Int:\n    return 42\n",
         encoding="utf-8",
     )
 
     result = interpret_source(
-        "use helpers: hidden\n" "fn main():\n" "    print(hidden())\n",
+        "use helpers: hidden\nfn main():\n    print(hidden())\n",
         base_dir=tmp_path,
     )
 
@@ -1268,12 +1306,12 @@ def test_import_private_name_reports_error(tmp_path: Path) -> None:
 
 def test_import_public_names_only_in_module_namespace(tmp_path: Path) -> None:
     (tmp_path / "helpers.aster").write_text(
-        "hidden := 7\n" "pub answer := 42\n",
+        "hidden := 7\npub answer := 42\n",
         encoding="utf-8",
     )
 
     result = interpret_source(
-        "use helpers\n" "fn main():\n" "    print(helpers.answer)\n",
+        "use helpers\nfn main():\n    print(helpers.answer)\n",
         base_dir=tmp_path,
     )
 
@@ -1281,7 +1319,7 @@ def test_import_public_names_only_in_module_namespace(tmp_path: Path) -> None:
     assert result.output == "42"
 
     private_result = interpret_source(
-        "use helpers\n" "fn main():\n" "    print(helpers.hidden)\n",
+        "use helpers\nfn main():\n    print(helpers.hidden)\n",
         base_dir=tmp_path,
     )
     assert private_result.error is not None
@@ -1289,33 +1327,28 @@ def test_import_public_names_only_in_module_namespace(tmp_path: Path) -> None:
 
 
 def test_tuple_destructuring_binding_statement() -> None:
-    src = "fn main():\n" "    (x, y) := (2, 3)\n" "    print(x + y)\n"
+    src = "fn main():\n    (x, y) := (2, 3)\n    print(x + y)\n"
     result = interpret_source(src)
     assert result.error is None
     assert result.output == "5"
 
 
 def test_list_destructuring_binding_statement_with_rest() -> None:
-    src = (
-        "fn main():\n"
-        "    [head, *tail] := [1, 2, 3]\n"
-        "    print(head)\n"
-        "    print(len(tail))\n"
-    )
+    src = "fn main():\n    [head, *tail] := [1, 2, 3]\n    print(head)\n    print(len(tail))\n"
     result = interpret_source(src)
     assert result.error is None
     assert result.output == "1\n2"
 
 
 def test_record_destructuring_binding_statement() -> None:
-    src = "fn main():\n" "    {x, y} := {x: 4, y: 9}\n" "    print(x + y)\n"
+    src = "fn main():\n    {x, y} := {x: 4, y: 9}\n    print(x + y)\n"
     result = interpret_source(src)
     assert result.error is None
     assert result.output == "13"
 
 
 def test_destructuring_binding_mismatch_reports_error() -> None:
-    src = "fn main():\n" "    (x, y) := (1,)\n" "    print(x)\n"
+    src = "fn main():\n    (x, y) := (1,)\n    print(x)\n"
     result = interpret_source(src)
     assert result.error is not None
     assert "Binding pattern does not match initializer" in result.error
