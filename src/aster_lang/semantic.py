@@ -551,6 +551,9 @@ class SemanticAnalyzer:
         # Persisted generic params (for later passes like ownership).
         # node_id -> { type_param_name: (trait_bound1, trait_bound2, ...) }
         self.decl_type_params: dict[int, dict[str, tuple[str, ...]]] = {}
+        # Live type-param bounds for the current function scope (trait call-site resolution).
+        # type_var_name -> tuple of trait name refs (simple "TraitName" or "ns.TraitName")
+        self._current_typevar_bounds: dict[str, tuple[str, ...]] = {}
         # Ownership/borrow prototype enforcement (opt-in).
         # Stack of scopes: name -> moved-state.
         self._own_scopes: list[dict[str, _OwnVarState]] = [{}]
@@ -886,11 +889,15 @@ class SemanticAnalyzer:
                 if m.name in methods:
                     self.error(f"Duplicate trait method '{m.name}'", m)
                     continue
+                # Strip implicit 'self' param so call-site arity matches explicit args.
+                explicit_params = (
+                    m.params[1:] if m.params and m.params[0].name == "self" else m.params
+                )
                 param_types = tuple(
                     self.resolve_type_expr(p.type_annotation)
                     if p.type_annotation is not None
                     else UNKNOWN_TYPE
-                    for p in m.params
+                    for p in explicit_params
                 )
                 ret_t = (
                     self.resolve_type_expr(m.return_type) if m.return_type is not None else NIL_TYPE
@@ -931,11 +938,15 @@ class SemanticAnalyzer:
 
         provided: dict[str, FunctionType] = {}
         for fn in decl.members:
+            # Strip implicit 'self' to match the same convention as trait recording.
+            explicit_params = (
+                fn.params[1:] if fn.params and fn.params[0].name == "self" else fn.params
+            )
             param_types = tuple(
                 self.resolve_type_expr(p.type_annotation)
                 if p.type_annotation is not None
                 else UNKNOWN_TYPE
-                for p in fn.params
+                for p in explicit_params
             )
             ret_t = (
                 self.resolve_type_expr(fn.return_type) if fn.return_type is not None else NIL_TYPE
@@ -1013,6 +1024,8 @@ class SemanticAnalyzer:
 
         # Enter function scope
         self._enter_scope(f"fn {decl.name}")
+        saved_typevar_bounds = self._current_typevar_bounds
+        self._current_typevar_bounds = dict(self.decl_type_params.get(id(decl), {}))
 
         for tp in decl.type_params:
             self.symbol_table.define(
@@ -1044,6 +1057,7 @@ class SemanticAnalyzer:
 
         # Exit function scope
         self._exit_scope()
+        self._current_typevar_bounds = saved_typevar_bounds
 
     def analyze_let_decl(self, decl: ast.LetDecl) -> None:
         """Analyze a top-level binding declaration."""
@@ -1204,11 +1218,14 @@ class SemanticAnalyzer:
                         )
                     )
                 for m in decl.members:
+                    explicit_params = (
+                        m.params[1:] if m.params and m.params[0].name == "self" else m.params
+                    )
                     param_types = tuple(
                         self.resolve_type_expr(p.type_annotation)
                         if p.type_annotation is not None
                         else UNKNOWN_TYPE
-                        for p in m.params
+                        for p in explicit_params
                     )
                     ret_t = (
                         self.resolve_type_expr(m.return_type)
@@ -1220,6 +1237,24 @@ class SemanticAnalyzer:
                 self._exit_scope()
             out[decl.name] = methods
         return out
+
+    def _resolve_trait_method(self, receiver_t: Type, method_name: str) -> FunctionType | None:
+        """Look up a method by name on a receiver type using trait bounds or concrete impls.
+
+        For TypeVarType receivers, searches bounds recorded in _current_typevar_bounds.
+        Returns the FunctionType of the matched method, or None if not found.
+        """
+        if isinstance(receiver_t, TypeVarType):
+            bounds = self._current_typevar_bounds.get(receiver_t.name, ())
+            for bound_ref in bounds:
+                parts = bound_ref.split(".", 1)
+                if len(parts) == 1:
+                    methods = self._traits.get(parts[0], {})
+                else:
+                    methods = self._namespace_traits.get(parts[0], {}).get(parts[1], {})
+                if method_name in methods:
+                    return methods[method_name]
+        return None
 
     def _resolve_module_path(self, module_name: ast.QualifiedName) -> Path | None:
         """Resolve a dotted module name from the current base directory."""
@@ -1364,11 +1399,17 @@ class SemanticAnalyzer:
     def analyze_let_stmt(self, stmt: ast.LetStmt) -> None:
         """Analyze a binding statement."""
         # Infer type from initializer
+        _init_id = stmt.initializer if isinstance(stmt.initializer, ast.Identifier) else None
+        _pre_moved = (
+            self.ownership_mode != OwnershipMode.OFF
+            and _init_id is not None
+            and (lambda st: st is not None and st.move_only and st.moved)(
+                self._own_lookup(_init_id.name)
+            )
+        )
         init_type = self.infer_expr_type(stmt.initializer)
-        if self.ownership_mode != OwnershipMode.OFF and isinstance(
-            stmt.initializer, ast.Identifier
-        ):
-            self._own_mark_moved(stmt.initializer.name, stmt.initializer)
+        if self.ownership_mode != OwnershipMode.OFF and _init_id is not None and not _pre_moved:
+            self._own_mark_moved(_init_id.name, _init_id)
 
         if isinstance(stmt.pattern, ast.BindingPattern):
             # Check against declared type if present
@@ -1425,9 +1466,21 @@ class SemanticAnalyzer:
                 return
 
             # Type check
+            _val_id = stmt.value if isinstance(stmt.value, ast.Identifier) else None
+            _pre_moved_val = (
+                self.ownership_mode != OwnershipMode.OFF
+                and _val_id is not None
+                and (lambda st: st is not None and st.move_only and st.moved)(
+                    self._own_lookup(_val_id.name)
+                )
+            )
             value_type = self.infer_expr_type(stmt.value)
-            if self.ownership_mode != OwnershipMode.OFF and isinstance(stmt.value, ast.Identifier):
-                self._own_mark_moved(stmt.value.name, stmt.value)
+            if (
+                self.ownership_mode != OwnershipMode.OFF
+                and _val_id is not None
+                and not _pre_moved_val
+            ):
+                self._own_mark_moved(_val_id.name, _val_id)
             if isinstance(symbol.type, BorrowType):
                 if not symbol.type.is_mutable:
                     self.error(
@@ -1533,9 +1586,21 @@ class SemanticAnalyzer:
     def analyze_return_stmt(self, stmt: ast.ReturnStmt) -> None:
         """Analyze a return statement."""
         if stmt.value:
+            _ret_id = stmt.value if isinstance(stmt.value, ast.Identifier) else None
+            _pre_moved_ret = (
+                self.ownership_mode != OwnershipMode.OFF
+                and _ret_id is not None
+                and (lambda st: st is not None and st.move_only and st.moved)(
+                    self._own_lookup(_ret_id.name)
+                )
+            )
             self.infer_expr_type(stmt.value)
-            if self.ownership_mode != OwnershipMode.OFF and isinstance(stmt.value, ast.Identifier):
-                self._own_mark_moved(stmt.value.name, stmt.value)
+            if (
+                self.ownership_mode != OwnershipMode.OFF
+                and _ret_id is not None
+                and not _pre_moved_ret
+            ):
+                self._own_mark_moved(_ret_id.name, _ret_id)
 
             if self.ownership_mode != OwnershipMode.OFF:
                 # Escape rules (prototype):
@@ -2589,9 +2654,46 @@ class SemanticAnalyzer:
                             )
                             continue
                         moved_args.add(arg_name)
-                        self._own_mark_moved(arg_name, arg_expr)
+                        # infer_expr_type already flagged use-after-move; just update state.
+                        st2 = self._own_lookup(arg_name)
+                        if st2 is not None and st2.move_only and not st2.moved:
+                            st2.moved = True
 
             return self._substitute_typevars(func_type.return_type, subs)
+        elif isinstance(expr.func, ast.MemberExpr):
+            # Trait call-site resolution prototype: x.method(args) where x has a bounded type var.
+            receiver_t = self.infer_expr_type(expr.func.obj)
+            method_name = expr.func.member
+            method_sig = self._resolve_trait_method(receiver_t, method_name)
+            for arg in expr.args:
+                self.infer_expr_type(arg)
+            if method_sig is None:
+                # Unknown method — fall through silently (UNKNOWN_TYPE) unless receiver is a
+                # known type-var with explicit bounds, in which case it is an error.
+                if (
+                    isinstance(receiver_t, TypeVarType)
+                    and receiver_t.name in self._current_typevar_bounds
+                ):
+                    bounds = self._current_typevar_bounds[receiver_t.name]
+                    if bounds:
+                        self.error(
+                            f"No method '{method_name}' found in trait bounds "
+                            f"{list(bounds)} of type parameter '{receiver_t.name}'",
+                            expr,
+                        )
+                return UNKNOWN_TYPE
+            # Validate argument count (self is implicit — not in args)
+            # Trait method signatures include 'self' as first param when declared with `self`.
+            # The call site provides only the explicit args (receiver is the object).
+            expected_arity = len(method_sig.param_types)
+            actual_arity = len(expr.args)
+            if expected_arity != actual_arity:
+                self.error(
+                    f"Method '{method_name}' expects {expected_arity} argument(s), "
+                    f"got {actual_arity}",
+                    expr,
+                )
+            return method_sig.return_type
         else:
             callee_t = self.infer_expr_type(expr.func)
             for arg in expr.args:

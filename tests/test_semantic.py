@@ -1661,3 +1661,200 @@ def test_qualified_type_nonalias_member_resolves_to_unknown(tmp_path: Path) -> N
     # No crash; param resolves to UNKNOWN (compatible with everything)
     fn_symbol = analyzer.symbol_table.lookup("f")
     assert fn_symbol is not None
+
+
+# ---------------------------------------------------------------------------
+# *own move-semantics tests
+# ---------------------------------------------------------------------------
+
+
+def test_own_single_move_to_call_is_ok_in_deny_mode() -> None:
+    source = """fn take(p: *own Int):
+    return
+
+fn main(x: *own Int):
+    take(x)
+"""
+    module = parse_module(source)
+    analyzer = SemanticAnalyzer(ownership_mode=OwnershipMode.DENY)
+    analyzer.analyze(module)
+    assert not analyzer.has_errors()
+
+
+def test_own_use_after_move_in_call_is_error_in_deny_mode() -> None:
+    source = """fn take(p: *own Int):
+    return
+
+fn main(x: *own Int):
+    take(x)
+    take(x)
+"""
+    module = parse_module(source)
+    analyzer = SemanticAnalyzer(ownership_mode=OwnershipMode.DENY)
+    analyzer.analyze(module)
+    assert analyzer.has_errors()
+    assert any("moved" in e.message for e in analyzer.errors)
+
+
+def test_own_double_move_via_binding_is_error_in_deny_mode() -> None:
+    source = """fn main(x: *own Int):
+    y := x
+    z := x
+"""
+    module = parse_module(source)
+    analyzer = SemanticAnalyzer(ownership_mode=OwnershipMode.DENY)
+    analyzer.analyze(module)
+    assert analyzer.has_errors()
+    assert any("moved" in e.message for e in analyzer.errors)
+
+
+def test_own_use_after_move_in_return_is_error_in_deny_mode() -> None:
+    source = """fn take(p: *own Int):
+    return
+
+fn main(x: *own Int):
+    take(x)
+    return x
+"""
+    module = parse_module(source)
+    analyzer = SemanticAnalyzer(ownership_mode=OwnershipMode.DENY)
+    analyzer.analyze(module)
+    assert analyzer.has_errors()
+    assert any("moved" in e.message for e in analyzer.errors)
+
+
+def test_own_move_via_binding_then_safe_use_of_new_owner_is_ok_in_deny_mode() -> None:
+    source = """fn take(p: *own Int):
+    return
+
+fn main(x: *own Int):
+    y := x
+    take(y)
+"""
+    module = parse_module(source)
+    analyzer = SemanticAnalyzer(ownership_mode=OwnershipMode.DENY)
+    analyzer.analyze(module)
+    assert not analyzer.has_errors()
+
+
+def test_own_duplicate_in_same_call_is_error_in_deny_mode() -> None:
+    source = """fn two(a: *own Int, b: *own Int):
+    return
+
+fn main(x: *own Int):
+    two(x, x)
+"""
+    module = parse_module(source)
+    analyzer = SemanticAnalyzer(ownership_mode=OwnershipMode.DENY)
+    analyzer.analyze(module)
+    assert analyzer.has_errors()
+
+
+# ---------------------------------------------------------------------------
+# Trait call-site resolution tests
+# ---------------------------------------------------------------------------
+
+
+def test_impl_correct_method_and_arity_passes() -> None:
+    source = (
+        "trait Show:\n"
+        "    fn show(self) -> String\n"
+        "impl Show for Int:\n"
+        "    fn show(self) -> String:\n"
+        '        return "42"\n'
+    )
+    module = parse_module(source)
+    analyzer = SemanticAnalyzer()
+    analyzer.analyze(module)
+    assert not analyzer.has_errors()
+
+
+def test_impl_wrong_return_type_reports_error() -> None:
+    source = (
+        "trait Show:\n"
+        "    fn show(self) -> String\n"
+        "impl Show for Int:\n"
+        "    fn show(self) -> Int:\n"
+        "        return 0\n"
+    )
+    module = parse_module(source)
+    analyzer = SemanticAnalyzer()
+    analyzer.analyze(module)
+    assert analyzer.has_errors()
+    assert any("wrong return type" in e.message for e in analyzer.errors)
+
+
+def test_impl_wrong_arity_reports_error() -> None:
+    source = (
+        "trait Compute:\n"
+        "    fn run(self, x: Int) -> Int\n"
+        "impl Compute for Int:\n"
+        "    fn run(self) -> Int:\n"
+        "        return 0\n"
+    )
+    module = parse_module(source)
+    analyzer = SemanticAnalyzer()
+    analyzer.analyze(module)
+    assert analyzer.has_errors()
+    assert any("wrong arity" in e.message for e in analyzer.errors)
+
+
+def test_impl_extra_method_beyond_required_passes() -> None:
+    """Extra methods in impl are allowed (open-world impls)."""
+    source = (
+        "trait Show:\n"
+        "    fn show(self) -> String\n"
+        "impl Show for Int:\n"
+        "    fn show(self) -> String:\n"
+        '        return "x"\n'
+        "    fn debug(self) -> String:\n"
+        '        return "debug"\n'
+    )
+    module = parse_module(source)
+    analyzer = SemanticAnalyzer()
+    analyzer.analyze(module)
+    assert not analyzer.has_errors()
+
+
+def test_trait_call_site_resolution_on_bounded_type_var_passes() -> None:
+    source = """
+trait Show:
+    fn show(self) -> String
+
+fn print_it[T: Show](x: T):
+    x.show()
+"""
+    module = parse_module(source)
+    analyzer = SemanticAnalyzer()
+    analyzer.analyze(module)
+    assert not analyzer.has_errors()
+
+
+def test_trait_call_site_resolution_on_bounded_type_var_missing_method_fails() -> None:
+    source = """
+trait Show:
+    fn show(self) -> String
+
+fn print_it[T: Show](x: T):
+    x.debug()
+"""
+    module = parse_module(source)
+    analyzer = SemanticAnalyzer()
+    analyzer.analyze(module)
+    assert analyzer.has_errors()
+    assert any("No method 'debug' found in trait bounds" in e.message for e in analyzer.errors)
+
+
+def test_trait_call_site_resolution_wrong_arity_fails() -> None:
+    source = """
+trait Show:
+    fn show(self) -> String
+
+fn print_it[T: Show](x: T):
+    x.show(1, 2)
+"""
+    module = parse_module(source)
+    analyzer = SemanticAnalyzer()
+    analyzer.analyze(module)
+    assert analyzer.has_errors()
+    assert any("expects 0 argument(s), got 2" in e.message for e in analyzer.errors)
