@@ -99,6 +99,16 @@ def test_vm_fixed_width_equals_int() -> None:
     assert run_source_vm(src) == "true"
 
 
+def test_vm_fixed_width_comparisons() -> None:
+    src = (
+        "fn main():\n"
+        "    print(byte(1) < 2)\n"
+        "    print(byte(3) >= 3)\n"
+        "    print(byte(4) != 5)\n"
+    )
+    assert run_source_vm(src) == "true\ntrue\ntrue"
+
+
 def test_vm_deep_equality_collections() -> None:
     src = (
         "fn main():\n"

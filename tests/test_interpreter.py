@@ -818,6 +818,18 @@ def test_builtin_fixed_width_equals_int() -> None:
     assert result.output == "true"
 
 
+def test_fixed_width_comparisons() -> None:
+    result = interpret_source(
+        """fn main():
+    print(byte(1) < 2)
+    print(byte(3) >= 3)
+    print(byte(4) != 5)
+"""
+    )
+    assert result.error is None
+    assert result.output == "true\ntrue\ntrue"
+
+
 def test_builtin_range_rejects_bool() -> None:
     result = interpret_source("""fn main():
     print(range(false))
