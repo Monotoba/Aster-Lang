@@ -12,6 +12,7 @@ This repository currently includes:
 - an experimental bytecode VM backend (`src/aster_lang/bytecode.py`, `src/aster_lang/vm.py`)
 
 The VM backend is documented in `docs/toolchain/VM.md`.
+Caching/incremental notes are tracked in `docs/toolchain/CACHING.md`.
 
 ## Recommended pipeline
 

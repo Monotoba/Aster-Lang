@@ -18,6 +18,10 @@ Phase 6 remaining:
 - native backend feasibility study
 - caching and incremental compilation
 
+Caching/incremental notes:
+- Define cache location and invalidation strategy
+- Decide whether to reuse VM artifacts or introduce a dedicated cache format
+
 Native backend feasibility (near-term checklist):
 - Decide on single TU vs per-module C emission
 - Define minimal `AsterValue` tag set for the spike
