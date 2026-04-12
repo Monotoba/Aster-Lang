@@ -9,11 +9,28 @@ from collections.abc import Callable
 from contextlib import suppress
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, cast
+from typing import TYPE_CHECKING, Any, cast
+
+if TYPE_CHECKING:
+    from aster_lang.native_modules import NATIVE_MODULES as _NativeModulesType  # noqa: F401
 
 from aster_lang import ast
 from aster_lang.module_resolution import ModuleResolutionError, resolve_module_path
 from aster_lang.parser import parse_module
+
+# Native module registry is imported lazily to avoid circular imports.
+# _NATIVE_MODULES is populated on first access via _get_native_modules().
+_NATIVE_MODULES: dict[str, Callable[[], object]] | None = None
+
+
+def _get_native_modules() -> dict[str, Callable[[], object]]:
+    global _NATIVE_MODULES  # noqa: PLW0603
+    if _NATIVE_MODULES is None:
+        from aster_lang.native_modules import NATIVE_MODULES  # noqa: PLC0415
+
+        _NATIVE_MODULES = NATIVE_MODULES
+    return _NATIVE_MODULES
+
 
 # Runtime Values
 
@@ -30,6 +47,16 @@ class IntValue(Value):
     """Integer value."""
 
     value: int
+
+    def __str__(self) -> str:
+        return str(self.value)
+
+
+@dataclass(frozen=True)
+class FloatValue(Value):
+    """Floating-point value."""
+
+    value: float
 
     def __str__(self) -> str:
         return str(self.value)
@@ -378,7 +405,7 @@ class Interpreter:
         base_dir: Path | None = None,
         dep_overrides: dict[str, Path] | None = None,
         extra_roots: tuple[Path, ...] = (),
-        module_cache: dict[Path, ModuleValue] | None = None,
+        module_cache: dict[Path | str, ModuleValue] | None = None,
         loading_modules: set[Path] | None = None,
         output: list[str] | None = None,
     ) -> None:
@@ -415,6 +442,8 @@ class Interpreter:
                     raise InterpreterError(f"Cannot convert {arg.value!r} to Int") from exc
             if isinstance(arg, BoolValue):
                 return IntValue(1 if arg.value else 0)
+            if isinstance(arg, FloatValue):
+                return IntValue(int(arg.value))
             raise InterpreterError(f"Cannot convert {type(arg).__name__} to Int")
 
         def builtin_len(args: list[Value]) -> Value:
@@ -663,7 +692,14 @@ class Interpreter:
         self.current_env.define(binding_name, module_value)
 
     def _load_module(self, module_name: ast.QualifiedName) -> ModuleValue:
-        """Load a module from a sibling .aster file."""
+        """Load a module from a sibling .aster file or the native module registry."""
+        label = ".".join(module_name.parts)
+        native = _get_native_modules()
+        if label in native:
+            if label not in self.module_cache:
+                factory = native[label]
+                self.module_cache[label] = cast(ModuleValue, factory())
+            return self.module_cache[label]
         module_path = self._resolve_module_path(module_name)
         if module_path in self.module_cache:
             return self.module_cache[module_path]

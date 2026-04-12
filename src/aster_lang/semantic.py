@@ -35,6 +35,7 @@ class TypeKind(Enum):
     POINTER = auto()
     BITS = auto()
     TYPEVAR = auto()
+    FLOAT = auto()
     UNKNOWN = auto()  # For type inference
     ERROR = auto()  # For error recovery
 
@@ -78,6 +79,17 @@ class IntType(Type):
 
     def __str__(self) -> str:
         return "Int"
+
+
+@dataclass(frozen=True)
+class FloatType(Type):
+    """Floating-point type."""
+
+    def __init__(self) -> None:
+        object.__setattr__(self, "kind", TypeKind.FLOAT)
+
+    def __str__(self) -> str:
+        return "Float"
 
 
 @dataclass(frozen=True)
@@ -1282,6 +1294,13 @@ class SemanticAnalyzer:
     def _load_module_exports(self, decl: ast.ImportDecl) -> dict[str, Symbol] | None:
         """Load exported top-level symbols from a sibling .aster module."""
         module_name = ".".join(decl.module.parts)
+
+        # Check native module registry first.
+        from aster_lang.native_modules import NATIVE_MODULE_SYMBOLS  # noqa: PLC0415
+
+        if module_name in NATIVE_MODULE_SYMBOLS:
+            return NATIVE_MODULE_SYMBOLS[module_name]  # type: ignore[return-value]
+
         module_path = self._resolve_module_path(decl.module)
         if module_path is None:
             return None

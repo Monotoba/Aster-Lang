@@ -49,3 +49,9 @@ strict = true
 warn_unreachable = true
 warn_unused_ignores = true
 packages = ["aster_lang"]
+
+[[tool.mypy.overrides]]
+# native_modules.py uses lazy runtime imports to avoid circular dependencies;
+# the resulting attribute access patterns are not amenable to static typing.
+module = "aster_lang.native_modules"
+ignore_errors = true

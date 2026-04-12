@@ -23,6 +23,22 @@ Caching and incremental compilation is done:
 - package manager plan
 - benchmark harness (`aster bench`)
 
+## Phase 8 (standard library) — in progress
+
+**Done:**
+- `math` module — `floor`, `ceil`, `round`, `sqrt`, `pow`, `log`, `log2`, `log10`, `sin`, `cos`, `tan`, `abs`, `min`, `max`, `clamp`, `pi`, `e`, `tau`, `inf`
+- `str` module — `split`, `join`, `strip`, `lstrip`, `rstrip`, `upper`, `lower`, `starts_with`, `ends_with`, `contains`, `find`, `replace`, `pad_left`, `pad_right`, `chars`, `char_at`, `repeat`, `slice`
+- `std` module — `type_of`, `panic`, `todo`, `input`
+- `FloatValue` runtime type added to interpreter
+- `FloatType` added to semantic type system
+- Native module registry (`native_modules.py`) with interpreter interception and semantic symbol hook
+- 61 new tests for all three modules
+
+**Remaining:**
+- `Float` literals in the parser and lexer (currently only reachable via native module return values)
+- Float arithmetic operators in interpreter and semantic analyzer
+- Expose `Float` type in the language grammar
+
 ## Open questions / deferred decisions
 
 1. Decide whether nested/mixed structural or-patterns inside tuple or list elements need compiler test coverage.
