@@ -374,6 +374,12 @@ def test_vm_member_assignment_error_message() -> None:
         run_source_vm(src)
 
 
+def test_vm_index_assignment_requires_int_or_string() -> None:
+    src = "fn main():\n    mut xs := [1, 2]\n    xs[true] <- 9\n"
+    with pytest.raises(VMError, match="Index reference requires Int or String index"):
+        run_source_vm(src)
+
+
 def test_vm_record_string_indexing() -> None:
     src = 'fn main():\n    r := {x: 1}\n    print(r["x"])\n'
     assert run_source_vm(src) == "1"

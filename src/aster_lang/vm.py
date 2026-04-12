@@ -453,6 +453,8 @@ class _Compiler:
                     ref_is_mutable=ref_is_mutable,
                 )
                 compile_expr(target.index)
+                if isinstance(target.index, ast.BoolLiteral):
+                    raise VMError("Index reference requires Int or String index")
                 emit(Op.REF_INDEX)
                 return
             if allow_temporary_root:

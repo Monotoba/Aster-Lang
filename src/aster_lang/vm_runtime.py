@@ -126,6 +126,8 @@ class _IndexCell(_RefCell):
     def value(self, new_value: object) -> None:
         obj = self._base.value
         idx = self._index
+        if not isinstance(idx, int | str):
+            raise VMError("Index reference requires Int or String index")
         if isinstance(obj, list) and type(idx) is int:
             if idx < 0 or idx >= len(obj):
                 raise VMError(f"List index out of bounds: {idx}")
