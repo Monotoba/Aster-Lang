@@ -33,7 +33,7 @@ Phases 2–5 are largely complete. The language can parse, format, analyze, exec
 - **VM build artifacts**: `aster build --backend vm` emits a runnable launcher plus a serialized, versioned, integrity-checked `*.asterbc.json` bytecode program and minimal bundled VM runtime; the loader currently supports schema version `1`, with optional HMAC signing via `ASTER_VM_SIGNING_KEY`
 - **String operations**: `+` concatenation, `len()`, `str()`, `int()` built-ins
 - **Fixed-width unsigned integers**: `Nibble`/`Byte`/`Word`/`DWord`/`QWord` plus cast builtins (`nibble/byte/word/dword/qword`) and bitwise ops (`& | ^ ~ << >>`)
-- **688 passing tests** covering parser, semantics, interpreter, formatter, CLI, compiler, REPL, AST printer, typed HIR, and the experimental bytecode VM backend
+- **691 passing tests** covering parser, semantics, interpreter, formatter, CLI, compiler, REPL, AST printer, typed HIR, and the experimental bytecode VM backend
 - beginner-friendly tutorials and runnable example programs under `tutorials/` (20 tutorials; explicitly avoiding ownership/borrow enforcement by default)
 - progressively more complex multi-file example programs under `examples/programs/`
 - language and toolchain docs
@@ -149,6 +149,7 @@ Next steps (choose based on goals):
 - Added a backend adapter scaffold (`BackendAdapter`, `BackendArtifact`, registry)
 - Wired default backend adapters into the CLI build path
 - Documented `--vm-artifact-format` in user-facing guides
+- Added basic backend registry tests
 - Backend interface layer marked in progress in next-steps tracking
 - Added optional compressed binary VM artifacts (`--vm-artifact-format binary`)
 - Scoped a native backend feasibility study in compiler notes
@@ -156,4 +157,4 @@ Next steps (choose based on goals):
 - Added a concrete C feasibility spike plan and initial IR mapping notes
 - Added `aster.toml`-driven module search roots shared by runtime and semantic analysis
 - Added `package.name` support for current-package import prefixes
-- Full suite currently passes with 688 tests
+- Full suite currently passes with 691 tests
