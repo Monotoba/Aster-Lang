@@ -187,6 +187,7 @@ Next steps (choose based on goals):
 - Added caching/incremental compilation notes doc
 - Added caching next-actions checklist
 - Added cache-key/flag follow-up to NEXT-STEPS
+- Added backend adapter version identifier follow-up for caching
 - Added `aster.toml`-driven module search roots shared by runtime and semantic analysis
 - Added `package.name` support for current-package import prefixes
 - Full suite currently passes with 699 tests

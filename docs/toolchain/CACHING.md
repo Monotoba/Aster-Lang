@@ -25,3 +25,4 @@ Goal: speed up repeated builds by reusing prior compilation artifacts.
 - Pick cache directory and document it in user/developer docs.
 - Define a cache key schema (hash inputs + toolchain version).
 - Add a minimal `--cache` flag to `aster build` (off by default).
+- Decide whether cache entries should embed backend adapter version identifiers.

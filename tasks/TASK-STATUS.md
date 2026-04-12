@@ -105,6 +105,7 @@ Ownership and references, now including expression-level `&x` / `&mut x` borrowi
 - caching/incremental compilation notes drafted
 - caching/incremental next-actions checklist added
 - caching follow-up updated with cache-key/flag detail
+- caching follow-up updated with backend adapter version identifiers
 - native backend feasibility notes doc created
 - native backend feasibility next-actions checklist added
 - native backend feasibility checklist added to NEXT-STEPS
