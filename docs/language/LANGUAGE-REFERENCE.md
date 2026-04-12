@@ -63,6 +63,8 @@ If `package.name` is set, imports may also use the current package prefix explic
 
 In the build toolchain (`aster check` and `aster build`), unresolved `use` imports are treated as external Python imports (for example `use os`). Runtime interpretation (`aster run`) still requires Aster modules to exist. VM builds can select `--vm-artifact-format json|binary` to emit either JSON or compressed binary artifacts. The `c` backend is a placeholder in `aster build --backend c` until native codegen lands; it currently emits a stub `.c` file.
 
+Use `aster backends` to list available build backends and their formats.
+
 ### Public declaration
 ```aster
 pub fn add(a: Int, b: Int) -> Int:

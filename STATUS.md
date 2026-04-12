@@ -181,6 +181,7 @@ Next steps (choose based on goals):
 - Documented the `aster vm` direct VM command in user guide
 - Added CLI test for `aster vm`
 - Added CLI test for `aster repl`
+- Documented `aster backends` in the language reference
 - Clarified native backend feasibility status (scoped; spike not started)
 - Added caching/incremental compilation notes doc
 - Added caching next-actions checklist
