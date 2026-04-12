@@ -33,7 +33,7 @@ Phases 2–5 are largely complete. The language can parse, format, analyze, exec
 - **VM build artifacts**: `aster build --backend vm` emits a runnable launcher plus a serialized, versioned, integrity-checked `*.asterbc.json` bytecode program and minimal bundled VM runtime; the loader currently supports schema version `1`, with optional HMAC signing via `ASTER_VM_SIGNING_KEY`
 - **String operations**: `+` concatenation, `len()`, `str()`, `int()` built-ins
 - **Fixed-width unsigned integers**: `Nibble`/`Byte`/`Word`/`DWord`/`QWord` plus cast builtins (`nibble/byte/word/dword/qword`) and bitwise ops (`& | ^ ~ << >>`)
-- **694 passing tests** covering parser, semantics, interpreter, formatter, CLI, compiler, REPL, AST printer, typed HIR, and the experimental bytecode VM backend
+- **695 passing tests** covering parser, semantics, interpreter, formatter, CLI, compiler, REPL, AST printer, typed HIR, and the experimental bytecode VM backend
 - beginner-friendly tutorials and runnable example programs under `tutorials/` (20 tutorials; explicitly avoiding ownership/borrow enforcement by default)
 - progressively more complex multi-file example programs under `examples/programs/`
 - language and toolchain docs
@@ -170,6 +170,7 @@ Next steps (choose based on goals):
 - Updated README backend list for the placeholder C backend
 - Added backend registry test for None-format validation
 - Backend registry reports unknown backend names with available list
+- Added backend registry test to verify available-backend listing in errors
 - Added `aster.toml`-driven module search roots shared by runtime and semantic analysis
 - Added `package.name` support for current-package import prefixes
-- Full suite currently passes with 694 tests
+- Full suite currently passes with 695 tests

@@ -112,6 +112,7 @@ Ownership and references, now including expression-level `&x` / `&mut x` borrowi
 - README updated for placeholder `c` backend
 - backend registry validation tests cover None format
 - backend registry now errors with available backends on unknown names
+- backend registry tests cover available-backend listing in errors
 - VM artifact format option documented in user guides
 - backend registry tests added for adapter scaffolding
 - backend registry validates artifact formats

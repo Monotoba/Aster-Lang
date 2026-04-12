@@ -40,6 +40,15 @@ def test_backend_registry_unknown_backend_error() -> None:
         registry.get("missing")
 
 
+def test_backend_registry_unknown_backend_lists_available() -> None:
+    registry = BackendRegistry()
+    registry.register(_DummyAdapter(name="vm"))
+    registry.register(_DummyAdapter(name="python"))
+
+    with pytest.raises(KeyError, match="Available: python, vm"):
+        registry.get("c")
+
+
 def test_backend_build_options_defaults() -> None:
     entry = Path("main.aster")
     options = BackendBuildOptions(entry_path=entry)
