@@ -65,8 +65,23 @@ class VMBackendAdapter:
         )
 
 
+@dataclass
+class CBackendAdapter:
+    name: str = "c"
+    supported_formats: tuple[str, ...] = ("c",)
+
+    def build(self, options: BackendBuildOptions) -> BackendArtifact:
+        return BackendArtifact(
+            entry_path=options.entry_path,
+            outputs=[],
+            format="c",
+            errors=["C backend is not implemented yet"],
+        )
+
+
 def get_default_backend_registry() -> BackendRegistry:
     registry = BackendRegistry()
     registry.register(PythonBackendAdapter())
     registry.register(VMBackendAdapter())
+    registry.register(CBackendAdapter())
     return registry

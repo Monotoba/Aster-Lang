@@ -11,6 +11,7 @@ Start with C for the feasibility spike, then revisit LLVM/Wasm after the IR inte
 - Emit a single C translation unit for an Aster module.
 - Minimal runtime: `AsterValue` tagged union, string wrapper, basic helpers.
 - Build/run via system `cc`.
+- Placeholder C backend adapter exists but returns "not implemented" until IR emission lands.
 
 ## Minimal language coverage
 
