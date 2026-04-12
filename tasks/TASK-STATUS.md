@@ -83,6 +83,7 @@ Ownership and references, now including expression-level `&x` / `&mut x` borrowi
 - VM now rejects `&mut` borrows of immutable bindings and assignment through immutable references
 - VM now enforces `mut` on globals and captured variables (assign and `&mut` require `mut`)
 - VM index errors now match interpreter wording (`Cannot index <Type> with <Type>`)
+- VM member-access errors now match interpreter wording (non-record member and missing field)
 - `aster check/build --types loose|strict` added to optionally reject unknown-typed arithmetic/bitwise uses in strict mode
 - added a beginner tutorial track: 20 tutorials plus 6 progressively more complex runnable programs under `tutorials/` and `tutorials/programs/`
 

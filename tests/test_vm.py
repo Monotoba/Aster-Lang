@@ -373,6 +373,18 @@ def test_vm_record_string_indexing() -> None:
     assert run_source_vm(src) == "1"
 
 
+def test_vm_member_error_message() -> None:
+    src = "fn main():\n    x := 1\n    print(x.y)\n"
+    with pytest.raises(VMError, match="Cannot access member of int"):
+        run_source_vm(src)
+
+
+def test_vm_missing_record_field_message() -> None:
+    src = "fn main():\n    r := {x: 1}\n    print(r.y)\n"
+    with pytest.raises(VMError, match="Record has no field 'y'"):
+        run_source_vm(src)
+
+
 def test_vm_supports_nested_member_and_index_assignment() -> None:
     src = (
         "fn main():\n"

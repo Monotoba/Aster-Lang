@@ -582,9 +582,9 @@ class VM:
                     raise VMError("MEMBER key constant must be a string")
                 obj = frame.stack.pop()
                 if not isinstance(obj, dict):
-                    raise VMError("Member access only supported on records in VM backend")
+                    raise VMError(f"Cannot access member of {type(obj).__name__}")
                 if key_obj not in obj:
-                    raise VMError(f"Missing record field '{key_obj}'")
+                    raise VMError(f"Record has no field '{key_obj}'")
                 frame.stack.append(obj[key_obj])
                 continue
             if ins.op == Op.INDEX:
