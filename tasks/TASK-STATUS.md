@@ -104,6 +104,7 @@ Ownership and references, now including expression-level `&x` / `&mut x` borrowi
 - native backend feasibility study (C-first spike plan, IR mapping, runtime stub/ABI sketch)
 - native backend feasibility notes doc created
 - native backend feasibility next-actions checklist added
+- native backend feasibility checklist added to NEXT-STEPS
 - VM artifact format option documented in user guides
 - backend registry tests added for adapter scaffolding
 - backend registry validates artifact formats

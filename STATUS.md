@@ -162,6 +162,7 @@ Next steps (choose based on goals):
 - Added an ABI sketch for the native backend feasibility spike
 - Added native backend feasibility notes doc
 - Added next actions checklist for native backend feasibility
+- Added native backend feasibility checklist to NEXT-STEPS
 - Added `aster.toml`-driven module search roots shared by runtime and semantic analysis
 - Added `package.name` support for current-package import prefixes
 - Full suite currently passes with 692 tests

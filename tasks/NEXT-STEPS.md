@@ -17,3 +17,8 @@ Phase 6 remaining:
 - define MIR / typed IR
 - native backend feasibility study
 - caching and incremental compilation
+
+Native backend feasibility (near-term checklist):
+- Decide on single TU vs per-module C emission
+- Define minimal `AsterValue` tag set for the spike
+- Prototype a `cc` build/run harness once IR emission exists
