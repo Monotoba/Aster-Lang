@@ -52,7 +52,7 @@
 
 ## Phase 6: compiler
 - [x] define HIR
-- [ ] define MIR / typed IR
+- [x] define MIR / typed IR
 - [ ] ownership lowering strategy
 - [ ] compile record destructuring bindings
 - [x] experimental bytecode VM backend (subset)
