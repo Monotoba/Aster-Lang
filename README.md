@@ -82,7 +82,7 @@ The repository has moved well beyond the initial scaffold. It now includes:
 - manifest-based module configuration via `aster.toml`: `[package].name`, `[modules].search_roots`, and `[dependencies]` with local path entries
 - `--dep NAME=PATH` and `--search-root PATH` CLI flags on `run`, `check`, `build`, and `vm` to override manifest resolution
 - `aster run --backend interpreter|vm <file>` to select the execution backend without switching commands
-- `aster build --backend python|vm <file>` to choose between Python transpilation and a VM bundle with a launcher plus a serialized, versioned, integrity-checked bytecode artifact (optional HMAC signature via `ASTER_VM_SIGNING_KEY`)
+- `aster build --backend python|vm|c <file>` to choose between Python transpilation, a VM bundle with a launcher plus a serialized, versioned, integrity-checked bytecode artifact (optional HMAC signature via `ASTER_VM_SIGNING_KEY`), or the placeholder C backend
 - semantic-only lint (`aster check <file>`) for CI workflows
 - recursive build output (`aster build <file>`) emits a runnable `__aster_build__/` directory
 - `aster build --out-dir <dir>` and `--clean` for build artifact control
