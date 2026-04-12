@@ -12,6 +12,7 @@ Start with C for the feasibility spike, then revisit LLVM/Wasm after the IR inte
 - Minimal runtime: `AsterValue` tagged union, string wrapper, basic helpers.
 - Build/run via system `cc`.
 - Placeholder C backend adapter exists but returns "not implemented" until IR emission lands.
+- Placeholder C backend currently emits a stub `.c` file for visibility.
 
 ## Minimal language coverage
 

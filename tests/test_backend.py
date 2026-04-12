@@ -6,6 +6,7 @@ from pathlib import Path
 import pytest
 
 from aster_lang.backend import BackendArtifact, BackendBuildOptions, BackendRegistry
+from aster_lang.backend_adapters import CBackendAdapter
 
 
 @dataclass
@@ -47,6 +48,18 @@ def test_backend_registry_unknown_backend_lists_available() -> None:
 
     with pytest.raises(KeyError, match="Available: python, vm"):
         registry.get("c")
+
+
+def test_c_backend_adapter_writes_stub(tmp_path: Path) -> None:
+    entry = tmp_path / "main.aster"
+    entry.write_text("fn main():\n    print(1)\n", encoding="utf-8")
+    adapter = CBackendAdapter()
+    options = BackendBuildOptions(entry_path=entry, out_dir=tmp_path / "out", clean=True)
+    artifact = adapter.build(options)
+
+    assert artifact.errors
+    assert artifact.entry_path.exists()
+    assert artifact.entry_path.suffix == ".c"
 
 
 def test_backend_build_options_defaults() -> None:
