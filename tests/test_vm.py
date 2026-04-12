@@ -704,3 +704,294 @@ def test_vm_module_access_on_non_module_binding(tmp_path: Path) -> None:
     )
     with pytest.raises(VMError, match="Module 'helpers' has no export 'missing'"):
         run_path_vm(program)
+
+
+# ------------------------------------------------------------------
+# Recursive functions
+
+
+def test_vm_factorial() -> None:
+    src = (
+        "fn factorial(n: Int) -> Int:\n"
+        "    if n <= 1:\n"
+        "        return 1\n"
+        "    return n * factorial(n - 1)\n"
+        "fn main():\n"
+        "    print(factorial(10))\n"
+    )
+    assert run_source_vm(src) == "3628800"
+
+
+def test_vm_fibonacci() -> None:
+    src = (
+        "fn fib(n: Int) -> Int:\n"
+        "    if n <= 1:\n"
+        "        return n\n"
+        "    return fib(n - 1) + fib(n - 2)\n"
+        "fn main():\n"
+        "    print(fib(10))\n"
+    )
+    assert run_source_vm(src) == "55"
+
+
+# ------------------------------------------------------------------
+# Early return
+
+
+def test_vm_function_early_return() -> None:
+    src = (
+        "fn sign(n: Int) -> Int:\n"
+        "    if n < 0:\n"
+        "        return -1\n"
+        "    if n == 0:\n"
+        "        return 0\n"
+        "    return 1\n"
+        "fn main():\n"
+        "    print(sign(-5))\n"
+        "    print(sign(0))\n"
+        "    print(sign(3))\n"
+    )
+    assert run_source_vm(src) == "-1\n0\n1"
+
+
+# ------------------------------------------------------------------
+# Literals and basic expressions
+
+
+def test_vm_nil_literal() -> None:
+    src = "fn main():\n    x := nil\n    print(x)\n"
+    assert run_source_vm(src) == "nil"
+
+
+def test_vm_bool_literal() -> None:
+    src = "fn main():\n    print(true)\n    print(false)\n"
+    assert run_source_vm(src) == "true\nfalse"
+
+
+def test_vm_string_concatenation() -> None:
+    src = 'fn main():\n    print("hello" + ", " + "world")\n'
+    assert run_source_vm(src) == "hello, world"
+
+
+def test_vm_string_equality() -> None:
+    src = 'fn main():\n    print("abc" == "abc")\n    print("abc" == "xyz")\n'
+    assert run_source_vm(src) == "true\nfalse"
+
+
+# ------------------------------------------------------------------
+# Builtin edge cases
+
+
+def test_vm_int_bool_conversion() -> None:
+    src = "fn main():\n    print(int(true))\n    print(int(false))\n"
+    assert run_source_vm(src) == "1\n0"
+
+
+def test_vm_range_two_args() -> None:
+    src = "fn main():\n" "    for i in range(2, 5):\n" "        print(i)\n"
+    assert run_source_vm(src) == "2\n3\n4"
+
+
+def test_vm_len_string() -> None:
+    src = 'fn main():\n    print(len("hello"))\n'
+    assert run_source_vm(src) == "5"
+
+
+def test_vm_len_list() -> None:
+    src = "fn main():\n    print(len([10, 20, 30]))\n"
+    assert run_source_vm(src) == "3"
+
+
+def test_vm_str_formats_nil_and_bool() -> None:
+    src = "fn main():\n    print(str(nil))\n    print(str(true))\n    print(str(false))\n"
+    assert run_source_vm(src) == "nil\ntrue\nfalse"
+
+
+# ------------------------------------------------------------------
+# Match: additional pattern types
+
+
+def test_vm_match_bool_pattern() -> None:
+    src = (
+        "fn main():\n"
+        "    x := true\n"
+        "    match x:\n"
+        '        true: print("yes")\n'
+        '        false: print("no")\n'
+    )
+    assert run_source_vm(src) == "yes"
+
+
+def test_vm_match_string_pattern() -> None:
+    src = (
+        "fn main():\n"
+        '    s := "hi"\n'
+        "    match s:\n"
+        '        "hi": print("greeting")\n'
+        '        _: print("other")\n'
+    )
+    assert run_source_vm(src) == "greeting"
+
+
+def test_vm_match_no_arm_matches() -> None:
+    """When no arm matches, execution falls through silently (no error)."""
+    src = "fn main():\n" "    match 99:\n" '        0: print("zero")\n' '    print("done")\n'
+    assert run_source_vm(src) == "done"
+
+
+def test_vm_match_nested_tuple_pattern() -> None:
+    src = (
+        "fn main():\n"
+        "    match ((1, 2), 3):\n"
+        "        ((a, b), c): print(a + b + c)\n"
+        "        _: print(0)\n"
+    )
+    assert run_source_vm(src) == "6"
+
+
+def test_vm_match_nested_list_pattern() -> None:
+    src = (
+        "fn main():\n"
+        "    match [[1, 2], [3]]:\n"
+        "        [[a, b], *rest]: print(a + b)\n"
+        "        _: print(0)\n"
+    )
+    assert run_source_vm(src) == "3"
+
+
+def test_vm_match_nested_record_pattern() -> None:
+    src = (
+        "fn main():\n"
+        "    match {p: {x: 1, y: 2}}:\n"
+        "        {p: {x: a, y: b}}: print(a + b)\n"
+        "        _: print(0)\n"
+    )
+    assert run_source_vm(src) == "3"
+
+
+# ------------------------------------------------------------------
+# Import scenarios
+
+
+def test_vm_import_named_function(tmp_path: Path) -> None:
+    (tmp_path / "helpers.aster").write_text(
+        "pub fn double(x: Int) -> Int:\n    return x + x\n",
+        encoding="utf-8",
+    )
+    program = tmp_path / "main.aster"
+    program.write_text(
+        "use helpers: double\nfn main():\n    print(double(21))\n",
+        encoding="utf-8",
+    )
+    assert run_path_vm(program) == "42"
+
+
+def test_vm_import_private_name_rejected(tmp_path: Path) -> None:
+    (tmp_path / "priv.aster").write_text(
+        "fn secret() -> Int:\n    return 99\n",
+        encoding="utf-8",
+    )
+    program = tmp_path / "main.aster"
+    program.write_text(
+        "use priv: secret\nfn main():\n    print(secret())\n",
+        encoding="utf-8",
+    )
+    with pytest.raises(VMError, match="has no export 'secret'"):
+        run_path_vm(program)
+
+
+def test_vm_import_cycle_reports_error(tmp_path: Path) -> None:
+    (tmp_path / "a.aster").write_text(
+        "use b\nfn foo() -> Int:\n    return 1\n",
+        encoding="utf-8",
+    )
+    (tmp_path / "b.aster").write_text(
+        "use a\nfn bar() -> Int:\n    return 2\n",
+        encoding="utf-8",
+    )
+    program = tmp_path / "main.aster"
+    program.write_text(
+        "use a\nfn main():\n    print(a.foo())\n",
+        encoding="utf-8",
+    )
+    with pytest.raises(VMError, match="Cyclic import"):
+        run_path_vm(program)
+
+
+def test_vm_import_missing_module_reports_error(tmp_path: Path) -> None:
+    program = tmp_path / "main.aster"
+    program.write_text(
+        "use nonexistent\nfn main():\n    print(nonexistent.x)\n",
+        encoding="utf-8",
+    )
+    with pytest.raises(VMError, match="Module not found"):
+        run_path_vm(program)
+
+
+def test_vm_import_public_names_only(tmp_path: Path) -> None:
+    """Plain module import exposes only pub declarations."""
+    (tmp_path / "mod.aster").write_text(
+        "pub fn pub_fn() -> Int:\n    return 1\n" "fn priv_fn() -> Int:\n    return 2\n",
+        encoding="utf-8",
+    )
+    program = tmp_path / "main.aster"
+    program.write_text(
+        "use mod\nfn main():\n    print(mod.pub_fn())\n",
+        encoding="utf-8",
+    )
+    assert run_path_vm(program) == "1"
+
+
+def test_vm_import_manifest_module_root(tmp_path: Path) -> None:
+    (tmp_path / "aster.toml").write_text(
+        '[modules]\nsearch_roots = ["src"]\n',
+        encoding="utf-8",
+    )
+    (tmp_path / "src").mkdir()
+    (tmp_path / "src" / "helpers.aster").write_text(
+        "pub fn answer() -> Int:\n    return 42\n",
+        encoding="utf-8",
+    )
+    program = tmp_path / "main.aster"
+    program.write_text(
+        "use helpers\nfn main():\n    print(helpers.answer())\n",
+        encoding="utf-8",
+    )
+    assert run_path_vm(program) == "42"
+
+
+def test_vm_import_current_package_name_prefix(tmp_path: Path) -> None:
+    (tmp_path / "aster.toml").write_text(
+        '[package]\nname = "app"\n[modules]\nsearch_roots = ["src"]\n',
+        encoding="utf-8",
+    )
+    (tmp_path / "src").mkdir()
+    (tmp_path / "src" / "helpers.aster").write_text(
+        "pub fn answer() -> Int:\n    return 42\n",
+        encoding="utf-8",
+    )
+    app_dir = tmp_path / "app"
+    app_dir.mkdir()
+    program = app_dir / "main.aster"
+    program.write_text(
+        "use app.helpers\nfn main():\n    print(helpers.answer())\n",
+        encoding="utf-8",
+    )
+    assert run_path_vm(program) == "42"
+
+
+def test_vm_import_parent_package_root(tmp_path: Path) -> None:
+    lib_dir = tmp_path / "lib"
+    lib_dir.mkdir()
+    (lib_dir / "helpers.aster").write_text(
+        "pub fn answer() -> Int:\n    return 42\n",
+        encoding="utf-8",
+    )
+    app_dir = tmp_path / "app"
+    app_dir.mkdir()
+    program = app_dir / "main.aster"
+    program.write_text(
+        "use lib.helpers\nfn main():\n    print(helpers.answer())\n",
+        encoding="utf-8",
+    )
+    assert run_path_vm(program) == "42"
