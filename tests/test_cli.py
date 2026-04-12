@@ -56,6 +56,14 @@ def test_run_command_supports_vm_backend(tmp_path: Path, capsys: CapsysFixture) 
     assert capsys.readouterr().out.strip() == "42"
 
 
+def test_vm_command_runs_program(tmp_path: Path, capsys: CapsysFixture) -> None:
+    program = tmp_path / "main.aster"
+    program.write_text('fn main():\n    print("ok")\n', encoding="utf-8")
+
+    assert main(["vm", str(program)]) == 0
+    assert capsys.readouterr().out.strip() == "ok"
+
+
 def test_run_command_reports_missing_module(tmp_path: Path, capsys: CapsysFixture) -> None:
     program = tmp_path / "main.aster"
     program.write_text(
