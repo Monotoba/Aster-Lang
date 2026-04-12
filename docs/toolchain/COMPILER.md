@@ -55,6 +55,9 @@ Interface sketch:
 This interface layer will be the anchor for future targets while keeping the
 front-end stable.
 
+Scaffold in code:
+- `src/aster_lang/backend.py` defines `BackendAdapter`, `BackendArtifact`, and a registry.
+
 ## Native backend feasibility study
 
 Goal: identify the shortest path to a native backend target and validate the

@@ -146,6 +146,7 @@ Next steps (choose based on goals):
 - Compiler transpiler now emits record destructuring bindings via temp extraction and field checks
 - Documented ownership lowering strategy in compiler design notes
 - Documented the planned backend interface layer for multi-backend support
+- Added a backend adapter scaffold (`BackendAdapter`, `BackendArtifact`, registry)
 - Added optional compressed binary VM artifacts (`--vm-artifact-format binary`)
 - Scoped a native backend feasibility study in compiler notes
 - Proposed C as the initial native backend feasibility target
