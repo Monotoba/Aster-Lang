@@ -186,6 +186,7 @@ Next steps (choose based on goals):
 - Clarified native backend feasibility status (scoped; spike not started)
 - Added caching/incremental compilation notes doc
 - Added caching next-actions checklist
+- Added cache-key/flag follow-up to NEXT-STEPS
 - Added `aster.toml`-driven module search roots shared by runtime and semantic analysis
 - Added `package.name` support for current-package import prefixes
 - Full suite currently passes with 699 tests

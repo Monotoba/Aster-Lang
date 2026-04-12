@@ -104,6 +104,7 @@ Ownership and references, now including expression-level `&x` / `&mut x` borrowi
 - native backend feasibility study (C-first spike plan, IR mapping, runtime stub/ABI sketch)
 - caching/incremental compilation notes drafted
 - caching/incremental next-actions checklist added
+- caching follow-up updated with cache-key/flag detail
 - native backend feasibility notes doc created
 - native backend feasibility next-actions checklist added
 - native backend feasibility checklist added to NEXT-STEPS

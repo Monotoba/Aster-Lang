@@ -21,6 +21,7 @@ Phase 6 remaining:
 Caching/incremental notes:
 - Define cache location and invalidation strategy
 - Decide whether to reuse VM artifacts or introduce a dedicated cache format
+- Define a cache key schema and a minimal `--cache` flag surface
 
 Backend adapter follow-ups:
 - Decide how to expose backend registry via CLI/help (partially addressed by `aster backends`)
