@@ -20,9 +20,20 @@ Goal: speed up repeated builds by reusing prior compilation artifacts.
 - Artifact format: reuse JSON/binary VM artifacts or add a separate internal cache format.
 - Cache eviction strategy and size limits.
 
-## Next actions
+## Implementation
 
-- Pick cache directory and document it in user/developer docs.
-- Define a cache key schema (hash inputs + toolchain version).
-- Add a minimal `--cache` flag to `aster build` (off by default).
-- Decide whether cache entries should embed backend adapter version identifiers.
+- **Cache directory**: `.aster_cache/v1/` inside the project root. Falls back to
+  `~/.cache/aster-lang/v1/` when no project root is found.
+- **Cache key**: `SHA256(source_content) + SHA256(backend + artifact_format + ownership +
+  types + toolchain_version)`. The toolchain version is derived from a hash of
+  `aster_lang/__init__.py`; a release build would use the package version string.
+- **Artifact storage**: the compiled output file (`.py`, `.asterbc.json`, `.asterbc`, or `.c`) is
+  copied verbatim into the cache entry directory alongside `metadata.json`.
+- **Invalidation**: `get()` checks mtime, size, and full content hash before accepting a hit.
+- **CLI flag**: `aster build --cache` enables caching (off by default). Reports "Cached …" on a hit.
+
+## Open questions (deferred)
+
+- Cache eviction strategy and size limits (manual-clear only for now).
+- Backend adapter version identifier in key (toolchain version used as proxy today).
+- Dependency-level invalidation for multi-module builds (entry file only today).

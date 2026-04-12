@@ -751,6 +751,38 @@ def test_build_uses_lockfile_even_if_manifest_changes(
     assert result.stdout.strip() == "42"
 
 
+def test_build_cache_flag_stores_and_hits(tmp_path: Path, capsys: CapsysFixture) -> None:
+    program = tmp_path / "main.aster"
+    program.write_text('fn main():\n    print("cached")\n', encoding="utf-8")
+
+    # First build: should compile and store in cache.
+    assert main(["build", str(program), "--cache"]) == 0
+    out = capsys.readouterr().out
+    assert "Built" in out
+    cache_dir = tmp_path / ".aster_cache"
+    assert cache_dir.exists()
+
+    # Second build: same source and flags → cache hit.
+    assert main(["build", str(program), "--cache"]) == 0
+    out = capsys.readouterr().out
+    assert "Cached" in out
+
+
+def test_build_cache_invalidated_on_source_change(tmp_path: Path, capsys: CapsysFixture) -> None:
+    program = tmp_path / "main.aster"
+    program.write_text('fn main():\n    print("v1")\n', encoding="utf-8")
+
+    # First build: populates cache.
+    assert main(["build", str(program), "--cache"]) == 0
+    capsys.readouterr()
+
+    # Modify source → cache should be bypassed.
+    program.write_text('fn main():\n    print("v2")\n', encoding="utf-8")
+    assert main(["build", str(program), "--cache"]) == 0
+    out = capsys.readouterr().out
+    assert "Built" in out
+
+
 def test_check_lockfile_cannot_combine_with_dep_overrides(
     tmp_path: Path, capsys: CapsysFixture
 ) -> None:

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Protocol
+from typing import Any, Protocol
 
 from aster_lang import ast
 from aster_lang.module_resolution import ModuleSearchConfig
@@ -19,6 +19,7 @@ class BackendArtifact:
     metadata: dict[str, object] = field(default_factory=dict)
     format: str | None = None
     errors: list[str] = field(default_factory=list)
+    cache_hit: bool = False  # True if artifact was retrieved from cache
 
 
 @dataclass(slots=True)
@@ -31,6 +32,11 @@ class BackendBuildOptions:
     clean: bool = False
     resolver_config: ModuleSearchConfig | None = None
     artifact_format: str | None = None
+    # Caching options
+    cache_enabled: bool = False
+    cache_manager: Any | None = None  # CacheManager instance
+    ownership_mode: str = "standard"  # For cache key computation
+    types_mode: str = "standard"  # For cache key computation
 
 
 class BackendAdapter(Protocol):

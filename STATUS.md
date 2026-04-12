@@ -4,9 +4,7 @@
 Phases 2–5 are largely complete. The language can parse, format, analyze, execute, and interact via the REPL, with file-based module imports, manifest-configured module roots and dependency mapping, package naming, parent package-root lookup, `pub`-aware exports for functions/bindings/type aliases, local destructuring bindings, binding or-patterns, structural match arm compilation, qualified type names in annotations, and an AST pretty-printer.
 
 ## Next focus (short)
-- Decide the comment-preserving formatter strategy (CST/trivia model) and begin implementation.
-- Continue VM parity work (mutability enforcement, destructuring bindings, remaining runtime gaps).
-- Keep JSON VM artifacts for now; revisit compression/binary encoding later (check back before changing formats).
+- Phase 6 is complete. Phase 7 (tooling) is next: language server plan, package manager plan, doc generator, test runner, benchmark harness.
 
 ## What exists
 - project layout and setup scripts
@@ -33,7 +31,7 @@ Phases 2–5 are largely complete. The language can parse, format, analyze, exec
 - **VM build artifacts**: `aster build --backend vm` emits a runnable launcher plus a serialized, versioned, integrity-checked `*.asterbc.json` bytecode program and minimal bundled VM runtime; the loader currently supports schema version `1`, with optional HMAC signing via `ASTER_VM_SIGNING_KEY`
 - **String operations**: `+` concatenation, `len()`, `str()`, `int()` built-ins
 - **Fixed-width unsigned integers**: `Nibble`/`Byte`/`Word`/`DWord`/`QWord` plus cast builtins (`nibble/byte/word/dword/qword`) and bitwise ops (`& | ^ ~ << >>`)
-- **699 passing tests** covering parser, semantics, interpreter, formatter, CLI, compiler, REPL, AST printer, typed HIR, and the experimental bytecode VM backend
+- **742 passing tests** covering parser, semantics, interpreter, formatter, CLI, compiler, REPL, AST printer, typed HIR, the experimental bytecode VM backend, and the caching layer
 - beginner-friendly tutorials and runnable example programs under `tutorials/` (20 tutorials; explicitly avoiding ownership/borrow enforcement by default)
 - progressively more complex multi-file example programs under `examples/programs/`
 - language and toolchain docs
@@ -43,6 +41,7 @@ Phases 2–5 are largely complete. The language can parse, format, analyze, exec
 - **Recursive build output**: `aster build` emits a runnable `__aster_build__/` dir with compiled modules under `_aster/`
 - **Build output controls**: `aster build --out-dir DIR` and `--clean`
 - **Lockfile support**: `aster lock` writes `aster.lock`; `aster check/build --lockfile` use a pinned module resolution config
+- **Incremental build cache**: `aster build --cache` stores compiled artifacts in `.aster_cache/`; repeated builds with identical source and flags are served from cache (Python and VM backends)
 
 ## Lexer Features
 - TokenKind enum with all language tokens (keywords, operators, literals)

@@ -64,7 +64,7 @@
 - [x] C backend: MIR → C codegen (functions, locals, arithmetic, if/while, calls)
 - [x] C backend: cc build harness in CBackendAdapter (compile emitted .c, run main)
 - [x] C backend: end-to-end spike test (integer arithmetic, if/else, while, function call)
-- [ ] caching and incremental compilation
+- [x] caching and incremental compilation
 
 ## Phase 7: tooling
 - [ ] language server plan

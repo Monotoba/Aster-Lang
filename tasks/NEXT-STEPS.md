@@ -1,18 +1,15 @@
 # NEXT STEPS
 
-Phase 3 is complete. Phase 4 (interpreter) is complete. Phase 5 (formatter) is complete.
-Phase 6 (compiler) is nearly complete — one item remains.
+Phases 2–6 are complete. Phase 7 (tooling) is next.
 
-## Phase 6 remaining
+## Phase 6 complete
 
-- **caching and incremental compilation** — the only open Phase 6 BACKLOG item.
-
-Caching/incremental notes (see also `docs/toolchain/CACHING.md`):
-- Pick cache directory (`.aster_cache/` in project root vs global)
-- Define a cache key schema (source hash + compiler flags + toolchain version)
-- Add a minimal `--cache` flag to `aster build` (off by default)
-- Decide whether cache entries embed backend adapter version identifiers
-- Decide whether to reuse JSON/binary VM artifacts as the cached form or add a separate internal cache format
+Caching and incremental compilation is done:
+- `CacheManager` in `src/aster_lang/cache.py` — key computation, put/get/invalidate/clear/stats
+- Cache directory: `.aster_cache/v1/` in project root (falls back to global `~/.cache/aster-lang/`)
+- Cache key: SHA256(source content) + SHA256(backend + flags + toolchain version)
+- `--cache` flag on `aster build` (off by default); prints "Cached …" on hit
+- Python and VM adapters wired; C adapter left for when C backend matures
 
 ## Phase 7 (tooling) — next major phase
 

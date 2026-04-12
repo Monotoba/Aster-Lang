@@ -23,6 +23,33 @@ class PythonBackendAdapter:
                 outputs=[],
                 errors=["Python backend requires a parsed entry module"],
             )
+
+        # Check cache if enabled
+        if options.cache_enabled and options.cache_manager is not None:
+            key = options.cache_manager.compute_key(
+                options.entry_path,
+                backend=self.name,
+                artifact_format=None,
+                ownership_mode=options.ownership_mode,
+                types_mode=options.types_mode,
+                resolver_config=options.resolver_config,
+            )
+            cached = options.cache_manager.get(options.entry_path, key, self.name, None)
+            if cached is not None:
+                metadata, artifact_path = cached
+                output_dir = options.out_dir or options.entry_path.parent / "__aster_build__"
+                output_dir.mkdir(parents=True, exist_ok=True)
+                dest_path = output_dir / f"{options.entry_path.stem}.py"
+                shutil.copy2(artifact_path, dest_path)
+                return BackendArtifact(
+                    entry_path=dest_path,
+                    outputs=[dest_path],
+                    metadata={"out_dir": output_dir, "cached": True},
+                    format="python",
+                    errors=[],
+                    cache_hit=True,
+                )
+
         result = build_project(
             entry_path=options.entry_path,
             entry_module=options.entry_module,
@@ -33,12 +60,34 @@ class PythonBackendAdapter:
             resolver_config=options.resolver_config,
         )
         outputs = [result.entry_py]
+
+        # Store in cache if enabled
+        if options.cache_enabled and options.cache_manager is not None:
+            key = options.cache_manager.compute_key(
+                options.entry_path,
+                backend=self.name,
+                artifact_format=None,
+                ownership_mode=options.ownership_mode,
+                types_mode=options.types_mode,
+                resolver_config=options.resolver_config,
+            )
+            options.cache_manager.put(
+                options.entry_path,
+                key,
+                self.name,
+                None,
+                options.ownership_mode,
+                options.types_mode,
+                result.entry_py,
+            )
+
         return BackendArtifact(
             entry_path=result.entry_py,
             outputs=outputs,
             metadata={"out_dir": result.out_dir},
             format="python",
             errors=list(result.errors),
+            cache_hit=False,
         )
 
 
@@ -49,6 +98,34 @@ class VMBackendAdapter:
 
     def build(self, options: BackendBuildOptions) -> BackendArtifact:
         artifact_format = options.artifact_format or "json"
+
+        # Check cache if enabled
+        if options.cache_enabled and options.cache_manager is not None:
+            key = options.cache_manager.compute_key(
+                options.entry_path,
+                backend=self.name,
+                artifact_format=artifact_format,
+                ownership_mode=options.ownership_mode,
+                types_mode=options.types_mode,
+                resolver_config=options.resolver_config,
+            )
+            cached = options.cache_manager.get(options.entry_path, key, self.name, artifact_format)
+            if cached is not None:
+                metadata, artifact_path = cached
+                output_dir = options.out_dir or options.entry_path.parent / "__aster_build__"
+                output_dir.mkdir(parents=True, exist_ok=True)
+                entry_py = output_dir / f"{options.entry_path.stem}.py"
+                bc_dest = output_dir / artifact_path.name
+                shutil.copy2(artifact_path, bc_dest)
+                return BackendArtifact(
+                    entry_path=entry_py,
+                    outputs=[entry_py, bc_dest],
+                    metadata={"out_dir": output_dir, "cached": True},
+                    format=artifact_format,
+                    errors=[],
+                    cache_hit=True,
+                )
+
         result = build_project_vm(
             entry_path=options.entry_path,
             dep_overrides=options.dep_overrides,
@@ -59,12 +136,38 @@ class VMBackendAdapter:
             artifact_format=artifact_format,
         )
         outputs = [result.entry_py]
+
+        # Store in cache if enabled
+        if options.cache_enabled and options.cache_manager is not None:
+            key = options.cache_manager.compute_key(
+                options.entry_path,
+                backend=self.name,
+                artifact_format=artifact_format,
+                ownership_mode=options.ownership_mode,
+                types_mode=options.types_mode,
+                resolver_config=options.resolver_config,
+            )
+            bc_path = result.out_dir / f"{options.entry_path.stem}.asterbc"
+            if artifact_format != "binary":
+                bc_path = result.out_dir / f"{options.entry_path.stem}.asterbc.json"
+            if bc_path.exists():
+                options.cache_manager.put(
+                    options.entry_path,
+                    key,
+                    self.name,
+                    artifact_format,
+                    options.ownership_mode,
+                    options.types_mode,
+                    bc_path,
+                )
+
         return BackendArtifact(
             entry_path=result.entry_py,
             outputs=outputs,
             metadata={"out_dir": result.out_dir},
             format=artifact_format,
             errors=list(result.errors),
+            cache_hit=False,
         )
 
 
@@ -79,7 +182,6 @@ class CBackendAdapter:
             shutil.rmtree(output_dir)
         output_dir.mkdir(parents=True, exist_ok=True)
 
-        # Build HIR then lower to MIR
         hir_result = build_project_hir(
             entry_path=options.entry_path,
             dep_overrides=options.dep_overrides,
@@ -88,21 +190,19 @@ class CBackendAdapter:
         )
         mmod = lower_hir(hir_result.module)
 
-        # Transpile MIR → C
         c_path = output_dir / f"{options.entry_path.stem}.c"
         c_code = CTranspiler().transpile(mmod)
         c_path.write_text(c_code, encoding="utf-8")
 
         errors = list(hir_result.errors)
 
-        # Optionally compile to a native binary
         bin_path = output_dir / options.entry_path.stem
         try:
             warnings = compile_c(c_code, bin_path)
             errors.extend(warnings)
         except CBuildError as exc:
             errors.append(str(exc))
-            bin_path = c_path  # fall back to .c as the primary output
+            bin_path = c_path
 
         return BackendArtifact(
             entry_path=bin_path,
@@ -110,6 +210,7 @@ class CBackendAdapter:
             format="c",
             metadata={"out_dir": output_dir},
             errors=errors,
+            cache_hit=False,
         )
 
 

@@ -6,6 +6,7 @@ from pathlib import Path
 from aster_lang.ast_printer import dump
 from aster_lang.backend import BackendBuildOptions
 from aster_lang.backend_adapters import get_default_backend_registry
+from aster_lang.cache import CacheManager
 from aster_lang.compiler import compile_source
 from aster_lang.formatter import format_source
 from aster_lang.hir import dump_hir
@@ -164,6 +165,11 @@ def build_parser() -> argparse.ArgumentParser:
         "--clean",
         action="store_true",
         help="delete the output directory before building",
+    )
+    build_p.add_argument(
+        "--cache",
+        action="store_true",
+        help="enable incremental caching (default: off)",
     )
     build_p.add_argument(
         "--ownership",
@@ -391,6 +397,11 @@ def main(argv: list[str] | None = None) -> int:
                 print(err)
             return 1
 
+        # Initialize cache manager if caching is enabled
+        cache_manager = None
+        if args.cache:
+            cache_manager = CacheManager(project_root=args.path.parent, enabled=True)
+
         registry = get_default_backend_registry()
         adapter = registry.get(args.backend)
         build_options = BackendBuildOptions(
@@ -402,6 +413,10 @@ def main(argv: list[str] | None = None) -> int:
             clean=args.clean,
             resolver_config=build_resolver_config,
             artifact_format=args.vm_artifact_format if args.backend == "vm" else None,
+            cache_enabled=args.cache,
+            cache_manager=cache_manager,
+            ownership_mode=args.ownership,
+            types_mode=args.types,
         )
         try:
             registry.validate_format(adapter, build_options.artifact_format)
@@ -412,7 +427,10 @@ def main(argv: list[str] | None = None) -> int:
         if backend_artifact.errors:
             print(f"Build failed: {'; '.join(backend_artifact.errors)}")
             return 1
-        print(f"Built {args.path} → {backend_artifact.entry_path}")
+        if backend_artifact.cache_hit:
+            print(f"Cached {args.path} → {backend_artifact.entry_path}")
+        else:
+            print(f"Built {args.path} → {backend_artifact.entry_path}")
         return 0
 
     if args.command == "lock":
