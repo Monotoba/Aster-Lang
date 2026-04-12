@@ -25,7 +25,6 @@ Caching/incremental notes:
 Backend adapter follow-ups:
 - Decide how to expose backend registry via CLI/help
 - Add a shared build result summary across adapters
-- Add `aster backends` command to list available adapters and formats
 
 Native backend feasibility (near-term checklist):
 - Decide on single TU vs per-module C emission

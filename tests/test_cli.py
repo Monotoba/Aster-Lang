@@ -18,6 +18,14 @@ def test_version_command_returns_zero() -> None:
     assert main(["version"]) == 0
 
 
+def test_backends_command_lists_backends(capsys: CapsysFixture) -> None:
+    assert main(["backends"]) == 0
+    lines = capsys.readouterr().out.strip().splitlines()
+    assert any(line.startswith("python:") for line in lines)
+    assert any(line.startswith("vm:") for line in lines)
+    assert any(line.startswith("c:") for line in lines)
+
+
 def test_run_command_loads_sibling_module(tmp_path: Path, capsys: CapsysFixture) -> None:
     (tmp_path / "helpers.aster").write_text(
         "pub fn answer() -> Int:\n" "    return 42\n",

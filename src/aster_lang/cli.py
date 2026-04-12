@@ -200,6 +200,8 @@ def build_parser() -> argparse.ArgumentParser:
         default=[],
         help="prepend an extra module search root (repeatable)",
     )
+
+    sub.add_parser("backends", help="list available build backends")
     lock_p.add_argument(
         "--lockfile",
         type=Path,
@@ -458,6 +460,14 @@ def main(argv: list[str] | None = None) -> int:
         )
         write_lockfile(lockfile_path, lock)
         print(f"Wrote lockfile: {lockfile_path}")
+        return 0
+
+    if args.command == "backends":
+        registry = get_default_backend_registry()
+        for name in registry.names():
+            adapter = registry.get(name)
+            formats = ", ".join(adapter.supported_formats)
+            print(f"{name}: {formats}")
         return 0
 
     if args.command == "repl":

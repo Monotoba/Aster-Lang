@@ -8,6 +8,7 @@ This project currently provides a language and toolchain design package plus a s
 - `aster check file.aster` — parse and type-check (`--ownership off|warn|deny`)
 - `aster fmt file.aster` — format source
 - `aster build file.aster` — build artifacts (`--backend python|vm|c`, `--ownership off|warn|deny`, `--vm-artifact-format json|binary`; `c` is a placeholder that emits a stub `.c` file)
+- `aster backends` — list available build backends and formats
 - `aster repl` — interactive shell
 - `aster rr grammar/aster-full.ebnf` — grammar workflow helper
 

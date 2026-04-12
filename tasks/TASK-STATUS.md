@@ -121,6 +121,7 @@ Ownership and references, now including expression-level `&x` / `&mut x` borrowi
 - user-facing docs mention the C stub output
 - backend adapter follow-ups added to NEXT-STEPS
 - backend adapter `aster backends` follow-up added
+- `aster backends` command implemented and documented
 - VM artifact format option documented in user guides
 - backend registry tests added for adapter scaffolding
 - backend registry validates artifact formats

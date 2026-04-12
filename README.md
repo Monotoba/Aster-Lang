@@ -83,6 +83,7 @@ The repository has moved well beyond the initial scaffold. It now includes:
 - `--dep NAME=PATH` and `--search-root PATH` CLI flags on `run`, `check`, `build`, and `vm` to override manifest resolution
 - `aster run --backend interpreter|vm <file>` to select the execution backend without switching commands
 - `aster build --backend python|vm|c <file>` to choose between Python transpilation, a VM bundle with a launcher plus a serialized, versioned, integrity-checked bytecode artifact (optional HMAC signature via `ASTER_VM_SIGNING_KEY`), or the placeholder C backend (emits a stub `.c` file)
+- `aster backends` to list available build backends and formats
 - semantic-only lint (`aster check <file>`) for CI workflows
 - recursive build output (`aster build <file>`) emits a runnable `__aster_build__/` directory
 - `aster build --out-dir <dir>` and `--clean` for build artifact control
@@ -92,7 +93,7 @@ The repository has moved well beyond the initial scaffold. It now includes:
 - fixed-width unsigned integer types: `Nibble`/`Byte`/`Word`/`DWord`/`QWord` plus cast builtins (`nibble/byte/word/dword/qword`)
 - string byte helpers: `ascii_bytes` (ASCII-only) and `unicode_bytes` (UTF-8)
 - opt-in ownership/borrow surface diagnostics: `aster check/build --ownership off|warn|deny` (default: `off`)
-- 696 passing tests
+- 697 passing tests
 
 ## License
 
