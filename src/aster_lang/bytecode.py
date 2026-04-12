@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import hmac
 import json
+import zlib
 from dataclasses import dataclass
 from enum import Enum, auto
 
@@ -12,6 +13,8 @@ BYTECODE_MIN_SUPPORTED_VERSION = 1
 BYTECODE_MAX_SUPPORTED_VERSION = 1
 BYTECODE_INTEGRITY_ALGORITHM = "sha256"
 BYTECODE_SIGNATURE_ALGORITHM = "hmac-sha256"
+BYTECODE_BINARY_MAGIC = b"ASTERBC"
+BYTECODE_BINARY_VERSION = 1
 
 
 class Op(Enum):
@@ -189,6 +192,21 @@ def program_from_json(data: str, *, signing_key: bytes | None = None) -> BCProgr
     return program_from_data(json.loads(data), signing_key=signing_key)
 
 
+def program_to_bytes(program: BCProgram, *, signing_key: bytes | None = None) -> bytes:
+    if signing_key is None:
+        artifact = program_to_data(program)
+    else:
+        artifact = program_to_signed_data(program, signing_key=signing_key)
+    if not isinstance(artifact, dict):
+        raise TypeError("Bytecode artifact must be a dictionary to encode")
+    return _artifact_to_bytes(artifact)
+
+
+def program_from_bytes(data: bytes, *, signing_key: bytes | None = None) -> BCProgram:
+    artifact = _artifact_from_bytes(data)
+    return program_from_data(artifact, signing_key=signing_key)
+
+
 def _encode_value(value: object) -> object:
     if value is None or isinstance(value, bool | int | str):
         return value
@@ -254,6 +272,34 @@ def _artifact_digest(payload: object) -> str:
 def _canonical_bytes(payload: object) -> bytes:
     canonical = json.dumps(payload, sort_keys=True, separators=(",", ":"))
     return canonical.encode("utf-8")
+
+
+def _artifact_to_bytes(artifact: dict[object, object]) -> bytes:
+    header = BYTECODE_BINARY_MAGIC + bytes([BYTECODE_BINARY_VERSION])
+    payload = _canonical_bytes(artifact)
+    compressed = zlib.compress(payload)
+    return header + compressed
+
+
+def _artifact_from_bytes(data: bytes) -> dict[object, object]:
+    if not isinstance(data, bytes | bytearray):
+        raise TypeError("Bytecode artifact bytes must be bytes")
+    header_len = len(BYTECODE_BINARY_MAGIC) + 1
+    if len(data) < header_len:
+        raise ValueError("Bytecode binary artifact header is incomplete")
+    if not data.startswith(BYTECODE_BINARY_MAGIC):
+        raise ValueError("Bytecode binary artifact has invalid magic header")
+    version = data[len(BYTECODE_BINARY_MAGIC)]
+    if version != BYTECODE_BINARY_VERSION:
+        raise ValueError("Unsupported bytecode binary artifact version")
+    try:
+        payload = zlib.decompress(data[header_len:])
+    except zlib.error as exc:
+        raise ValueError("Bytecode binary artifact decompression failed") from exc
+    artifact = json.loads(payload.decode("utf-8"))
+    if not isinstance(artifact, dict):
+        raise TypeError("Bytecode binary artifact must decode to a JSON object")
+    return artifact
 
 
 def sign_artifact(artifact: dict[object, object], signing_key: bytes) -> dict[object, object]:

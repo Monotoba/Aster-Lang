@@ -34,6 +34,20 @@ and reports older/newer artifacts distinctly before decode.
 If `ASTER_VM_SIGNING_KEY` is set in the environment, the build embeds an HMAC-SHA256 signature
 over the artifact payload and the launcher verifies it using the same key.
 
+### Binary/compressed artifacts
+
+Use `--vm-artifact-format binary` to emit a compressed binary artifact:
+
+```bash
+python -m aster_lang build path/to/main.aster --backend vm --vm-artifact-format binary
+```
+
+This produces `main.asterbc` instead of `main.asterbc.json`. The binary format is:
+- magic header `ASTERBC` + version byte
+- zlib-compressed canonical JSON payload (same schema as the JSON artifact)
+
+Integrity/signature checks are still performed after decompression.
+
 ## Artifact Compatibility Policy
 
 - The bytecode schema version increments on any incompatible change to the serialized layout.

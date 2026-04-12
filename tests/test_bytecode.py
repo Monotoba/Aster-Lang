@@ -5,6 +5,7 @@ import json
 import pytest
 
 from aster_lang.bytecode import (
+    BYTECODE_BINARY_MAGIC,
     BYTECODE_FORMAT_NAME,
     BYTECODE_FORMAT_VERSION,
     BYTECODE_MAX_SUPPORTED_VERSION,
@@ -14,7 +15,9 @@ from aster_lang.bytecode import (
     BCProgram,
     Instr,
     Op,
+    program_from_bytes,
     program_from_data,
+    program_to_bytes,
     program_to_data,
     program_to_signed_data,
 )
@@ -85,6 +88,15 @@ def test_program_from_data_round_trips_serialized_program() -> None:
     assert decoded == original
 
 
+def test_program_from_bytes_round_trips_program() -> None:
+    original = _sample_program()
+    encoded = program_to_bytes(original)
+    assert encoded.startswith(BYTECODE_BINARY_MAGIC)
+
+    decoded = program_from_bytes(encoded)
+    assert decoded == original
+
+
 def test_program_from_data_accepts_signed_artifacts_with_key() -> None:
     key = b"test-key"
     signed = program_to_signed_data(_sample_program(), signing_key=key)
@@ -93,6 +105,22 @@ def test_program_from_data_accepts_signed_artifacts_with_key() -> None:
 
     decoded = program_from_data(signed, signing_key=key)
     assert decoded == _sample_program()
+
+
+def test_program_from_bytes_accepts_signed_artifacts_with_key() -> None:
+    key = b"test-key"
+    encoded = program_to_bytes(_sample_program(), signing_key=key)
+
+    decoded = program_from_bytes(encoded, signing_key=key)
+    assert decoded == _sample_program()
+
+
+def test_program_from_bytes_rejects_bad_magic() -> None:
+    encoded = program_to_bytes(_sample_program())
+    bad = b"BADMAG" + encoded[6:]
+
+    with pytest.raises(ValueError, match="invalid magic"):
+        program_from_bytes(bad)
 
 
 def test_program_from_data_rejects_signed_artifacts_without_key() -> None:

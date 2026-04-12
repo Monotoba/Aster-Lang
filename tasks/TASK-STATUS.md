@@ -19,6 +19,8 @@ Ownership and references, now including expression-level `&x` / `&mut x` borrowi
 - local tuple/list/record destructuring bindings, including trailing list rest capture
 - compiler transpiler emits record destructuring bindings using field extraction
 - ownership lowering strategy documented in compiler notes
+- backend interface layer documented for multi-backend support
+- VM build now supports optional compressed binary artifacts
 - CLI and semantic diagnostics for missing modules and cyclic imports
 - `pub`-aware exports for imported functions and top-level bindings
 - parent package-root lookup for dotted imports

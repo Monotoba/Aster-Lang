@@ -35,6 +35,26 @@ Aster has:
 
 A staged compiler will make the language easier to validate and extend.
 
+## Backend interface layer (multi-backend plan)
+
+Goal: support many backends (VM, C, LLVM, Wasm, JavaScript) using a standard IR
+and a stable adapter interface.
+
+Principles:
+- Define a backend-agnostic IR contract (types, control flow, ownership annotations).
+- Keep backend adapters thin: translate from the standard IR into target-specific IR.
+- Preserve a single semantic source of truth (no backend-specific reinterpretation).
+
+Interface sketch:
+- `BackendAdapter` consumes the standard IR module plus metadata:
+  - target platform info (endianness, pointer size, calling convention)
+  - artifact settings (format, compression, signing)
+- `BackendAdapter` outputs an artifact bundle (bytecode/binary/library/etc.).
+- Validation hooks run before and after adapter translation to catch IR drift.
+
+This interface layer will be the anchor for future targets while keeping the
+front-end stable.
+
 ## Ownership lowering strategy
 
 Goal: make ownership/borrow semantics explicit in MIR so backends can enforce or optimize

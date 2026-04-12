@@ -128,6 +128,12 @@ def build_parser() -> argparse.ArgumentParser:
         help="build backend (default: python)",
     )
     build_p.add_argument(
+        "--vm-artifact-format",
+        choices=["json", "binary"],
+        default="json",
+        help="VM artifact format when --backend vm (default: json)",
+    )
+    build_p.add_argument(
         "--dep",
         action="append",
         metavar="NAME=PATH",
@@ -390,6 +396,7 @@ def main(argv: list[str] | None = None) -> int:
                 out_dir=args.out_dir,
                 clean=args.clean,
                 resolver_config=build_resolver_config,
+                artifact_format=args.vm_artifact_format,
             )
         else:
             build = build_project(
