@@ -32,6 +32,7 @@ class TokenKind(Enum):
     AND = auto()
     OR = auto()
     SELF = auto()
+    EFFECT = auto()
 
     # Operators
     ASSIGN = auto()  # <-
@@ -52,6 +53,7 @@ class TokenKind(Enum):
     AMP = auto()  # &
     DOT = auto()  # .
     PIPE = auto()  # |
+    BANG = auto()  # ! (effect annotation)
     CARET = auto()  # ^
     TILDE = auto()  # ~
     SHL = auto()  # <<
@@ -108,6 +110,7 @@ KEYWORDS = {
     "and": TokenKind.AND,
     "or": TokenKind.OR,
     "Self": TokenKind.SELF,
+    "effect": TokenKind.EFFECT,
 }
 
 
@@ -416,6 +419,7 @@ class Lexer:
             "<": TokenKind.LT,
             ">": TokenKind.GT,
             "=": TokenKind.EQUALS,
+            "!": TokenKind.BANG,
         }
 
         if ch in single_char_tokens:

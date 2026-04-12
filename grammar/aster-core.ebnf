@@ -1,6 +1,6 @@
 CoreModule ::= TopLevelItem* EOF
 
-TopLevelItem ::= ( Visibility? ( FunctionDecl | TypeAliasDecl | ImportDecl | LetDecl ) ) NEWLINE*
+TopLevelItem ::= ( Visibility? ( FunctionDecl | EffectDecl | TypeAliasDecl | ImportDecl | LetDecl ) ) NEWLINE*
 
 Visibility ::= "pub"
 
@@ -11,7 +11,11 @@ ImportDecl ::= "use" QualifiedName (
 
 TypeAliasDecl ::= "typealias" Identifier TypeParams? "=" TypeExpr
 
-FunctionDecl ::= "fn" Identifier ParamList ReturnType? ":" Block
+EffectDecl ::= "effect" Identifier
+
+FunctionDecl ::= "fn" Identifier ParamList ReturnType? EffectList? ":" Block
+
+EffectList ::= ( "!" Identifier )+
 
 LetDecl ::= "mut"? Identifier TypeAnnotation? ":=" Expression
 

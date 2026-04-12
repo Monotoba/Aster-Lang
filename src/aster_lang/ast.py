@@ -58,8 +58,16 @@ class Module(Node):
 
 
 @dataclass(slots=True)
+class EffectDecl(Decl):
+    """Effect declaration: effect Name"""
+
+    name: str
+    is_public: bool = False
+
+
+@dataclass(slots=True)
 class FunctionDecl(Decl):
-    """Function declaration: fn name(params) -> Type: body"""
+    """Function declaration: fn name(params) -> Type !effect: body"""
 
     name: str
     type_params: list[TypeParam]
@@ -67,6 +75,7 @@ class FunctionDecl(Decl):
     return_type: TypeExpr | None
     body: list[Stmt]
     is_public: bool = False
+    effects: list[str] = field(default_factory=list)
 
 
 @dataclass(slots=True)
@@ -117,11 +126,12 @@ class LetDecl(Decl):
 
 @dataclass(slots=True)
 class FunctionSig(Node):
-    """Function signature (no body): fn name(params) -> Type?"""
+    """Function signature (no body): fn name(params) -> Type? !effect?"""
 
     name: str
     params: list[ParamDecl]
     return_type: TypeExpr | None
+    effects: list[str] = field(default_factory=list)
 
 
 @dataclass(slots=True)

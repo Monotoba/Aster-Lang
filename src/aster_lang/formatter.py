@@ -78,16 +78,23 @@ class Formatter:
             self._format_trait_decl(decl)
         elif isinstance(decl, ast.ImplDecl):
             self._format_impl_decl(decl)
+        elif isinstance(decl, ast.EffectDecl):
+            self._format_effect_decl(decl)
         else:
             self._emit(f"# (unknown decl: {type(decl).__name__})")
         self._apply_trailing_comment(decl)
+
+    def _format_effect_decl(self, decl: ast.EffectDecl) -> None:
+        pub = "pub " if decl.is_public else ""
+        self._emit(f"{pub}effect {decl.name}")
 
     def _format_function_decl(self, decl: ast.FunctionDecl) -> None:
         pub = "pub " if decl.is_public else ""
         tparams = self._format_type_params(decl.type_params)
         params = ", ".join(self._format_param(p) for p in decl.params)
         ret = f" -> {self._format_type(decl.return_type)}" if decl.return_type else ""
-        self._emit(f"{pub}fn {decl.name}{tparams}({params}){ret}:")
+        efx = "".join(f" !{e}" for e in decl.effects)
+        self._emit(f"{pub}fn {decl.name}{tparams}({params}){ret}{efx}:")
         self._indent()
         for stmt in decl.body:
             self._format_stmt(stmt)
@@ -133,7 +140,8 @@ class Formatter:
     def _format_function_sig(self, sig: ast.FunctionSig) -> str:
         params = ", ".join(self._format_param(p) for p in sig.params)
         ret = f" -> {self._format_type(sig.return_type)}" if sig.return_type else ""
-        return f"fn {sig.name}({params}){ret}"
+        efx = "".join(f" !{e}" for e in sig.effects)
+        return f"fn {sig.name}({params}){ret}{efx}"
 
     def _format_type_params(self, params: list[ast.TypeParam]) -> str:
         if not params:
@@ -413,6 +421,8 @@ class Formatter:
         if isinstance(type_expr, ast.PointerTypeExpr):
             inner = self._format_type(type_expr.inner)
             return f"*{type_expr.pointer_kind} {inner}"
+        if isinstance(type_expr, ast.SelfType):
+            return "Self"
         return f"(# unknown type: {type(type_expr).__name__} #)"
 
 

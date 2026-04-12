@@ -544,3 +544,31 @@ def test_format_trailing_comment_on_decl() -> None:
     src = "x := 42  # the answer\n"
     result = fmt(src)
     assert "x := 42  # the answer" in result
+
+
+def test_format_effect_decl() -> None:
+    """Effect declarations are formatted as 'effect Name'."""
+    src = "effect io\n"
+    assert "effect io" in fmt(src)
+
+
+def test_format_function_with_effect() -> None:
+    """Function with effect annotation is formatted with '!effect' after return type."""
+    src = "fn write(s: String) -> Int !io:\n    return 0\n"
+    result = fmt(src)
+    assert "fn write(s: String) -> Int !io:" in result
+
+
+def test_format_function_with_multiple_effects() -> None:
+    """Function with multiple effects emits all effect annotations."""
+    src = "fn fetch(url: String) !io !net:\n    return 0\n"
+    result = fmt(src)
+    assert "fn fetch(url: String) !io !net:" in result
+
+
+def test_format_effect_idempotent() -> None:
+    """Formatting an effect declaration twice produces the same output."""
+    src = "effect io\nfn write() !io:\n    return 0\n"
+    once = fmt(src)
+    twice = fmt(once)
+    assert once == twice

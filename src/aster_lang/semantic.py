@@ -131,27 +131,34 @@ class NilType(Type):
 
 @dataclass(frozen=True)
 class FunctionType(Type):
-    """Function type: (T1, T2, ...) -> R"""
+    """Function type: (T1, T2, ...) -> R !effect"""
 
     param_types: tuple[Type, ...]
     return_type: Type
     # Generic type parameters and their trait bounds: name -> (Bound1, Bound2, ...)
     type_params: dict[str, tuple[str, ...]]
+    # Declared effects for this function.
+    effects: tuple[str, ...]
 
     def __init__(
         self,
         param_types: tuple[Type, ...],
         return_type: Type,
         type_params: dict[str, tuple[str, ...]] | None = None,
+        effects: tuple[str, ...] = (),
     ) -> None:
         object.__setattr__(self, "kind", TypeKind.FUNCTION)
         object.__setattr__(self, "param_types", param_types)
         object.__setattr__(self, "return_type", return_type)
         object.__setattr__(self, "type_params", type_params or {})
+        object.__setattr__(self, "effects", effects)
 
     def __str__(self) -> str:
         params = ", ".join(str(t) for t in self.param_types)
-        return f"Fn({params}) -> {self.return_type}"
+        base = f"Fn({params}) -> {self.return_type}"
+        if self.effects:
+            base += " " + " ".join(f"!{e}" for e in self.effects)
+        return base
 
 
 @dataclass(frozen=True)
@@ -289,6 +296,7 @@ class SymbolKind(Enum):
     TYPE_PARAM = auto()
     TRAIT = auto()
     MODULE = auto()
+    EFFECT = auto()
 
 
 @dataclass
@@ -578,6 +586,13 @@ class SemanticAnalyzer:
         self._impls: dict[tuple[Type, str], dict[str, FunctionType]] = {}
         # The 'Self' type for the current trait/impl scope.
         self._current_self_type: Type | None = None
+        # Effect tracking prototype.
+        # Set of declared effect names in the module.
+        self._declared_effects: set[str] = set()
+        # Effects declared by the current function being analyzed (empty = no constraint).
+        self._current_fn_effects: tuple[str, ...] = ()
+        # Whether we are currently inside a function body (vs. top-level).
+        self._inside_function: bool = False
         # Ownership/borrow prototype enforcement (opt-in).
         # Stack of scopes: name -> moved-state.
         self._own_scopes: list[dict[str, _OwnVarState]] = [{}]
@@ -879,6 +894,23 @@ class SemanticAnalyzer:
             self.analyze_trait_decl(decl)
         elif isinstance(decl, ast.ImplDecl):
             self.analyze_impl_decl(decl)
+        elif isinstance(decl, ast.EffectDecl):
+            self.analyze_effect_decl(decl)
+
+    def analyze_effect_decl(self, decl: ast.EffectDecl) -> None:
+        """Analyze an effect declaration: registers the effect name."""
+        if decl.name in self._declared_effects:
+            self.error(f"Effect '{decl.name}' is already declared", decl)
+            return
+        self._declared_effects.add(decl.name)
+        self.symbol_table.define(
+            Symbol(
+                name=decl.name,
+                kind=SymbolKind.EFFECT,
+                type=UNKNOWN_TYPE,
+                declaration_node=decl,
+            )
+        )
 
     def analyze_trait_decl(self, decl: ast.TraitDecl) -> None:
         """Analyze a trait declaration (prototype: signatures only)."""
@@ -1054,9 +1086,22 @@ class SemanticAnalyzer:
         finally:
             self._exit_scope()
 
-        # Create function symbol
+        # Validate declared effects
+        for eff_name in decl.effects:
+            if eff_name not in self._declared_effects:
+                self.error(
+                    f"Unknown effect '{eff_name}' — declare it with 'effect {eff_name}'",
+                    decl,
+                )
+
+        # Create function symbol (with effects)
         type_params = self.decl_type_params.get(id(decl))
-        func_type = FunctionType(tuple(param_types), return_type, type_params=type_params)
+        func_type = FunctionType(
+            tuple(param_types),
+            return_type,
+            type_params=type_params,
+            effects=tuple(decl.effects),
+        )
         func_symbol = Symbol(
             name=decl.name,
             kind=SymbolKind.FUNCTION,
@@ -1072,6 +1117,10 @@ class SemanticAnalyzer:
         self._enter_scope(f"fn {decl.name}")
         saved_typevar_bounds = self._current_typevar_bounds
         self._current_typevar_bounds = dict(self.decl_type_params.get(id(decl), {}))
+        saved_fn_effects = self._current_fn_effects
+        saved_inside_function = self._inside_function
+        self._current_fn_effects = tuple(decl.effects)
+        self._inside_function = True
 
         for tp in decl.type_params:
             self.symbol_table.define(
@@ -1104,6 +1153,8 @@ class SemanticAnalyzer:
         # Exit function scope
         self._exit_scope()
         self._current_typevar_bounds = saved_typevar_bounds
+        self._current_fn_effects = saved_fn_effects
+        self._inside_function = saved_inside_function
 
     def analyze_let_decl(self, decl: ast.LetDecl) -> None:
         """Analyze a top-level binding declaration."""
@@ -2610,6 +2661,20 @@ class SemanticAnalyzer:
 
         return UNKNOWN_TYPE
 
+    def _check_effect_propagation(
+        self, callee_effects: tuple[str, ...], node: ast.Node | None
+    ) -> None:
+        """Ensure all effects of a callee are declared by the current function."""
+        if not self._inside_function or not callee_effects:
+            return
+        for eff in callee_effects:
+            if eff not in self._current_fn_effects:
+                self.error(
+                    f"Effect '{eff}' is not declared on this function — "
+                    f"add '!{eff}' to the function signature",
+                    node,
+                )
+
     def infer_call_expr_type(self, expr: ast.CallExpr) -> Type:
         """Infer type of function call."""
         # Get function type
@@ -2755,6 +2820,7 @@ class SemanticAnalyzer:
                         if st2 is not None and st2.move_only and not st2.moved:
                             st2.moved = True
 
+            self._check_effect_propagation(func_type.effects, expr)
             return self._substitute_typevars(func_type.return_type, subs)
         elif isinstance(expr.func, ast.MemberExpr):
             # Trait call-site resolution prototype: x.method(args) where x has a bounded type var.
@@ -2789,6 +2855,7 @@ class SemanticAnalyzer:
                     f"got {actual_arity}",
                     expr,
                 )
+            self._check_effect_propagation(method_sig.effects, expr)
             return method_sig.return_type
         else:
             callee_t = self.infer_expr_type(expr.func)
@@ -2820,6 +2887,7 @@ class SemanticAnalyzer:
                         expr,
                     )
 
+            self._check_effect_propagation(callee_t.effects, expr)
             return self._substitute_typevars(callee_t.return_type, subs2)
 
     # Type utilities

@@ -96,6 +96,8 @@ class Parser:
             node = self.parse_impl_decl()
         elif self.check(TokenKind.TYPEALIAS):
             node = self.parse_type_alias_decl(is_public)
+        elif self.check(TokenKind.EFFECT):
+            node = self.parse_effect_decl(is_public)
         elif self.check(TokenKind.USE):
             node = self.parse_import_decl()
         elif self.check(TokenKind.MUT, TokenKind.IDENTIFIER):
@@ -129,7 +131,7 @@ class Parser:
         return node
 
     def parse_function_decl(self, is_public: bool = False) -> ast.FunctionDecl:
-        """Parse function declaration: fn name(params) -> Type: body"""
+        """Parse function declaration: fn name(params) -> Type !effect: body"""
         self.expect(TokenKind.FN)
         name_token = self.expect(TokenKind.IDENTIFIER)
         name = name_token.text
@@ -148,6 +150,9 @@ class Parser:
         if self.match(TokenKind.ARROW):
             return_type = self.parse_type_expr()
 
+        # Effect annotations: !effect1 !effect2 ...
+        effects = self._parse_effect_list()
+
         # Body
         self.expect(TokenKind.COLON)
         body = self.parse_block()
@@ -159,7 +164,24 @@ class Parser:
             return_type=return_type,
             body=body,
             is_public=is_public,
+            effects=effects,
         )
+
+    def _parse_effect_list(self) -> list[str]:
+        """Parse zero or more effect annotations: !name1 !name2 ..."""
+        effects: list[str] = []
+        while self.check(TokenKind.BANG):
+            self.advance()  # consume '!'
+            name_token = self.expect(TokenKind.IDENTIFIER, "Expected effect name after '!'")
+            effects.append(name_token.text)
+        return effects
+
+    def parse_effect_decl(self, is_public: bool = False) -> ast.EffectDecl:
+        """Parse effect declaration: effect Name"""
+        self.expect(TokenKind.EFFECT)
+        name = self.expect(TokenKind.IDENTIFIER).text
+        self.skip_newlines()
+        return ast.EffectDecl(name=name, is_public=is_public)
 
     def parse_param_list(self) -> list[ast.ParamDecl]:
         """Parse parameter list: param, param, ..."""
@@ -216,13 +238,15 @@ class Parser:
         if self.match(TokenKind.ARROW):
             return_type = self.parse_type_expr()
 
+        effects = self._parse_effect_list()
+
         if self.check(TokenKind.COLON):
             raise ParseError(
                 "Trait methods are signatures only (no body) in this prototype",
                 self.current,
             )
         self.skip_newlines()
-        return ast.FunctionSig(name=name, params=params, return_type=return_type)
+        return ast.FunctionSig(name=name, params=params, return_type=return_type, effects=effects)
 
     def parse_trait_decl(self, is_public: bool = False) -> ast.TraitDecl:
         """Parse trait declaration: trait Name[T]? : NEWLINE INDENT ... DEDENT."""

@@ -840,3 +840,54 @@ def test_parse_impl_decl_for_trait() -> None:
     assert decl.trait.name.parts == ["Show"]
     assert isinstance(decl.target, ast.SimpleType)
     assert decl.target.name.parts == ["Int"]
+
+
+def test_parse_effect_decl() -> None:
+    src = "effect io\n"
+    module = parse_module(src)
+    assert len(module.declarations) == 1
+    decl = module.declarations[0]
+    assert isinstance(decl, ast.EffectDecl)
+    assert decl.name == "io"
+    assert not decl.is_public
+
+
+def test_parse_pub_effect_decl() -> None:
+    src = "pub effect network\n"
+    module = parse_module(src)
+    decl = module.declarations[0]
+    assert isinstance(decl, ast.EffectDecl)
+    assert decl.name == "network"
+    assert decl.is_public
+
+
+def test_parse_function_with_single_effect() -> None:
+    src = "fn write(s: String) !io:\n    return 0\n"
+    module = parse_module(src)
+    decl = module.declarations[0]
+    assert isinstance(decl, ast.FunctionDecl)
+    assert decl.effects == ["io"]
+
+
+def test_parse_function_with_multiple_effects() -> None:
+    src = "fn fetch(url: String) -> Int !io !net:\n    return 0\n"
+    module = parse_module(src)
+    decl = module.declarations[0]
+    assert isinstance(decl, ast.FunctionDecl)
+    assert decl.effects == ["io", "net"]
+
+
+def test_parse_function_no_effects() -> None:
+    src = "fn pure_fn(x: Int) -> Int:\n    return x\n"
+    module = parse_module(src)
+    decl = module.declarations[0]
+    assert isinstance(decl, ast.FunctionDecl)
+    assert decl.effects == []
+
+
+def test_parse_trait_sig_with_effect() -> None:
+    src = "trait Writer:\n    fn write(self, s: String) !io\n"
+    module = parse_module(src)
+    trait = module.declarations[0]
+    assert isinstance(trait, ast.TraitDecl)
+    assert trait.members[0].effects == ["io"]

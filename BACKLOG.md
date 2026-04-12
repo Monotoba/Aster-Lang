@@ -6,7 +6,7 @@
 - [x] create grammar files
 - [x] create scaffold package
 - [x] create tests and CI
-- [ ] refine package boundaries after first parser milestone
+- [x] refine package boundaries after first parser milestone (flat structure is clean; no sub-packages needed at current scale)
 - [x] docs: clarify binding syntax (`:=` / `mut`) vs. internal `Let*` AST naming (no `let` keyword)
 
 ## Phase 2: lexer and parser
@@ -30,7 +30,7 @@
 - [x] semantic validation for local destructuring bindings
 - [x] ownership / borrow checking prototype (move semantics, borrow rules, use-after-move enforcement)
 - [x] trait resolution prototype (impl validation, call-site method resolution, Self type)
-- [ ] effect tracking prototype
+- [x] effect tracking prototype
 
 ## Phase 4: interpreter
 - [x] runtime value model

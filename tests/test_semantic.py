@@ -1990,3 +1990,121 @@ fn test[T: Clone](x: T):
     analyzer.analyze(module)
     assert analyzer.has_errors()
     assert any("Type mismatch" in e.message for e in analyzer.errors)
+
+
+# ---------------------------------------------------------------------------
+# Effect tracking prototype tests
+# ---------------------------------------------------------------------------
+
+
+def test_effect_decl_registers_effect() -> None:
+    source = "effect io\n"
+    module = parse_module(source)
+    analyzer = SemanticAnalyzer()
+    analyzer.analyze(module)
+    assert not analyzer.has_errors()
+    assert "io" in analyzer._declared_effects
+
+
+def test_effect_duplicate_decl_reports_error() -> None:
+    source = "effect io\neffect io\n"
+    module = parse_module(source)
+    analyzer = SemanticAnalyzer()
+    analyzer.analyze(module)
+    assert analyzer.has_errors()
+    assert any("already declared" in e.message for e in analyzer.errors)
+
+
+def test_function_with_declared_effect_passes() -> None:
+    source = "effect io\n" "fn print_line(s: String) !io:\n" "    x := 1\n"
+    module = parse_module(source)
+    analyzer = SemanticAnalyzer()
+    analyzer.analyze(module)
+    assert not analyzer.has_errors()
+
+
+def test_function_with_undeclared_effect_reports_error() -> None:
+    source = "fn foo() !io:\n    x := 1\n"
+    module = parse_module(source)
+    analyzer = SemanticAnalyzer()
+    analyzer.analyze(module)
+    assert analyzer.has_errors()
+    assert any("Unknown effect 'io'" in e.message for e in analyzer.errors)
+
+
+def test_effect_propagates_to_caller_passes() -> None:
+    """Caller that declares the same effect can call an effectful function."""
+    source = "effect io\n" "fn write() !io:\n" "    x := 1\n" "fn caller() !io:\n" "    write()\n"
+    module = parse_module(source)
+    analyzer = SemanticAnalyzer()
+    analyzer.analyze(module)
+    assert not analyzer.has_errors()
+
+
+def test_effect_propagation_missing_on_caller_reports_error() -> None:
+    """Caller without the effect cannot call an effectful function."""
+    source = "effect io\n" "fn write() !io:\n" "    x := 1\n" "fn caller():\n" "    write()\n"
+    module = parse_module(source)
+    analyzer = SemanticAnalyzer()
+    analyzer.analyze(module)
+    assert analyzer.has_errors()
+    assert any("Effect 'io'" in e.message for e in analyzer.errors)
+
+
+def test_effect_not_enforced_at_top_level() -> None:
+    """Top-level (non-function) calls to effectful functions are unconstrained."""
+    source = "effect io\n" "fn write() !io:\n" "    x := 1\n" "result := 0\n"
+    module = parse_module(source)
+    analyzer = SemanticAnalyzer()
+    analyzer.analyze(module)
+    assert not analyzer.has_errors()
+
+
+def test_multiple_effects_all_required() -> None:
+    source = (
+        "effect io\n"
+        "effect net\n"
+        "fn fetch() !io !net:\n"
+        "    x := 1\n"
+        "fn caller() !io:\n"
+        "    fetch()\n"
+    )
+    module = parse_module(source)
+    analyzer = SemanticAnalyzer()
+    analyzer.analyze(module)
+    assert analyzer.has_errors()
+    assert any("Effect 'net'" in e.message for e in analyzer.errors)
+
+
+def test_multiple_effects_all_declared_on_caller_passes() -> None:
+    source = (
+        "effect io\n"
+        "effect net\n"
+        "fn fetch() !io !net:\n"
+        "    x := 1\n"
+        "fn caller() !io !net:\n"
+        "    fetch()\n"
+    )
+    module = parse_module(source)
+    analyzer = SemanticAnalyzer()
+    analyzer.analyze(module)
+    assert not analyzer.has_errors()
+
+
+def test_pub_effect_decl_is_parsed() -> None:
+    source = "pub effect io\n"
+    module = parse_module(source)
+    assert isinstance(module.declarations[0], ast.EffectDecl)
+    assert module.declarations[0].name == "io"
+    assert module.declarations[0].is_public
+
+
+def test_effect_on_function_type_carries_effects() -> None:
+    source = "effect io\n" "fn write() !io:\n" "    x := 1\n"
+    module = parse_module(source)
+    analyzer = SemanticAnalyzer()
+    analyzer.analyze(module)
+    sym = analyzer.symbol_table.lookup("write")
+    assert sym is not None
+    assert isinstance(sym.type, FunctionType)
+    assert sym.type.effects == ("io",)
