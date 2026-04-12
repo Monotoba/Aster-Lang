@@ -54,6 +54,9 @@ class BackendRegistry:
         self._adapters[adapter.name] = adapter
 
     def get(self, name: str) -> BackendAdapter:
+        if name not in self._adapters:
+            available = ", ".join(self.names())
+            raise KeyError(f"Unknown backend '{name}'. Available: {available}")
         return self._adapters[name]
 
     def names(self) -> tuple[str, ...]:

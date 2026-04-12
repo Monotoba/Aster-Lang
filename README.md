@@ -92,7 +92,7 @@ The repository has moved well beyond the initial scaffold. It now includes:
 - fixed-width unsigned integer types: `Nibble`/`Byte`/`Word`/`DWord`/`QWord` plus cast builtins (`nibble/byte/word/dword/qword`)
 - string byte helpers: `ascii_bytes` (ASCII-only) and `unicode_bytes` (UTF-8)
 - opt-in ownership/borrow surface diagnostics: `aster check/build --ownership off|warn|deny` (default: `off`)
-- 693 passing tests
+- 694 passing tests
 
 ## License
 

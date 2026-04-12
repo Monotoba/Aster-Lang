@@ -109,6 +109,7 @@ Ownership and references, now including expression-level `&x` / `&mut x` borrowi
 - native backend feasibility checklist updated with debug-output decision
 - placeholder C backend adapter registered (not implemented yet)
 - backend registry validation tests cover None format
+- backend registry now errors with available backends on unknown names
 - VM artifact format option documented in user guides
 - backend registry tests added for adapter scaffolding
 - backend registry validates artifact formats

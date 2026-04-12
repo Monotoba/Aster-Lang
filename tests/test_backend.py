@@ -34,6 +34,12 @@ def test_backend_registry_names_sorted() -> None:
     assert registry.names() == ("alpha", "zeta")
 
 
+def test_backend_registry_unknown_backend_error() -> None:
+    registry = BackendRegistry()
+    with pytest.raises(KeyError, match="Unknown backend"):
+        registry.get("missing")
+
+
 def test_backend_build_options_defaults() -> None:
     entry = Path("main.aster")
     options = BackendBuildOptions(entry_path=entry)
