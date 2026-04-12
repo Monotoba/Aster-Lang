@@ -58,6 +58,7 @@ class FunctionDecl(Decl):
     """Function declaration: fn name(params) -> Type: body"""
 
     name: str
+    type_params: list[TypeParam]
     params: list[ParamDecl]
     return_type: TypeExpr | None
     body: list[Stmt]
@@ -77,9 +78,17 @@ class TypeAliasDecl(Decl):
     """Type alias declaration: typealias Name = Type"""
 
     name: str
-    type_params: list[str]
+    type_params: list[TypeParam]
     type_expr: TypeExpr
     is_public: bool = False
+
+
+@dataclass(slots=True)
+class TypeParam(Node):
+    """Type parameter: T or T: Bound + Bound2"""
+
+    name: str
+    bounds: list[TypeExpr] = field(default_factory=list)
 
 
 @dataclass(slots=True)
@@ -100,6 +109,38 @@ class LetDecl(Decl):
     initializer: Expr
     is_mutable: bool = False
     is_public: bool = False
+
+
+@dataclass(slots=True)
+class FunctionSig(Node):
+    """Function signature (no body): fn name(params) -> Type?"""
+
+    name: str
+    params: list[ParamDecl]
+    return_type: TypeExpr | None
+
+
+@dataclass(slots=True)
+class TraitDecl(Decl):
+    """Trait declaration: trait Name[T]? : members"""
+
+    name: str
+    type_params: list[TypeParam]
+    members: list[FunctionSig]
+    is_public: bool = False
+
+
+@dataclass(slots=True)
+class ImplDecl(Decl):
+    """Impl declaration.
+
+    - Inherent impl: impl Type: members
+    - Trait impl: impl Trait for Type: members
+    """
+
+    target: TypeExpr
+    trait: TypeExpr | None
+    members: list[FunctionDecl]
 
 
 # Patterns (used in match arms)
@@ -295,6 +336,14 @@ class UnaryExpr(Expr):
 
     operator: str
     operand: Expr
+
+
+@dataclass(slots=True)
+class BorrowExpr(Expr):
+    """Borrow expression: &x or &mut x (expression-level borrowing)."""
+
+    target: Expr
+    is_mutable: bool = False
 
 
 @dataclass(slots=True)

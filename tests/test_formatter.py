@@ -58,6 +58,11 @@ def test_format_function_with_params_and_return() -> None:
     assert result == "fn add(a: Int, b: Int) -> Int:\n    return a + b\n"
 
 
+def test_format_generic_function_type_params_and_bounds() -> None:
+    src = "fn id[T: Show + Hash](x: T) -> T:\n    return x"
+    assert fmt(src) == "fn id[T: Show + Hash](x: T) -> T:\n    return x\n"
+
+
 def test_format_ownership_and_fn_types() -> None:
     src = (
         "fn f(a: &Int, b: &mut String, c: *own Node, d: Fn(Int) -> Int) -> *raw Byte:\n"
@@ -95,6 +100,18 @@ def test_format_type_alias_with_params() -> None:
     assert fmt("typealias Box[T] = List[T]") == "typealias Box[T] = List[T]\n"
 
 
+def test_format_trait_decl() -> None:
+    src = "trait Show:\n    fn show(self) -> String"
+    assert fmt(src) == "trait Show:\n    fn show(self) -> String\n"
+
+
+def test_format_impl_decl() -> None:
+    src = "impl Show for Int:\n" "    fn show(self) -> String:\n" '        return "Int"\n'
+    assert fmt(src) == (
+        "impl Show for Int:\n" "    fn show(self) -> String:\n" '        return "Int"\n'
+    )
+
+
 # ------------------------------------------------------------------
 # Statements
 
@@ -109,9 +126,19 @@ def test_format_mut_let_stmt() -> None:
     assert fmt(src) == "fn f():\n    mut x := 0\n"
 
 
+def test_format_typed_let_stmt() -> None:
+    src = "fn f():\n    x: Int := 1"
+    assert fmt(src) == "fn f():\n    x: Int := 1\n"
+
+
 def test_format_assign_stmt() -> None:
     src = "fn f():\n    mut x := 0\n    x <- 5"
     assert fmt(src) == "fn f():\n    mut x := 0\n    x <- 5\n"
+
+
+def test_format_computed_root_borrow_expression() -> None:
+    src = "fn f():\n    p := &mut {x: 1}.x\n    q := &mut [1, 2][0]"
+    assert fmt(src) == "fn f():\n    p := &mut {x: 1}.x\n    q := &mut [1, 2][0]\n"
 
 
 def test_format_return_with_value() -> None:

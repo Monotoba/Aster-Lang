@@ -9,7 +9,7 @@ from collections.abc import Callable
 from contextlib import suppress
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 from aster_lang import ast
 from aster_lang.module_resolution import ModuleResolutionError, resolve_module_path
@@ -33,6 +33,36 @@ class IntValue(Value):
 
     def __str__(self) -> str:
         return str(self.value)
+
+
+@dataclass(frozen=True)
+class BitsValue(Value):
+    """Fixed-width unsigned integer value (Nibble/Byte/Word/DWord/QWord)."""
+
+    bits: int
+    value: int
+
+    def __post_init__(self) -> None:
+        mask = (1 << self.bits) - 1
+        object.__setattr__(self, "value", self.value & mask)
+
+    def __str__(self) -> str:
+        # Print as a plain number by default to keep the language feel lightweight.
+        return str(self.value)
+
+    @property
+    def mask(self) -> int:
+        return (1 << self.bits) - 1
+
+
+def _bits_from_name(type_name: str) -> int | None:
+    return {
+        "Nibble": 4,
+        "Byte": 8,
+        "Word": 16,
+        "DWord": 32,
+        "QWord": 64,
+    }.get(type_name)
 
 
 @dataclass(frozen=True)
@@ -112,11 +142,120 @@ class FunctionValue(Value):
     """Function value with closure."""
 
     params: tuple[str, ...]
+    param_type_annotations: tuple[ast.TypeExpr | None, ...]
     body: tuple[ast.Stmt, ...]
     closure: Any  # Environment (can't be frozen, so use Any)
 
     def __str__(self) -> str:
         return "<function>"
+
+
+class RefValue(Value):
+    """A runtime reference (to a binding, member, or indexed slot)."""
+
+    is_mutable: bool
+
+    def read(self) -> Value:  # pragma: no cover - implemented by subclasses
+        raise NotImplementedError
+
+    def write(self, value: Value) -> None:  # pragma: no cover - implemented by subclasses
+        raise NotImplementedError
+
+    def __str__(self) -> str:
+        try:
+            return str(self.read())
+        except Exception:
+            return "<ref ?>"
+
+
+@dataclass(frozen=True)
+class BindingRef(RefValue):
+    env: Any
+    name: str
+    is_mutable: bool = False
+
+    def read(self) -> Value:
+        return cast(Value, self.env.get(self.name))
+
+    def write(self, value: Value) -> None:
+        self.env.set(self.name, value)
+
+
+@dataclass(frozen=True)
+class TempRef(RefValue):
+    cell: list[Value]
+    is_mutable: bool = False
+
+    def read(self) -> Value:
+        return self.cell[0]
+
+    def write(self, value: Value) -> None:
+        self.cell[0] = value
+
+
+@dataclass(frozen=True)
+class MemberRef(RefValue):
+    base_ref: RefValue
+    member: str
+    is_mutable: bool = False
+
+    def read(self) -> Value:
+        base_val = self.base_ref.read()
+        if isinstance(base_val, RecordValue):
+            if self.member not in base_val.fields:
+                raise InterpreterError(f"Record has no field '{self.member}'")
+            return base_val.fields[self.member]
+        raise InterpreterError("Member reference requires a record")
+
+    def write(self, value: Value) -> None:
+        base_val = self.base_ref.read()
+        if not isinstance(base_val, RecordValue):
+            raise InterpreterError("Member reference requires a record")
+        new_fields = dict(base_val.fields)
+        new_fields[self.member] = value
+        self.base_ref.write(RecordValue(new_fields))
+
+
+@dataclass(frozen=True)
+class IndexRef(RefValue):
+    base_ref: RefValue
+    index: int | str
+    is_mutable: bool = False
+
+    def read(self) -> Value:
+        base_val = self.base_ref.read()
+        if isinstance(base_val, ListValue) and isinstance(self.index, int):
+            idx = self.index
+            if idx < 0 or idx >= len(base_val.elements):
+                raise InterpreterError(f"List index out of bounds: {idx}")
+            return base_val.elements[idx]
+        if isinstance(base_val, TupleValue) and isinstance(self.index, int):
+            idx = self.index
+            if idx < 0 or idx >= len(base_val.elements):
+                raise InterpreterError(f"Tuple index out of bounds: {idx}")
+            return base_val.elements[idx]
+        if isinstance(base_val, RecordValue) and isinstance(self.index, str):
+            if self.index not in base_val.fields:
+                raise InterpreterError(f"Missing record field '{self.index}'")
+            return base_val.fields[self.index]
+        raise InterpreterError("Unsupported index reference")
+
+    def write(self, value: Value) -> None:
+        base_val = self.base_ref.read()
+        if isinstance(base_val, ListValue) and isinstance(self.index, int):
+            idx = self.index
+            if idx < 0 or idx >= len(base_val.elements):
+                raise InterpreterError(f"List index out of bounds: {idx}")
+            elems = list(base_val.elements)
+            elems[idx] = value
+            self.base_ref.write(ListValue(tuple(elems)))
+            return
+        if isinstance(base_val, RecordValue) and isinstance(self.index, str):
+            new_fields = dict(base_val.fields)
+            new_fields[self.index] = value
+            self.base_ref.write(RecordValue(new_fields))
+            return
+        raise InterpreterError("Unsupported index reference assignment")
 
 
 @dataclass(frozen=True)
@@ -193,9 +332,26 @@ class Environment:
             return self.parent.get(name)
         raise InterpreterError(f"Undefined variable '{name}'")
 
+    def resolve(self, name: str) -> tuple[Environment, Value]:
+        """Resolve ``name`` to the environment that owns its binding."""
+        if name in self.bindings:
+            return self, self.bindings[name]
+        if self.parent:
+            return self.parent.resolve(name)
+        raise InterpreterError(f"Undefined variable '{name}'")
+
     def set(self, name: str, value: Value) -> None:
         """Set a variable value (mutation)."""
         if name in self.bindings:
+            current = self.bindings[name]
+            # Writing to a borrowed binding writes through the reference (even if the local
+            # variable itself is immutable), since the binding isn't changing.
+            if isinstance(current, RefValue):
+                if not current.is_mutable:
+                    raise InterpreterError(f"Cannot assign through immutable reference '{name}'")
+                current.write(value)
+                return
+
             if name not in self.mutable:
                 raise InterpreterError(f"Cannot assign to immutable variable '{name}'")
             self.bindings[name] = value
@@ -250,6 +406,8 @@ class Interpreter:
             arg = args[0]
             if isinstance(arg, IntValue):
                 return arg
+            if isinstance(arg, BitsValue):
+                return IntValue(arg.value)
             if isinstance(arg, StringValue):
                 try:
                     return IntValue(int(arg.value))
@@ -267,38 +425,97 @@ class Interpreter:
                 return IntValue(len(arg.elements))
             if isinstance(arg, TupleValue):
                 return IntValue(len(arg.elements))
+            if isinstance(arg, RecordValue):
+                return IntValue(len(arg.fields))
             raise InterpreterError(f"len() not supported for {type(arg).__name__}")
 
         def builtin_abs(args: list[Value]) -> Value:
             arg = args[0]
-            if not isinstance(arg, IntValue):
-                raise InterpreterError("abs() requires an integer")
-            return IntValue(abs(arg.value))
+            if isinstance(arg, IntValue):
+                return IntValue(abs(arg.value))
+            if isinstance(arg, BitsValue):
+                return BitsValue(arg.bits, arg.value)  # already unsigned
+            raise InterpreterError("abs() requires an integer")
 
         def builtin_max(args: list[Value]) -> Value:
             a, b = args[0], args[1]
-            if not isinstance(a, IntValue) or not isinstance(b, IntValue):
-                raise InterpreterError("max() requires integers")
-            return IntValue(max(a.value, b.value))
+            if isinstance(a, IntValue | BitsValue) and isinstance(b, IntValue | BitsValue):
+                av = a.value if isinstance(a, IntValue) else a.value
+                bv = b.value if isinstance(b, IntValue) else b.value
+                return IntValue(max(av, bv))
+            raise InterpreterError("max() requires integers")
 
         def builtin_min(args: list[Value]) -> Value:
             a, b = args[0], args[1]
-            if not isinstance(a, IntValue) or not isinstance(b, IntValue):
-                raise InterpreterError("min() requires integers")
-            return IntValue(min(a.value, b.value))
+            if isinstance(a, IntValue | BitsValue) and isinstance(b, IntValue | BitsValue):
+                av = a.value if isinstance(a, IntValue) else a.value
+                bv = b.value if isinstance(b, IntValue) else b.value
+                return IntValue(min(av, bv))
+            raise InterpreterError("min() requires integers")
 
         def builtin_range(args: list[Value]) -> Value:
             if len(args) == 1:
                 n = args[0]
+                if isinstance(n, BitsValue):
+                    n = IntValue(n.value)
                 if not isinstance(n, IntValue):
                     raise InterpreterError("range() requires integers")
                 return ListValue(tuple(IntValue(i) for i in range(n.value)))
             if len(args) == 2:
                 start, stop = args[0], args[1]
+                if isinstance(start, BitsValue):
+                    start = IntValue(start.value)
+                if isinstance(stop, BitsValue):
+                    stop = IntValue(stop.value)
                 if not isinstance(start, IntValue) or not isinstance(stop, IntValue):
                     raise InterpreterError("range() requires integers")
                 return ListValue(tuple(IntValue(i) for i in range(start.value, stop.value)))
             raise InterpreterError(f"range() takes 1 or 2 arguments, got {len(args)}")
+
+        def builtin_ord(args: list[Value]) -> Value:
+            if not isinstance(args[0], StringValue):
+                raise InterpreterError("ord() expects String")
+            s = args[0].value
+            if len(s) != 1:
+                raise InterpreterError("ord() expects a single-character String")
+            return IntValue(ord(s))
+
+        def builtin_ascii_bytes(args: list[Value]) -> Value:
+            if not isinstance(args[0], StringValue):
+                raise InterpreterError("ascii_bytes() expects String")
+            out: list[Value] = []
+            for ch in args[0].value:
+                code = ord(ch)
+                if code > 0x7F:
+                    raise InterpreterError(
+                        f"ascii_bytes() only supports ASCII; got codepoint {code}"
+                    )
+                out.append(BitsValue(8, code))
+            return ListValue(tuple(out))
+
+        def builtin_unicode_bytes(args: list[Value]) -> Value:
+            if not isinstance(args[0], StringValue):
+                raise InterpreterError("unicode_bytes() expects String")
+            encoded = args[0].value.encode("utf-8")
+            return ListValue(tuple(BitsValue(8, b) for b in encoded))
+
+        def _cast_bits(bits: int) -> BuiltinFunction:
+            def _fn(args: list[Value]) -> Value:
+                x = args[0]
+                if isinstance(x, BitsValue):
+                    return BitsValue(bits, x.value)
+                if isinstance(x, IntValue):
+                    return BitsValue(bits, x.value)
+                if isinstance(x, BoolValue):
+                    return BitsValue(bits, 1 if x.value else 0)
+                if isinstance(x, StringValue):
+                    try:
+                        return BitsValue(bits, int(x.value))
+                    except ValueError as exc:
+                        raise InterpreterError(f"Cannot convert {x.value!r} to bits") from exc
+                raise InterpreterError(f"Cannot convert {type(x).__name__} to bits")
+
+            return BuiltinFunction(f"<bits{bits}>", _fn, arity=1)
 
         self.global_env.define("print", BuiltinFunction("print", builtin_print, arity=1))
         self.global_env.define("str", BuiltinFunction("str", builtin_str, arity=1))
@@ -308,6 +525,20 @@ class Interpreter:
         self.global_env.define("max", BuiltinFunction("max", builtin_max, arity=2))
         self.global_env.define("min", BuiltinFunction("min", builtin_min, arity=2))
         self.global_env.define("range", BuiltinFunction("range", builtin_range, arity=-1))
+        self.global_env.define("ord", BuiltinFunction("ord", builtin_ord, arity=1))
+        self.global_env.define(
+            "ascii_bytes",
+            BuiltinFunction("ascii_bytes", builtin_ascii_bytes, arity=1),
+        )
+        self.global_env.define(
+            "unicode_bytes",
+            BuiltinFunction("unicode_bytes", builtin_unicode_bytes, arity=1),
+        )
+        self.global_env.define("nibble", _cast_bits(4))
+        self.global_env.define("byte", _cast_bits(8))
+        self.global_env.define("word", _cast_bits(16))
+        self.global_env.define("dword", _cast_bits(32))
+        self.global_env.define("qword", _cast_bits(64))
 
     def interpret(self, module: ast.Module, *, auto_call_main: bool = True) -> None:
         """Interpret a module."""
@@ -346,17 +577,28 @@ class Interpreter:
             self.execute_function_decl(decl)
         elif isinstance(decl, ast.LetDecl):
             value = self.evaluate_expr(decl.initializer)
+            if decl.type_annotation is not None:
+                value = self._coerce_value_for_type(decl.type_annotation, value, decl)
             self.current_env.define(decl.name, value, decl.is_mutable)
         elif isinstance(decl, ast.ImportDecl):
             self.execute_import_decl(decl)
         elif isinstance(decl, ast.TypeAliasDecl):
             # Type aliases are compile-time only
             pass
+        elif isinstance(decl, ast.TraitDecl | ast.ImplDecl):
+            # Traits/impls are compile-time only in this prototype.
+            pass
 
     def execute_function_decl(self, decl: ast.FunctionDecl) -> None:
         """Execute a function declaration."""
         param_names = tuple(p.name for p in decl.params)
-        func = FunctionValue(params=param_names, body=tuple(decl.body), closure=self.current_env)
+        param_types = tuple(p.type_annotation for p in decl.params)
+        func = FunctionValue(
+            params=param_names,
+            param_type_annotations=param_types,
+            body=tuple(decl.body),
+            closure=self.current_env,
+        )
         self.current_env.define(decl.name, func)
 
     def execute_import_decl(self, decl: ast.ImportDecl) -> None:
@@ -428,10 +670,53 @@ class Interpreter:
             return decl.name
         return None
 
+    def _coerce_value_for_type(
+        self, type_expr: ast.TypeExpr, value: Value, node: ast.Node | None
+    ) -> Value:
+        """Coerce runtime values for fixed-width integer annotations."""
+        if isinstance(type_expr, ast.SimpleType) and len(type_expr.name.parts) == 1:
+            type_name = type_expr.name.parts[0]
+            bits = _bits_from_name(type_name)
+            if bits is None:
+                return value
+
+            mask = (1 << bits) - 1
+            raw: int
+            if isinstance(value, BitsValue | IntValue):
+                raw = value.value
+            elif isinstance(value, BoolValue):
+                raw = 1 if value.value else 0
+            elif isinstance(value, StringValue):
+                try:
+                    raw = int(value.value)
+                except ValueError as exc:
+                    raise InterpreterError(
+                        f"Cannot convert {value.value!r} to {type_name}", node
+                    ) from exc
+            else:
+                raise InterpreterError(
+                    f"Cannot convert {type(value).__name__} to {type_name}", node
+                )
+
+            if raw < 0 or raw > mask:
+                cast = type_name.lower()
+                raise InterpreterError(
+                    (
+                        f"Value {raw} does not fit in {type_name} (0..{mask}). "
+                        f"Use `{cast}({raw})` to wrap explicitly."
+                    ),
+                    node,
+                )
+            return BitsValue(bits, raw)
+
+        return value
+
     def execute_statement(self, stmt: ast.Stmt) -> None:
         """Execute a statement."""
         if isinstance(stmt, ast.LetStmt):
             value = self.evaluate_expr(stmt.initializer)
+            if stmt.type_annotation is not None and isinstance(stmt.pattern, ast.BindingPattern):
+                value = self._coerce_value_for_type(stmt.type_annotation, value, stmt)
             self._bind_pattern(stmt.pattern, value, stmt.is_mutable, stmt)
 
         elif isinstance(stmt, ast.AssignStmt):
@@ -439,53 +724,42 @@ class Interpreter:
             if isinstance(stmt.target, ast.Identifier):
                 self.current_env.set(stmt.target.name, value)
                 return
+            if isinstance(stmt.target, ast.UnaryExpr) and stmt.target.operator == "*":
+                # Deref assignment: *p <- v
+                op = stmt.target.operand
+                raw: Value
+                if isinstance(op, ast.Identifier):
+                    raw = self.current_env.get(op.name)
+                else:
+                    raw = self.evaluate_expr(op)
+                if not isinstance(raw, RefValue):
+                    raise InterpreterError("Deref assignment requires a reference", stmt)
+                if not raw.is_mutable:
+                    raise InterpreterError("Cannot assign through immutable reference", stmt)
+                raw.write(value)
+                return
 
             if isinstance(stmt.target, ast.MemberExpr):
-                # Only support `x.field <- v` where x is an identifier.
-                if not isinstance(stmt.target.obj, ast.Identifier):
-                    raise InterpreterError(
-                        "Member assignment only supported on identifier receivers",
-                        stmt,
-                    )
-                base = stmt.target.obj.name
-                base_val = self.current_env.get(base)
-                if not isinstance(base_val, RecordValue):
-                    got = type(base_val).__name__
-                    raise InterpreterError(f"Member assignment requires a record, got {got}", stmt)
-                new_fields = dict(base_val.fields)
-                new_fields[stmt.target.member] = value
-                self.current_env.set(base, RecordValue(new_fields))
+                ref = self._make_lvalue_ref(
+                    stmt.target,
+                    require_mutable_base=True,
+                    node=stmt,
+                )
+                if not ref.is_mutable:
+                    raise InterpreterError("Cannot assign through immutable reference", stmt)
+                ref.write(value)
                 return
 
             if isinstance(stmt.target, ast.IndexExpr):
-                # Only support `x[i] <- v` where x is an identifier.
-                if not isinstance(stmt.target.obj, ast.Identifier):
-                    raise InterpreterError(
-                        "Index assignment only supported on identifier receivers",
-                        stmt,
-                    )
-                base = stmt.target.obj.name
-                base_val = self.current_env.get(base)
-                idx_val = self.evaluate_expr(stmt.target.index)
-                if isinstance(base_val, ListValue) and isinstance(idx_val, IntValue):
-                    idx = idx_val.value
-                    if idx < 0 or idx >= len(base_val.elements):
-                        raise InterpreterError(f"List index out of bounds: {idx}", stmt)
-                    elems = list(base_val.elements)
-                    elems[idx] = value
-                    self.current_env.set(base, ListValue(tuple(elems)))
-                    return
-                if isinstance(base_val, RecordValue) and isinstance(idx_val, StringValue):
-                    new_fields = dict(base_val.fields)
-                    new_fields[idx_val.value] = value
-                    self.current_env.set(base, RecordValue(new_fields))
-                    return
-                got_obj = type(base_val).__name__
-                got_idx = type(idx_val).__name__
-                raise InterpreterError(
-                    f"Unsupported index assignment: {got_obj}[{got_idx}]",
-                    stmt,
+                ref = self._make_lvalue_ref(
+                    stmt.target,
+                    require_mutable_base=True,
+                    node=stmt,
                 )
+                if not ref.is_mutable:
+                    raise InterpreterError("Cannot assign through immutable reference", stmt)
+                ref.write(value)
+                return
 
             raise InterpreterError("Unsupported assignment target", stmt)
 
@@ -745,6 +1019,69 @@ class Interpreter:
             assert self.current_env.parent is not None
             self.current_env = self.current_env.parent
 
+    def _make_lvalue_ref(
+        self,
+        target: ast.Expr,
+        *,
+        require_mutable_base: bool,
+        node: ast.Node,
+        allow_temporary_root: bool = False,
+    ) -> RefValue:
+        if isinstance(target, ast.Identifier):
+            target_env, current = self.current_env.resolve(target.name)
+            if require_mutable_base and target.name not in target_env.mutable:
+                raise InterpreterError(
+                    f"Cannot take &mut of immutable variable '{target.name}'",
+                    node,
+                )
+            if isinstance(current, RefValue):
+                if require_mutable_base and not current.is_mutable:
+                    raise InterpreterError(
+                        f"Cannot take &mut of immutable reference '{target.name}'",
+                        node,
+                    )
+                return current
+            return BindingRef(env=target_env, name=target.name, is_mutable=require_mutable_base)
+
+        if isinstance(target, ast.MemberExpr):
+            return MemberRef(
+                base_ref=self._make_lvalue_ref(
+                    target.obj,
+                    require_mutable_base=require_mutable_base,
+                    node=node,
+                    allow_temporary_root=True,
+                ),
+                member=target.member,
+                is_mutable=require_mutable_base,
+            )
+
+        if isinstance(target, ast.IndexExpr):
+            idx_v = self.evaluate_expr(target.index)
+            if isinstance(idx_v, IntValue):
+                idx_key: int | str = idx_v.value
+            elif isinstance(idx_v, StringValue):
+                idx_key = idx_v.value
+            else:
+                raise InterpreterError("Index reference requires Int or String index", node)
+            return IndexRef(
+                base_ref=self._make_lvalue_ref(
+                    target.obj,
+                    require_mutable_base=require_mutable_base,
+                    node=node,
+                    allow_temporary_root=True,
+                ),
+                index=idx_key,
+                is_mutable=require_mutable_base,
+            )
+
+        if allow_temporary_root:
+            return TempRef(cell=[self.evaluate_expr(target)], is_mutable=require_mutable_base)
+
+        raise InterpreterError(
+            "Borrow and assignment targets must be lvalues in this prototype",
+            node,
+        )
+
     def evaluate_expr(self, expr: ast.Expr) -> Value:
         """Evaluate an expression."""
         if isinstance(expr, ast.IntegerLiteral):
@@ -760,13 +1097,30 @@ class Interpreter:
             return NIL
 
         elif isinstance(expr, ast.Identifier):
-            return self.current_env.get(expr.name)
+            v = self.current_env.get(expr.name)
+            # Implicit deref: borrowed bindings behave like the underlying value.
+            while isinstance(v, RefValue):
+                v = v.read()
+            return v
+
+        elif isinstance(expr, ast.BorrowExpr):
+            return self._make_lvalue_ref(
+                expr.target,
+                require_mutable_base=expr.is_mutable,
+                node=expr,
+            )
 
         elif isinstance(expr, ast.LambdaExpr):
             param_names = tuple(p.name for p in expr.params)
+            param_types = tuple(p.type_annotation for p in expr.params)
             # Expression lambdas implicitly return the expression value.
             body = tuple(expr.body) if isinstance(expr.body, list) else (ast.ReturnStmt(expr.body),)
-            return FunctionValue(params=param_names, body=body, closure=self.current_env)
+            return FunctionValue(
+                params=param_names,
+                param_type_annotations=param_types,
+                body=body,
+                closure=self.current_env,
+            )
 
         elif isinstance(expr, ast.BinaryExpr):
             return self.evaluate_binary_expr(expr)
@@ -854,6 +1208,28 @@ class Interpreter:
         left = self.evaluate_expr(expr.left)
         right = self.evaluate_expr(expr.right)
 
+        def is_int(v: Value) -> bool:
+            return isinstance(v, IntValue | BitsValue)
+
+        def as_py_int(v: Value) -> int:
+            if isinstance(v, IntValue):
+                return v.value
+            if isinstance(v, BitsValue):
+                return v.value
+            raise InterpreterError(f"Expected integer, got {type(v).__name__}", expr)
+
+        def bits_width(v: Value) -> int | None:
+            return v.bits if isinstance(v, BitsValue) else None
+
+        def make_bits(width: int, n: int) -> BitsValue:
+            return BitsValue(width, n)
+
+        def widest_bits(a: Value, b: Value) -> int | None:
+            # Only wrap when both operands are fixed-width.
+            if isinstance(a, BitsValue) and isinstance(b, BitsValue):
+                return max(a.bits, b.bits)
+            return None
+
         # Arithmetic operators
         if expr.operator in ("+", "-", "*", "/", "%"):
             # String concatenation
@@ -861,37 +1237,95 @@ class Interpreter:
                 if isinstance(right, StringValue):
                     return StringValue(left.value + right.value)
                 raise InterpreterError("String + requires a string on the right", expr)
-            if not isinstance(left, IntValue) or not isinstance(right, IntValue):
+            if not is_int(left) or not is_int(right):
                 raise InterpreterError("Arithmetic requires integers (or strings for +)", expr)
 
+            lv = as_py_int(left)
+            rv = as_py_int(right)
+
+            out_bits = widest_bits(left, right)
+            if out_bits is None:
+                if expr.operator == "+":
+                    return IntValue(lv + rv)
+                if expr.operator == "-":
+                    return IntValue(lv - rv)
+                if expr.operator == "*":
+                    return IntValue(lv * rv)
+                if expr.operator == "/":
+                    if rv == 0:
+                        raise InterpreterError("Division by zero", expr)
+                    return IntValue(lv // rv)
+                if expr.operator == "%":
+                    if rv == 0:
+                        raise InterpreterError("Modulo by zero", expr)
+                    return IntValue(lv % rv)
+
+            # Fixed-width arithmetic wraps modulo 2^N.
+            assert out_bits is not None
             if expr.operator == "+":
-                return IntValue(left.value + right.value)
-            elif expr.operator == "-":
-                return IntValue(left.value - right.value)
-            elif expr.operator == "*":
-                return IntValue(left.value * right.value)
-            elif expr.operator == "/":
-                if right.value == 0:
+                return make_bits(out_bits, lv + rv)
+            if expr.operator == "-":
+                return make_bits(out_bits, lv - rv)
+            if expr.operator == "*":
+                return make_bits(out_bits, lv * rv)
+            if expr.operator == "/":
+                if rv == 0:
                     raise InterpreterError("Division by zero", expr)
-                return IntValue(left.value // right.value)
-            elif expr.operator == "%":
-                if right.value == 0:
+                return make_bits(out_bits, lv // rv)
+            if expr.operator == "%":
+                if rv == 0:
                     raise InterpreterError("Modulo by zero", expr)
-                return IntValue(left.value % right.value)
+                return make_bits(out_bits, lv % rv)
+
+        # Bitwise operators
+        elif expr.operator in ("&", "|", "^", "<<", ">>"):
+            if not is_int(left) or not is_int(right):
+                raise InterpreterError("Bitwise operators require integers", expr)
+            lv = as_py_int(left)
+            rv = as_py_int(right)
+
+            if expr.operator == "<<":
+                out_bits = bits_width(left)
+                if out_bits is None:
+                    return IntValue(lv << rv)
+                assert out_bits is not None
+                return make_bits(out_bits, lv << rv)
+            if expr.operator == ">>":
+                out_bits = bits_width(left)
+                if out_bits is None:
+                    return IntValue(lv >> rv)
+                assert out_bits is not None
+                return make_bits(out_bits, lv >> rv)
+
+            out_bits2 = widest_bits(left, right)
+            if out_bits2 is None:
+                if expr.operator == "&":
+                    return IntValue(lv & rv)
+                if expr.operator == "|":
+                    return IntValue(lv | rv)
+                return IntValue(lv ^ rv)
+
+            if expr.operator == "&":
+                return make_bits(out_bits2, lv & rv)
+            if expr.operator == "|":
+                return make_bits(out_bits2, lv | rv)
+            return make_bits(out_bits2, lv ^ rv)
 
         # Comparison operators
         elif expr.operator in ("<", "<=", ">", ">="):
-            if not isinstance(left, IntValue) or not isinstance(right, IntValue):
+            if not is_int(left) or not is_int(right):
                 raise InterpreterError("Comparison requires integers", expr)
+            lv = as_py_int(left)
+            rv = as_py_int(right)
 
             if expr.operator == "<":
-                return BoolValue(left.value < right.value)
+                return BoolValue(lv < rv)
             elif expr.operator == "<=":
-                return BoolValue(left.value <= right.value)
+                return BoolValue(lv <= rv)
             elif expr.operator == ">":
-                return BoolValue(left.value > right.value)
+                return BoolValue(lv > rv)
             elif expr.operator == ">=":
-                return BoolValue(left.value >= right.value)
+                return BoolValue(lv >= rv)
 
         # Equality operators
         elif expr.operator in ("==", "!="):
@@ -902,6 +1336,21 @@ class Interpreter:
 
     def evaluate_unary_expr(self, expr: ast.UnaryExpr) -> Value:
         """Evaluate a unary expression."""
+        if expr.operator == "*":
+            # Dereference: *p. Identifiers are implicitly deref'd in normal expression evaluation,
+            # so use the raw binding value here.
+            raw: Value
+            if isinstance(expr.operand, ast.Identifier):
+                raw = self.current_env.get(expr.operand.name)
+            else:
+                raw = self.evaluate_expr(expr.operand)
+            if not isinstance(raw, RefValue):
+                raise InterpreterError("Deref requires a reference", expr)
+            v: Value = raw.read()
+            while isinstance(v, RefValue):
+                v = v.read()
+            return v
+
         operand = self.evaluate_expr(expr.operand)
 
         if expr.operator == "-":
@@ -914,17 +1363,22 @@ class Interpreter:
                 raise InterpreterError("Logical not requires boolean", expr)
             return BoolValue(not operand.value)
 
+        elif expr.operator == "~":
+            if isinstance(operand, IntValue):
+                return IntValue(~operand.value)
+            if isinstance(operand, BitsValue):
+                return BitsValue(operand.bits, (~operand.value) & operand.mask)
+            raise InterpreterError("Bitwise not requires integer", expr)
+
         raise InterpreterError(f"Unknown unary operator: {expr.operator}", expr)
 
     def evaluate_call_expr(self, expr: ast.CallExpr) -> Value:
         """Evaluate a function call."""
         func = self.evaluate_expr(expr.func)
 
-        # Evaluate arguments
-        args = [self.evaluate_expr(arg) for arg in expr.args]
-
         # Built-in function
         if isinstance(func, BuiltinFunction):
+            args = [self.evaluate_expr(arg) for arg in expr.args]
             if func.arity >= 0 and len(args) != func.arity:
                 msg = f"Built-in {func.name} expects {func.arity} argument(s), got {len(args)}"
                 raise InterpreterError(msg, expr)
@@ -932,14 +1386,43 @@ class Interpreter:
 
         # User-defined function
         elif isinstance(func, FunctionValue):
-            if len(args) != len(func.params):
-                msg = f"Function expects {len(func.params)} arguments, got {len(args)}"
+            if len(expr.args) != len(func.params):
+                msg = f"Function expects {len(func.params)} arguments, got {len(expr.args)}"
                 raise InterpreterError(msg, expr)
 
             # Create new environment for function execution
             func_env = func.closure.create_child()
-            for param, arg in zip(func.params, args, strict=False):
-                func_env.define(param, arg)
+            for i, (param, arg_expr) in enumerate(zip(func.params, expr.args, strict=False)):
+                expected = func.param_type_annotations[i]
+                if isinstance(expected, ast.BorrowTypeExpr):
+                    # Implicit-borrow model: allow passing an identifier to an &T or &mut T
+                    # parameter without requiring explicit & / &mut in call sites.
+                    if isinstance(arg_expr, ast.BorrowExpr):
+                        arg_v = self.evaluate_expr(arg_expr)
+                    elif isinstance(arg_expr, ast.Identifier):
+                        arg_v = self.evaluate_expr(
+                            ast.BorrowExpr(target=arg_expr, is_mutable=expected.is_mutable)
+                        )
+                    else:
+                        raise InterpreterError(
+                            "Borrow arguments must be identifiers in this prototype",
+                            arg_expr,
+                        )
+                    if not isinstance(arg_v, RefValue):
+                        raise InterpreterError("Borrow argument must be a reference", arg_expr)
+                    if expected.is_mutable and not arg_v.is_mutable:
+                        raise InterpreterError(
+                            "Cannot pass immutable reference where &mut is expected",
+                            arg_expr,
+                        )
+                    func_env.define(param, arg_v)
+                    continue
+
+                v = self.evaluate_expr(arg_expr)
+                # Passing a reference to a value parameter passes the referent.
+                while isinstance(v, RefValue):
+                    v = v.read()
+                func_env.define(param, v)
 
             # Execute function body
             saved_env = self.current_env
@@ -958,6 +1441,12 @@ class Interpreter:
 
     def values_equal(self, left: Value, right: Value) -> bool:
         """Check if two values are equal."""
+        # Numeric equality: allow comparing Int and fixed-width integers by value.
+        if isinstance(left, IntValue | BitsValue) and isinstance(right, IntValue | BitsValue):
+            lv = left.value if isinstance(left, IntValue) else left.value
+            rv = right.value if isinstance(right, IntValue) else right.value
+            return lv == rv
+
         if type(left) is not type(right):
             return False
 
@@ -965,7 +1454,25 @@ class Interpreter:
             return left.value == right.value  # type: ignore
         elif isinstance(left, NilValue):
             return True
-        # TODO: Implement equality for lists, tuples, records
+        elif isinstance(left, ListValue):
+            assert isinstance(right, ListValue)
+            if len(left.elements) != len(right.elements):
+                return False
+            return all(
+                self.values_equal(a, b) for a, b in zip(left.elements, right.elements, strict=True)
+            )
+        elif isinstance(left, TupleValue):
+            assert isinstance(right, TupleValue)
+            if len(left.elements) != len(right.elements):
+                return False
+            return all(
+                self.values_equal(a, b) for a, b in zip(left.elements, right.elements, strict=True)
+            )
+        elif isinstance(left, RecordValue):
+            assert isinstance(right, RecordValue)
+            if left.fields.keys() != right.fields.keys():
+                return False
+            return all(self.values_equal(left.fields[k], right.fields[k]) for k in left.fields)
 
         return False
 

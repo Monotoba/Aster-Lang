@@ -102,6 +102,28 @@ def test_parse_logical_expression() -> None:
     assert expr.left.operator == "and"
 
 
+def test_parse_bitwise_precedence_and_over_or() -> None:
+    module = parse_module("x := 1 | 2 & 3\n")
+    decl = module.declarations[0]
+    assert isinstance(decl, ast.LetDecl)
+    expr = decl.initializer
+    assert isinstance(expr, ast.BinaryExpr)
+    assert expr.operator == "|"
+    assert isinstance(expr.right, ast.BinaryExpr)
+    assert expr.right.operator == "&"
+
+
+def test_parse_shift_precedence_vs_additive() -> None:
+    module = parse_module("x := 1 + 2 << 3\n")
+    decl = module.declarations[0]
+    assert isinstance(decl, ast.LetDecl)
+    expr = decl.initializer
+    assert isinstance(expr, ast.BinaryExpr)
+    assert expr.operator == "<<"
+    assert isinstance(expr.left, ast.BinaryExpr)
+    assert expr.left.operator == "+"
+
+
 # Unary expressions
 
 
@@ -118,6 +140,59 @@ def test_parse_unary_expression() -> None:
     assert isinstance(decl2, ast.LetDecl)
     assert isinstance(decl2.initializer, ast.UnaryExpr)
     assert decl2.initializer.operator == "not"
+
+    module2 = parse_module("x := *p\n")
+    decl3 = module2.declarations[0]
+    assert isinstance(decl3, ast.LetDecl)
+    assert isinstance(decl3.initializer, ast.UnaryExpr)
+    assert decl3.initializer.operator == "*"
+    assert isinstance(decl3.initializer.operand, ast.Identifier)
+
+
+def test_parse_borrow_expression() -> None:
+    module = parse_module("x := &a\ny := &mut b\n")
+    decl1 = module.declarations[0]
+    assert isinstance(decl1, ast.LetDecl)
+    assert isinstance(decl1.initializer, ast.BorrowExpr)
+    assert isinstance(decl1.initializer.target, ast.Identifier)
+    assert decl1.initializer.target.name == "a"
+    assert decl1.initializer.is_mutable is False
+
+    decl2 = module.declarations[1]
+    assert isinstance(decl2, ast.LetDecl)
+    assert isinstance(decl2.initializer, ast.BorrowExpr)
+    assert isinstance(decl2.initializer.target, ast.Identifier)
+    assert decl2.initializer.target.name == "b"
+    assert decl2.initializer.is_mutable is True
+
+    module2 = parse_module("x := &r.x\ny := &mut xs[0]\n")
+    d1 = module2.declarations[0]
+    assert isinstance(d1, ast.LetDecl)
+    assert isinstance(d1.initializer, ast.BorrowExpr)
+    assert isinstance(d1.initializer.target, ast.MemberExpr)
+    assert isinstance(d1.initializer.target.obj, ast.Identifier)
+    assert d1.initializer.target.obj.name == "r"
+    assert d1.initializer.target.member == "x"
+
+    d2 = module2.declarations[1]
+    assert isinstance(d2, ast.LetDecl)
+    assert isinstance(d2.initializer, ast.BorrowExpr)
+    assert isinstance(d2.initializer.target, ast.IndexExpr)
+    assert isinstance(d2.initializer.target.obj, ast.Identifier)
+    assert d2.initializer.target.obj.name == "xs"
+
+    module3 = parse_module("x := &mut {value: 1}.value\ny := &mut [1, 2][0]\n")
+    d3 = module3.declarations[0]
+    assert isinstance(d3, ast.LetDecl)
+    assert isinstance(d3.initializer, ast.BorrowExpr)
+    assert isinstance(d3.initializer.target, ast.MemberExpr)
+    assert isinstance(d3.initializer.target.obj, ast.RecordExpr)
+
+    d4 = module3.declarations[1]
+    assert isinstance(d4, ast.LetDecl)
+    assert isinstance(d4.initializer, ast.BorrowExpr)
+    assert isinstance(d4.initializer.target, ast.IndexExpr)
+    assert isinstance(d4.initializer.target.obj, ast.ListExpr)
 
 
 # Postfix expressions
@@ -223,6 +298,38 @@ def test_parse_function_declaration() -> None:
     assert func.params[1].name == "b"
     assert func.return_type is not None
     assert len(func.body) == 1
+
+
+def test_parse_generic_function_declaration() -> None:
+    source = """fn id[T](x: T) -> T:
+    return x
+"""
+    module = parse_module(source)
+    func = module.declarations[0]
+    assert isinstance(func, ast.FunctionDecl)
+    assert func.name == "id"
+    assert len(func.type_params) == 1
+    assert func.type_params[0].name == "T"
+    assert func.type_params[0].bounds == []
+    assert isinstance(func.params[0].type_annotation, ast.SimpleType)
+    assert func.params[0].type_annotation.name.parts == ["T"]
+
+
+def test_parse_type_param_bounds() -> None:
+    source = """fn f[T: Show + Hash](x: T) -> Int:
+    return 0
+"""
+    module = parse_module(source)
+    func = module.declarations[0]
+    assert isinstance(func, ast.FunctionDecl)
+    assert len(func.type_params) == 1
+    tp = func.type_params[0]
+    assert tp.name == "T"
+    assert len(tp.bounds) == 2
+    assert isinstance(tp.bounds[0], ast.SimpleType)
+    assert tp.bounds[0].name.parts == ["Show"]
+    assert isinstance(tp.bounds[1], ast.SimpleType)
+    assert tp.bounds[1].name.parts == ["Hash"]
 
 
 def test_parse_ownership_type_annotations() -> None:
@@ -344,6 +451,23 @@ def test_parse_binding_statement() -> None:
     assert stmt1.name == "x"
     assert not stmt1.is_mutable
     assert stmt2.is_mutable
+
+
+def test_parse_typed_binding_statement() -> None:
+    source = """fn test():
+    x: Int := 1
+"""
+    module = parse_module(source)
+    func = module.declarations[0]
+    assert isinstance(func, ast.FunctionDecl)
+    assert len(func.body) == 1
+    stmt = func.body[0]
+    assert isinstance(stmt, ast.LetStmt)
+    assert stmt.name == "x"
+    assert stmt.is_mutable is False
+    assert stmt.type_annotation is not None
+    assert isinstance(stmt.type_annotation, ast.SimpleType)
+    assert stmt.type_annotation.name.parts == ["Int"]
 
 
 def test_parse_tuple_destructuring_binding_statement() -> None:
@@ -677,3 +801,42 @@ def test_parse_match_tuple_rest_pattern() -> None:
     assert isinstance(tuple_pattern.elements[0], ast.BindingPattern)
     assert isinstance(tuple_pattern.elements[1], ast.RestPattern)
     assert tuple_pattern.elements[1].name == "tail"
+
+
+def test_parse_trait_decl_with_method_signature() -> None:
+    src = "trait Show:\n    fn show(self) -> String\n"
+    module = parse_module(src)
+    decl = module.declarations[0]
+    assert isinstance(decl, ast.TraitDecl)
+    assert decl.name == "Show"
+    assert decl.type_params == []
+    assert len(decl.members) == 1
+    sig = decl.members[0]
+    assert isinstance(sig, ast.FunctionSig)
+    assert sig.name == "show"
+    assert len(sig.params) == 1
+    assert sig.return_type is not None
+
+
+def test_parse_impl_decl_inherent_method() -> None:
+    src = "impl Int:\n" "    fn show(self) -> String:\n" '        return "Int"\n'
+    module = parse_module(src)
+    decl = module.declarations[0]
+    assert isinstance(decl, ast.ImplDecl)
+    assert decl.trait is None
+    assert isinstance(decl.target, ast.SimpleType)
+    assert decl.target.name.parts == ["Int"]
+    assert len(decl.members) == 1
+    assert isinstance(decl.members[0], ast.FunctionDecl)
+
+
+def test_parse_impl_decl_for_trait() -> None:
+    src = "impl Show for Int:\n" "    fn show(self) -> String:\n" '        return "Int"\n'
+    module = parse_module(src)
+    decl = module.declarations[0]
+    assert isinstance(decl, ast.ImplDecl)
+    assert decl.trait is not None
+    assert isinstance(decl.trait, ast.SimpleType)
+    assert decl.trait.name.parts == ["Show"]
+    assert isinstance(decl.target, ast.SimpleType)
+    assert decl.target.name.parts == ["Int"]

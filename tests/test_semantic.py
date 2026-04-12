@@ -4,13 +4,16 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from aster_lang import ast
 from aster_lang.parser import parse_module
 from aster_lang.semantic import (
     BOOL_TYPE,
+    BYTE_TYPE,
     INT_TYPE,
     STRING_TYPE,
     BorrowType,
     FunctionType,
+    OwnershipMode,
     SemanticAnalyzer,
     analyze_module,
 )
@@ -106,6 +109,139 @@ fn take(p: *own Node) -> *own Node:
     assert take_sym.type.param_types[0] == take_sym.type.return_type
 
 
+def test_borrow_expression_infers_borrow_type() -> None:
+    source = """mut x := 1
+y := &mut x
+z := &x
+"""
+    module = parse_module(source)
+    analyzer = SemanticAnalyzer()
+    analyzer.analyze(module)
+    assert not analyzer.has_errors()
+
+    y_sym = analyzer.symbol_table.lookup("y")
+    assert y_sym is not None
+    assert isinstance(y_sym.type, BorrowType)
+    assert y_sym.type.inner == INT_TYPE
+    assert y_sym.type.is_mutable is True
+
+    z_sym = analyzer.symbol_table.lookup("z")
+    assert z_sym is not None
+    assert isinstance(z_sym.type, BorrowType)
+    assert z_sym.type.inner == INT_TYPE
+    assert z_sym.type.is_mutable is False
+
+
+def test_nested_borrow_expression_infers_borrow_type() -> None:
+    source = """mut r := {inner: {x: 1}}
+y := &mut r.inner.x
+"""
+    module = parse_module(source)
+    analyzer = SemanticAnalyzer()
+    analyzer.analyze(module)
+    assert not analyzer.has_errors()
+
+    y_sym = analyzer.symbol_table.lookup("y")
+    assert y_sym is not None
+    assert isinstance(y_sym.type, BorrowType)
+    assert y_sym.type.inner == INT_TYPE
+    assert y_sym.type.is_mutable is True
+
+
+def test_computed_root_borrow_expression_infers_borrow_type() -> None:
+    source = """y := &mut {x: 1}.x
+z := &mut [1, 2][0]
+"""
+    module = parse_module(source)
+    analyzer = SemanticAnalyzer()
+    analyzer.analyze(module)
+    assert not analyzer.has_errors()
+
+    y_sym = analyzer.symbol_table.lookup("y")
+    assert y_sym is not None
+    assert isinstance(y_sym.type, BorrowType)
+    assert y_sym.type.inner == INT_TYPE
+    assert y_sym.type.is_mutable is True
+
+    z_sym = analyzer.symbol_table.lookup("z")
+    assert z_sym is not None
+    assert isinstance(z_sym.type, BorrowType)
+    assert z_sym.type.inner == INT_TYPE
+    assert z_sym.type.is_mutable is True
+
+
+def test_assign_through_mut_borrow_param_does_not_require_mut_binding() -> None:
+    source = """fn bump(x: &mut Int):
+    x <- x + 1
+"""
+    module = parse_module(source)
+    analyzer = SemanticAnalyzer()
+    analyzer.analyze(module)
+    assert not analyzer.has_errors()
+
+
+def test_nested_member_and_index_assignment_are_valid_lvalues() -> None:
+    source = """fn main():
+    mut r := {inner: {x: 1}, items: [1, 2]}
+    r.inner.x <- 7
+    r.items[0] <- 9
+"""
+    module = parse_module(source)
+    analyzer = SemanticAnalyzer()
+    analyzer.analyze(module)
+    assert not analyzer.has_errors()
+
+
+def test_computed_member_and_index_assignment_are_valid_lvalues() -> None:
+    source = """fn main():
+    {x: 1}.x <- 7
+    [1, 2][0] <- 9
+"""
+    module = parse_module(source)
+    analyzer = SemanticAnalyzer()
+    analyzer.analyze(module)
+    assert not analyzer.has_errors()
+
+
+def test_strict_types_rejects_unknown_in_arithmetic() -> None:
+    source = """fn main():
+    f := x -> x + 1
+    print(f(1))
+"""
+    module = parse_module(source)
+    analyzer = SemanticAnalyzer(strict_types=True)
+    analyzer.analyze(module)
+    assert analyzer.has_errors()
+    assert any("unknown type" in e.message for e in analyzer.errors)
+
+
+def test_strict_types_rejects_unknown_in_comparison() -> None:
+    source = """fn main():
+    f := x -> x
+    y := f(1) == 1
+"""
+    module = parse_module(source)
+    analyzer = SemanticAnalyzer(strict_types=True)
+    analyzer.analyze(module)
+    assert analyzer.has_errors()
+    assert any(
+        ("compare unknown" in e.message or "unknown types" in e.message) for e in analyzer.errors
+    )
+
+
+def test_strict_types_rejects_unknown_if_condition() -> None:
+    source = """fn main():
+    f := x -> x
+    if f(1):
+        print(1)
+"""
+    module = parse_module(source)
+    analyzer = SemanticAnalyzer(strict_types=True)
+    analyzer.analyze(module)
+    assert analyzer.has_errors()
+    assert any("If condition must be Bool" in e.message for e in analyzer.errors)
+
+
 def test_unknown_pointer_kind_is_error() -> None:
     source = """fn f(x: *bogus Int):
     return
@@ -186,6 +322,206 @@ def test_arithmetic_expression_type() -> None:
     assert symbol.type == INT_TYPE
 
 
+def test_string_concatenation_type() -> None:
+    source = 'x := "a" + "b"\n'
+    module = parse_module(source)
+    analyzer = SemanticAnalyzer()
+    analyzer.analyze(module)
+    assert not analyzer.has_errors()
+    symbol = analyzer.symbol_table.lookup("x")
+    assert symbol is not None
+    assert symbol.type == STRING_TYPE
+
+
+def test_fixed_width_type_in_annotation() -> None:
+    source = "x: Byte := 200\n"
+    module = parse_module(source)
+    analyzer = SemanticAnalyzer()
+    analyzer.analyze(module)
+    assert not analyzer.has_errors()
+    sym = analyzer.symbol_table.lookup("x")
+    assert sym is not None
+    assert sym.type == BYTE_TYPE
+
+
+def test_bitwise_operator_type() -> None:
+    source = "x := byte(1) & byte(2)\n"
+    module = parse_module(source)
+    analyzer = SemanticAnalyzer()
+    analyzer.analyze(module)
+    assert not analyzer.has_errors()
+    sym = analyzer.symbol_table.lookup("x")
+    assert sym is not None
+    assert sym.type == BYTE_TYPE
+
+
+def test_ownership_mut_borrow_requires_mutable_arg_in_deny_mode() -> None:
+    source = """fn bump(x: &mut Int) -> Int:
+    return x + 1
+
+fn main():
+    x := 1
+    bump(x)
+"""
+    module = parse_module(source)
+    analyzer = SemanticAnalyzer(ownership_mode=OwnershipMode.DENY)
+    analyzer.analyze(module)
+    assert analyzer.has_errors()
+
+
+def test_ownership_mut_borrow_allows_mutable_arg_in_deny_mode() -> None:
+    source = """fn bump(x: &mut Int) -> Int:
+    return x + 1
+
+fn main():
+    mut x := 1
+    bump(x)
+"""
+    module = parse_module(source)
+    analyzer = SemanticAnalyzer(ownership_mode=OwnershipMode.DENY)
+    analyzer.analyze(module)
+    assert not analyzer.has_errors()
+
+
+def test_ownership_conflicting_mut_borrows_in_same_call_are_error_in_deny_mode() -> None:
+    source = """fn f(a: &mut Int, b: &mut Int):
+    return
+
+fn main():
+    mut x := 1
+    f(x, x)
+"""
+    module = parse_module(source)
+    analyzer = SemanticAnalyzer(ownership_mode=OwnershipMode.DENY)
+    analyzer.analyze(module)
+    assert analyzer.has_errors()
+
+
+def test_ownership_persistent_mut_borrow_blocks_direct_use_in_deny_mode() -> None:
+    source = """fn main():
+    mut x := 1
+    p := &mut x
+    y := x
+"""
+    module = parse_module(source)
+    analyzer = SemanticAnalyzer(ownership_mode=OwnershipMode.DENY)
+    analyzer.analyze(module)
+    assert analyzer.has_errors()
+    assert any("mutably borrowed" in e.message for e in analyzer.errors)
+
+
+def test_ownership_persistent_shared_borrow_blocks_assignment_in_deny_mode() -> None:
+    source = """fn main():
+    mut x := 1
+    p := &x
+    x <- 2
+"""
+    module = parse_module(source)
+    analyzer = SemanticAnalyzer(ownership_mode=OwnershipMode.DENY)
+    analyzer.analyze(module)
+    assert analyzer.has_errors()
+    assert any("borrowed" in e.message for e in analyzer.errors)
+
+
+def test_ownership_borrow_released_on_scope_exit() -> None:
+    source = """fn main():
+    mut x := 1
+    if true:
+        p := &mut x
+        p <- 2
+    x <- 3
+"""
+    module = parse_module(source)
+    analyzer = SemanticAnalyzer(ownership_mode=OwnershipMode.DENY)
+    analyzer.analyze(module)
+    assert not analyzer.has_errors()
+
+
+def test_ownership_cannot_return_ref_to_local_in_deny_mode() -> None:
+    source = """fn f() -> &Int:
+    mut x := 1
+    return &x
+"""
+    module = parse_module(source)
+    analyzer = SemanticAnalyzer(ownership_mode=OwnershipMode.DENY)
+    analyzer.analyze(module)
+    assert analyzer.has_errors()
+    assert any("return a reference to local" in e.message for e in analyzer.errors)
+
+
+def test_ownership_can_return_borrow_parameter_in_deny_mode() -> None:
+    source = """fn id(x: &Int) -> &Int:
+    return x
+"""
+    module = parse_module(source)
+    analyzer = SemanticAnalyzer(ownership_mode=OwnershipMode.DENY)
+    analyzer.analyze(module)
+    assert not analyzer.has_errors()
+
+
+def test_ownership_rejects_refs_in_list_literal_in_deny_mode() -> None:
+    source = """fn main():
+    mut x := 1
+    xs := [&x]
+"""
+    module = parse_module(source)
+    analyzer = SemanticAnalyzer(ownership_mode=OwnershipMode.DENY)
+    analyzer.analyze(module)
+    assert analyzer.has_errors()
+    assert any("collection literals" in e.message for e in analyzer.errors)
+
+
+def test_ownership_rejects_refs_in_record_literal_in_deny_mode() -> None:
+    source = """fn main():
+    mut x := 1
+    r := {p: &x}
+"""
+    module = parse_module(source)
+    analyzer = SemanticAnalyzer(ownership_mode=OwnershipMode.DENY)
+    analyzer.analyze(module)
+    assert analyzer.has_errors()
+    assert any("collection literals" in e.message for e in analyzer.errors)
+
+
+def test_ownership_cannot_return_ref_to_local_member_in_deny_mode() -> None:
+    source = """fn f() -> &Int:
+    mut r := {x: 1}
+    return &r.x
+"""
+    module = parse_module(source)
+    analyzer = SemanticAnalyzer(ownership_mode=OwnershipMode.DENY)
+    analyzer.analyze(module)
+    assert analyzer.has_errors()
+    assert any("return a reference to local" in e.message for e in analyzer.errors)
+
+
+def test_ownership_mut_borrow_of_member_blocks_use_of_base_in_deny_mode() -> None:
+    source = """fn main():
+    mut r := {x: 1}
+    p := &mut r.x
+    y := r
+"""
+    module = parse_module(source)
+    analyzer = SemanticAnalyzer(ownership_mode=OwnershipMode.DENY)
+    analyzer.analyze(module)
+    assert analyzer.has_errors()
+    assert any("mutably borrowed" in e.message for e in analyzer.errors)
+
+
+def test_ownership_rejects_module_level_member_borrow_binding_in_deny_mode() -> None:
+    source = """mut r := {x: 1}
+p := &mut r.x
+"""
+    module = parse_module(source)
+    analyzer = SemanticAnalyzer(ownership_mode=OwnershipMode.DENY)
+    analyzer.analyze(module)
+    assert analyzer.has_errors()
+    assert any(
+        ("module-level" in e.message or "module-level bindings" in e.message)
+        for e in analyzer.errors
+    )
+
+
 def test_comparison_expression_type() -> None:
     """Test comparison expression type inference."""
     source = "x := 5 < 10\n"
@@ -217,6 +553,17 @@ def test_type_annotation_checking() -> None:
     analyzer = SemanticAnalyzer()
     analyzer.analyze(module)
 
+    assert not analyzer.has_errors()
+
+
+def test_local_typed_binding_statement_type_checks() -> None:
+    source = """fn f():
+    x: Int := 1
+    return
+"""
+    module = parse_module(source)
+    analyzer = SemanticAnalyzer()
+    analyzer.analyze(module)
     assert not analyzer.has_errors()
 
 
@@ -1015,6 +1362,187 @@ def test_type_alias_defined_in_scope() -> None:
     from aster_lang.semantic import SymbolKind
 
     assert symbol.kind == SymbolKind.TYPE_ALIAS
+
+
+def test_type_alias_type_params_resolve_as_type_variables() -> None:
+    source = "typealias Id[T] = T\n" "fn use_id(x: Id[Int]) -> Id[Int]:\n" "    return x\n"
+    module = parse_module(source)
+    analyzer = SemanticAnalyzer()
+    analyzer.analyze(module)
+    assert not analyzer.has_errors()
+
+    from aster_lang.semantic import SymbolKind, TypeKind
+
+    id_sym = analyzer.symbol_table.lookup("Id")
+    assert id_sym is not None
+    assert id_sym.kind == SymbolKind.TYPE_ALIAS
+    assert id_sym.type.kind == TypeKind.TYPEVAR
+
+
+def test_generic_function_type_params_resolve_as_type_variables() -> None:
+    source = "fn id[T](x: T) -> T:\n    return x\n"
+    module = parse_module(source)
+    analyzer = SemanticAnalyzer()
+    analyzer.analyze(module)
+    assert not analyzer.has_errors()
+
+    fn_sym = analyzer.symbol_table.lookup("id")
+    assert fn_sym is not None
+
+    from aster_lang.semantic import FunctionType, TypeVarType
+
+    assert fn_sym.type == FunctionType(
+        param_types=(TypeVarType("T"),),
+        return_type=TypeVarType("T"),
+    )
+
+
+def test_generic_trait_bounds_validate_against_known_traits() -> None:
+    source = (
+        "trait Show:\n"
+        "    fn show(self) -> String\n"
+        "fn f[T: Show](x: T) -> Int:\n"
+        "    return 0\n"
+    )
+    module = parse_module(source)
+    analyzer = SemanticAnalyzer()
+    analyzer.analyze(module)
+    assert not analyzer.has_errors()
+
+
+def test_generic_trait_bounds_unknown_trait_reports_error() -> None:
+    source = "fn f[T: Missing](x: T) -> Int:\n    return 0\n"
+    module = parse_module(source)
+    analyzer = SemanticAnalyzer()
+    analyzer.analyze(module)
+    assert analyzer.has_errors()
+    assert "Unknown trait" in analyzer.errors[0].message
+
+
+def test_generic_trait_bounds_imported_named_trait_is_valid(tmp_path: Path) -> None:
+    (tmp_path / "traits.aster").write_text(
+        "pub trait Show:\n" "    fn show(self) -> String\n",
+        encoding="utf-8",
+    )
+    source = "use traits: Show\n" "fn f[T: Show](x: T) -> Int:\n" "    return 0\n"
+    module = parse_module(source)
+    analyzer = SemanticAnalyzer(base_dir=tmp_path)
+    analyzer.analyze(module)
+    assert not analyzer.has_errors()
+
+
+def test_generic_trait_bounds_imported_namespace_trait_is_valid(tmp_path: Path) -> None:
+    (tmp_path / "traits.aster").write_text(
+        "pub trait Show:\n" "    fn show(self) -> String\n",
+        encoding="utf-8",
+    )
+    source = "use traits\n" "fn f[T: traits.Show](x: T) -> Int:\n" "    return 0\n"
+    module = parse_module(source)
+    analyzer = SemanticAnalyzer(base_dir=tmp_path)
+    analyzer.analyze(module)
+    assert not analyzer.has_errors()
+
+
+def test_generic_type_param_bounds_are_recorded() -> None:
+    source = (
+        "trait Show:\n"
+        "    fn show(self) -> String\n"
+        "trait Hash:\n"
+        "    fn hash(self) -> Int\n"
+        "fn f[T: Show + Hash](x: T) -> Int:\n"
+        "    return 0\n"
+    )
+    module = parse_module(source)
+    analyzer = SemanticAnalyzer()
+    analyzer.analyze(module)
+    assert not analyzer.has_errors()
+
+    fn_decl = module.declarations[2]
+    assert isinstance(fn_decl, ast.FunctionDecl)
+    assert analyzer.decl_type_params[id(fn_decl)] == {"T": ("Show", "Hash")}
+
+
+def test_generic_function_call_instantiates_type_vars() -> None:
+    source = (
+        "fn id[T](x: T) -> T:\n" "    return x\n" "fn main():\n" "    y := id(1)\n" "    print(y)\n"
+    )
+    module = parse_module(source)
+    analyzer = SemanticAnalyzer()
+    analyzer.analyze(module)
+    assert not analyzer.has_errors()
+
+    main_decl = module.declarations[1]
+    assert isinstance(main_decl, ast.FunctionDecl)
+    y_stmt = main_decl.body[0]
+    assert isinstance(y_stmt, ast.LetStmt)
+    assert analyzer.expr_types[id(y_stmt.initializer)] == INT_TYPE
+
+
+def test_generic_type_alias_instantiates_type_vars() -> None:
+    source = "typealias Id[T] = T\n" "fn f(x: Id[Int]) -> Id[Int]:\n" "    return x\n"
+    module = parse_module(source)
+    analyzer = SemanticAnalyzer()
+    analyzer.analyze(module)
+    assert not analyzer.has_errors()
+
+    fn_sym = analyzer.symbol_table.lookup("f")
+    assert fn_sym is not None
+    assert fn_sym.type == FunctionType(param_types=(INT_TYPE,), return_type=INT_TYPE)
+
+
+def test_trait_decl_registers_trait_symbol() -> None:
+    source = "trait Show:\n    fn show(self) -> String\n"
+    module = parse_module(source)
+    analyzer = SemanticAnalyzer()
+    analyzer.analyze(module)
+    assert not analyzer.has_errors()
+
+    from aster_lang.semantic import SymbolKind
+
+    sym = analyzer.symbol_table.lookup("Show")
+    assert sym is not None
+    assert sym.kind == SymbolKind.TRAIT
+
+
+def test_impl_for_unknown_trait_reports_error() -> None:
+    source = "impl Missing for Int:\n" "    fn show(self) -> String:\n" '        return "x"\n'
+    module = parse_module(source)
+    analyzer = SemanticAnalyzer()
+    analyzer.analyze(module)
+    assert analyzer.has_errors()
+    assert "Unknown trait" in analyzer.errors[0].message
+
+
+def test_impl_for_qualified_imported_trait_is_valid(tmp_path: Path) -> None:
+    (tmp_path / "traits.aster").write_text(
+        "pub trait Show:\n" "    fn show(self) -> String\n",
+        encoding="utf-8",
+    )
+    source = (
+        "use traits\n"
+        "impl traits.Show for Int:\n"
+        "    fn show(self) -> String:\n"
+        '        return "x"\n'
+    )
+    module = parse_module(source)
+    analyzer = SemanticAnalyzer(base_dir=tmp_path)
+    analyzer.analyze(module)
+    assert not analyzer.has_errors()
+
+
+def test_impl_missing_required_method_reports_error() -> None:
+    source = (
+        "trait Show:\n"
+        "    fn show(self) -> String\n"
+        "impl Show for Int:\n"
+        "    fn other(self) -> String:\n"
+        '        return "x"\n'
+    )
+    module = parse_module(source)
+    analyzer = SemanticAnalyzer()
+    analyzer.analyze(module)
+    assert analyzer.has_errors()
+    assert "missing required method" in analyzer.errors[-1].message
 
 
 def test_type_alias_duplicate_reports_error() -> None:

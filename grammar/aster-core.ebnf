@@ -90,18 +90,31 @@ Expression ::= OrExpr
 
 OrExpr ::= AndExpr ( "or" AndExpr )*
 
-AndExpr ::= CompareExpr ( "and" CompareExpr )*
+AndExpr ::= BitOrExpr ( "and" BitOrExpr )*
 
-CompareExpr ::= AddExpr ( CompareOp AddExpr )*
+BitOrExpr ::= BitXorExpr ( "|" BitXorExpr )*
 
-CompareOp ::= "==" | "!=" | "<" | "<=" | ">" | ">="
+BitXorExpr ::= BitAndExpr ( "^" BitAndExpr )*
+
+BitAndExpr ::= EqExpr ( "&" EqExpr )*
+
+EqExpr ::= RelExpr ( ( "==" | "!=" ) RelExpr )*
+
+RelExpr ::= ShiftExpr ( RelOp ShiftExpr )*
+
+RelOp ::= "<" | "<=" | ">" | ">="
+
+ShiftExpr ::= AddExpr ( ( "<<" | ">>" ) AddExpr )*
 
 AddExpr ::= MulExpr ( ( "+" | "-" ) MulExpr )*
 
 MulExpr ::= UnaryExpr ( ( "*" | "/" | "%" ) UnaryExpr )*
 
-UnaryExpr ::= ( "-" | "not" ) UnaryExpr
+UnaryExpr ::= BorrowExpr
+            | ( "-" | "not" | "~" ) UnaryExpr
             | PostfixExpr
+
+BorrowExpr ::= "&" "mut"? PostfixExpr
 
 PostfixExpr ::= PrimaryExpr PostfixOp*
 

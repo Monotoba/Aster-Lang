@@ -12,6 +12,8 @@ class TokenKind(Enum):
     USE = auto()
     AS = auto()
     TYPEALIAS = auto()
+    TRAIT = auto()
+    IMPL = auto()
     MUT = auto()
     IF = auto()
     ELSE = auto()
@@ -49,6 +51,10 @@ class TokenKind(Enum):
     AMP = auto()  # &
     DOT = auto()  # .
     PIPE = auto()  # |
+    CARET = auto()  # ^
+    TILDE = auto()  # ~
+    SHL = auto()  # <<
+    SHR = auto()  # >>
 
     # Delimiters
     LPAREN = auto()  # (
@@ -81,6 +87,8 @@ KEYWORDS = {
     "use": TokenKind.USE,
     "as": TokenKind.AS,
     "typealias": TokenKind.TYPEALIAS,
+    "trait": TokenKind.TRAIT,
+    "impl": TokenKind.IMPL,
     "mut": TokenKind.MUT,
     "if": TokenKind.IF,
     "else": TokenKind.ELSE,
@@ -362,6 +370,16 @@ class Lexer:
             self.advance()
             return Token(TokenKind.GE, ">=", start, self.current_location())
 
+        if ch == "<" and self.peek(1) == "<":
+            self.advance()
+            self.advance()
+            return Token(TokenKind.SHL, "<<", start, self.current_location())
+
+        if ch == ">" and self.peek(1) == ">":
+            self.advance()
+            self.advance()
+            return Token(TokenKind.SHR, ">>", start, self.current_location())
+
         # Single-character tokens
         single_char_tokens = {
             "(": TokenKind.LPAREN,
@@ -380,6 +398,8 @@ class Lexer:
             "&": TokenKind.AMP,
             ".": TokenKind.DOT,
             "|": TokenKind.PIPE,
+            "^": TokenKind.CARET,
+            "~": TokenKind.TILDE,
             "<": TokenKind.LT,
             ">": TokenKind.GT,
             "=": TokenKind.EQUALS,

@@ -5,7 +5,7 @@ This module provides symbol tables, type checking, and semantic validation.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from enum import Enum, auto
 from pathlib import Path
 
@@ -33,8 +33,30 @@ class TypeKind(Enum):
     RECORD = auto()
     BORROW = auto()
     POINTER = auto()
+    BITS = auto()
+    TYPEVAR = auto()
     UNKNOWN = auto()  # For type inference
     ERROR = auto()  # For error recovery
+
+
+class OwnershipMode(Enum):
+    """How aggressively to apply ownership/borrow surface diagnostics."""
+
+    OFF = "off"
+    WARN = "warn"
+    DENY = "deny"
+
+
+@dataclass
+class _OwnVarState:
+    move_only: bool
+    moved: bool = False
+
+
+@dataclass
+class _BorrowState:
+    mutably_borrowed_by: str | None = None
+    immutably_borrowed_by: set[str] = field(default_factory=set)
 
 
 @dataclass(frozen=True)
@@ -56,6 +78,22 @@ class IntType(Type):
 
     def __str__(self) -> str:
         return "Int"
+
+
+@dataclass(frozen=True)
+class BitsType(Type):
+    """Fixed-width unsigned integer type (Nibble/Byte/Word/DWord/QWord)."""
+
+    name: str
+    bits: int
+
+    def __init__(self, name: str, bits: int) -> None:
+        object.__setattr__(self, "kind", TypeKind.BITS)
+        object.__setattr__(self, "name", name)
+        object.__setattr__(self, "bits", bits)
+
+    def __str__(self) -> str:
+        return self.name
 
 
 @dataclass(frozen=True)
@@ -170,6 +208,20 @@ class PointerType(Type):
 
 
 @dataclass(frozen=True)
+class TypeVarType(Type):
+    """Type variable (type parameter) such as T."""
+
+    name: str
+
+    def __init__(self, name: str) -> None:
+        object.__setattr__(self, "kind", TypeKind.TYPEVAR)
+        object.__setattr__(self, "name", name)
+
+    def __str__(self) -> str:
+        return self.name
+
+
+@dataclass(frozen=True)
 class UnknownType(Type):
     """Unknown type for inference."""
 
@@ -193,6 +245,11 @@ class ErrorType(Type):
 
 # Built-in types
 INT_TYPE = IntType()
+NIBBLE_TYPE = BitsType("Nibble", 4)
+BYTE_TYPE = BitsType("Byte", 8)
+WORD_TYPE = BitsType("Word", 16)
+DWORD_TYPE = BitsType("DWord", 32)
+QWORD_TYPE = BitsType("QWord", 64)
 STRING_TYPE = StringType()
 BOOL_TYPE = BoolType()
 NIL_TYPE = NilType()
@@ -210,6 +267,8 @@ class SymbolKind(Enum):
     FUNCTION = auto()
     PARAMETER = auto()
     TYPE_ALIAS = auto()
+    TYPE_PARAM = auto()
+    TRAIT = auto()
     MODULE = auto()
 
 
@@ -336,6 +395,63 @@ class SymbolTable:
                 type=FunctionType(param_types=(UNKNOWN_TYPE,), return_type=ListType(INT_TYPE)),
             )
         )
+        self.global_scope.define(
+            Symbol(
+                name="ord",
+                kind=SymbolKind.FUNCTION,
+                type=FunctionType(param_types=(STRING_TYPE,), return_type=INT_TYPE),
+            )
+        )
+        self.global_scope.define(
+            Symbol(
+                name="ascii_bytes",
+                kind=SymbolKind.FUNCTION,
+                type=FunctionType(param_types=(STRING_TYPE,), return_type=ListType(BYTE_TYPE)),
+            )
+        )
+        self.global_scope.define(
+            Symbol(
+                name="unicode_bytes",
+                kind=SymbolKind.FUNCTION,
+                type=FunctionType(param_types=(STRING_TYPE,), return_type=ListType(BYTE_TYPE)),
+            )
+        )
+        # Fixed-width integer casts.
+        self.global_scope.define(
+            Symbol(
+                name="nibble",
+                kind=SymbolKind.FUNCTION,
+                type=FunctionType(param_types=(UNKNOWN_TYPE,), return_type=NIBBLE_TYPE),
+            )
+        )
+        self.global_scope.define(
+            Symbol(
+                name="byte",
+                kind=SymbolKind.FUNCTION,
+                type=FunctionType(param_types=(UNKNOWN_TYPE,), return_type=BYTE_TYPE),
+            )
+        )
+        self.global_scope.define(
+            Symbol(
+                name="word",
+                kind=SymbolKind.FUNCTION,
+                type=FunctionType(param_types=(UNKNOWN_TYPE,), return_type=WORD_TYPE),
+            )
+        )
+        self.global_scope.define(
+            Symbol(
+                name="dword",
+                kind=SymbolKind.FUNCTION,
+                type=FunctionType(param_types=(UNKNOWN_TYPE,), return_type=DWORD_TYPE),
+            )
+        )
+        self.global_scope.define(
+            Symbol(
+                name="qword",
+                kind=SymbolKind.FUNCTION,
+                type=FunctionType(param_types=(UNKNOWN_TYPE,), return_type=QWORD_TYPE),
+            )
+        )
 
     def enter_scope(self, name: str = "<block>") -> None:
         """Enter a new nested scope."""
@@ -402,6 +518,8 @@ class SemanticAnalyzer:
         extra_roots: tuple[Path, ...] = (),
         resolver_config: ModuleSearchConfig | None = None,
         allow_external_imports: bool = False,
+        strict_types: bool = False,
+        ownership_mode: OwnershipMode = OwnershipMode.OFF,
         module_exports_cache: dict[Path, dict[str, Symbol]] | None = None,
         loading_modules: set[Path] | None = None,
     ) -> None:
@@ -410,6 +528,8 @@ class SemanticAnalyzer:
         self.extra_roots: tuple[Path, ...] = extra_roots
         self.resolver_config = resolver_config
         self.allow_external_imports = allow_external_imports
+        self.strict_types = strict_types
+        self.ownership_mode = ownership_mode
         self.module_exports_cache = {} if module_exports_cache is None else module_exports_cache
         self.loading_modules = set() if loading_modules is None else loading_modules
         self.symbol_table = SymbolTable()
@@ -422,6 +542,172 @@ class SemanticAnalyzer:
         self._warned_borrow_surface = False
         self._warned_pointer_surface = False
         self._warned_raw_pointer = False
+        # Trait prototype: name -> required method signatures.
+        self._traits: dict[str, dict[str, FunctionType]] = {}
+        # Namespace imports: ns -> trait name -> methods
+        self._namespace_traits: dict[str, dict[str, dict[str, FunctionType]]] = {}
+        # Cache trait method sets for imported modules by path.
+        self._module_trait_cache: dict[Path, dict[str, dict[str, FunctionType]]] = {}
+        # Persisted generic params (for later passes like ownership).
+        # node_id -> { type_param_name: (trait_bound1, trait_bound2, ...) }
+        self.decl_type_params: dict[int, dict[str, tuple[str, ...]]] = {}
+        # Ownership/borrow prototype enforcement (opt-in).
+        # Stack of scopes: name -> moved-state.
+        self._own_scopes: list[dict[str, _OwnVarState]] = [{}]
+        # Stack of scopes: borrowed variable name -> borrow state.
+        self._borrow_scopes: list[dict[str, _BorrowState]] = [{}]
+        # Stack of scopes: reference variable name -> borrowed target name.
+        self._ref_scopes: list[dict[str, str]] = [{}]
+
+    def _own_diag(self, message: str, node: ast.Node | None = None) -> None:
+        if self.ownership_mode == OwnershipMode.WARN:
+            self.warn(message, node)
+        elif self.ownership_mode == OwnershipMode.DENY:
+            self.error(message, node)
+
+    def _enter_scope(self, name: str = "<block>") -> None:
+        self.symbol_table.enter_scope(name)
+        self._own_scopes.append({})
+        self._borrow_scopes.append({})
+        self._ref_scopes.append({})
+
+    def _exit_scope(self) -> None:
+        self.symbol_table.exit_scope()
+        self._own_scopes.pop()
+        self._borrow_scopes.pop()
+        self._ref_scopes.pop()
+
+    def _ref_origin(self, name: str) -> str | None:
+        for scope in reversed(self._ref_scopes):
+            target = scope.get(name)
+            if target is not None:
+                return target
+        return None
+
+    def _is_global_symbol(self, sym: Symbol) -> bool:
+        return self.symbol_table.global_scope.lookup_local(sym.name) is sym
+
+    def _is_global_name(self, name: str) -> bool:
+        sym = self.symbol_table.lookup(name)
+        if sym is None:
+            return False
+        return self._is_global_symbol(sym)
+
+    def _expr_is_reference_value(self, expr: ast.Expr) -> bool:
+        if isinstance(expr, ast.BorrowExpr):
+            return True
+        if isinstance(expr, ast.Identifier):
+            sym = self.symbol_table.lookup(expr.name)
+            return sym is not None and isinstance(sym.type, BorrowType)
+        return False
+
+    def _borrow_base_name(self, target: ast.Expr) -> str | None:
+        if isinstance(target, ast.Identifier):
+            return target.name
+        if isinstance(target, ast.MemberExpr):
+            return self._borrow_base_name(target.obj)
+        if isinstance(target, ast.IndexExpr):
+            return self._borrow_base_name(target.obj)
+        return None
+
+    def _analyze_lvalue_chain(self, target: ast.Expr) -> None:
+        if isinstance(target, ast.Identifier):
+            self.infer_expr_type(target)
+            return
+        if isinstance(target, ast.MemberExpr):
+            self._analyze_lvalue_chain(target.obj)
+            return
+        if isinstance(target, ast.IndexExpr):
+            self._analyze_lvalue_chain(target.obj)
+            self.infer_expr_type(target.index)
+            return
+        self.infer_expr_type(target)
+
+    def _expr_contains_reference_value(self, expr: ast.Expr) -> bool:
+        if self._expr_is_reference_value(expr):
+            return True
+        if isinstance(expr, ast.ParenExpr):
+            return self._expr_contains_reference_value(expr.expr)
+        if isinstance(expr, ast.UnaryExpr):
+            return self._expr_contains_reference_value(expr.operand)
+        if isinstance(expr, ast.BinaryExpr):
+            return self._expr_contains_reference_value(
+                expr.left
+            ) or self._expr_contains_reference_value(expr.right)
+        if isinstance(expr, ast.CallExpr):
+            return self._expr_contains_reference_value(expr.func) or any(
+                self._expr_contains_reference_value(a) for a in expr.args
+            )
+        if isinstance(expr, ast.ListExpr):
+            return any(self._expr_contains_reference_value(e) for e in expr.elements)
+        if isinstance(expr, ast.TupleExpr):
+            return any(self._expr_contains_reference_value(e) for e in expr.elements)
+        if isinstance(expr, ast.RecordExpr):
+            return any(self._expr_contains_reference_value(f.value) for f in expr.fields)
+        if isinstance(expr, ast.MemberExpr):
+            return self._expr_contains_reference_value(expr.obj)
+        if isinstance(expr, ast.IndexExpr):
+            return self._expr_contains_reference_value(
+                expr.obj
+            ) or self._expr_contains_reference_value(expr.index)
+        return False
+
+    def _borrow_effective(self, name: str) -> _BorrowState:
+        eff = _BorrowState()
+        for scope in self._borrow_scopes:
+            st = scope.get(name)
+            if st is None:
+                continue
+            if st.mutably_borrowed_by is not None:
+                eff.mutably_borrowed_by = st.mutably_borrowed_by
+            eff.immutably_borrowed_by |= st.immutably_borrowed_by
+        return eff
+
+    def _borrow_acquire(
+        self,
+        *,
+        target: str,
+        by: str,
+        is_mutable: bool,
+        node: ast.Node,
+    ) -> None:
+        eff = self._borrow_effective(target)
+        if is_mutable:
+            if eff.mutably_borrowed_by is not None or eff.immutably_borrowed_by:
+                self._own_diag(f"Cannot mutably borrow '{target}': already borrowed", node)
+                return
+            self._borrow_scopes[-1].setdefault(target, _BorrowState()).mutably_borrowed_by = by
+            return
+
+        # Shared borrow.
+        if eff.mutably_borrowed_by is not None:
+            self._own_diag(
+                f"Cannot immutably borrow '{target}': it is mutably borrowed",
+                node,
+            )
+            return
+        self._borrow_scopes[-1].setdefault(target, _BorrowState()).immutably_borrowed_by.add(by)
+
+    def _own_define(self, name: str, t: Type) -> None:
+        move_only = isinstance(t, PointerType) and t.pointer_kind == "own"
+        self._own_scopes[-1][name] = _OwnVarState(move_only=move_only)
+
+    def _own_lookup(self, name: str) -> _OwnVarState | None:
+        for scope in reversed(self._own_scopes):
+            st = scope.get(name)
+            if st is not None:
+                return st
+        return None
+
+    def _own_mark_moved(self, name: str, node: ast.Node | None) -> None:
+        st = self._own_lookup(name)
+        if st is None:
+            return
+        if st.move_only and st.moved:
+            self._own_diag(f"Use of moved value '{name}'", node)
+            return
+        if st.move_only:
+            st.moved = True
 
     def error(self, message: str, node: ast.Node | None = None) -> None:
         """Record a semantic error."""
@@ -440,6 +726,109 @@ class SemanticAnalyzer:
         self.analyze_module(module)
         return not self.has_errors()
 
+    def _validate_trait_bound(self, bound: ast.TypeExpr, *, context: str) -> None:
+        """Validate a trait bound type expression (prototype: simple names only)."""
+        if not isinstance(bound, ast.SimpleType) or bound.type_args:
+            self.error(f"{context} bound must be a trait name", bound)
+            return
+
+        parts = bound.name.parts
+        if len(parts) == 1:
+            name = parts[0]
+            sym = self.symbol_table.lookup(name)
+            if sym is None or sym.kind != SymbolKind.TRAIT:
+                self.error(f"Unknown trait '{name}'", bound)
+            return
+
+        if len(parts) == 2:
+            namespace, member = parts
+            ns_exports = self._namespace_exports.get(namespace)
+            if ns_exports is None:
+                self.error(f"Unknown trait '{namespace}.{member}'", bound)
+                return
+            sym = ns_exports.get(member)
+            if sym is None or sym.kind != SymbolKind.TRAIT:
+                self.error(f"Unknown trait '{namespace}.{member}'", bound)
+            return
+
+        self.error(f"{context} bound must be a simple trait name", bound)
+
+    def _trait_bound_ref(self, bound: ast.TypeExpr) -> str | None:
+        if not isinstance(bound, ast.SimpleType) or bound.type_args:
+            return None
+        parts = bound.name.parts
+        if len(parts) == 1:
+            return parts[0]
+        if len(parts) == 2:
+            return f"{parts[0]}.{parts[1]}"
+        return None
+
+    def _record_decl_type_params(self, node: ast.Node, params: list[ast.TypeParam]) -> None:
+        out: dict[str, tuple[str, ...]] = {}
+        for tp in params:
+            refs: list[str] = []
+            for b in tp.bounds:
+                r = self._trait_bound_ref(b)
+                if r is not None:
+                    refs.append(r)
+            out[tp.name] = tuple(refs)
+        self.decl_type_params[id(node)] = out
+
+    def _substitute_typevars(self, t: Type, subs: dict[str, Type]) -> Type:
+        if isinstance(t, TypeVarType):
+            return subs.get(t.name, t)
+        if isinstance(t, FunctionType):
+            return FunctionType(
+                tuple(self._substitute_typevars(p, subs) for p in t.param_types),
+                self._substitute_typevars(t.return_type, subs),
+            )
+        if isinstance(t, ListType):
+            return ListType(self._substitute_typevars(t.element_type, subs))
+        if isinstance(t, TupleType):
+            return TupleType(tuple(self._substitute_typevars(e, subs) for e in t.element_types))
+        if isinstance(t, BorrowType):
+            return BorrowType(
+                self._substitute_typevars(t.inner, subs),
+                is_mutable=t.is_mutable,
+            )
+        if isinstance(t, PointerType):
+            return PointerType(t.pointer_kind, self._substitute_typevars(t.inner, subs))
+        return t
+
+    def _collect_typevar_bindings(
+        self,
+        expected: Type,
+        actual: Type,
+        subs: dict[str, Type],
+    ) -> None:
+        if isinstance(expected, TypeVarType):
+            existing = subs.get(expected.name)
+            if existing is None:
+                subs[expected.name] = actual
+                return
+            # Prefer more specific bindings when we first saw `?`.
+            if existing.kind == TypeKind.UNKNOWN and actual.kind != TypeKind.UNKNOWN:
+                subs[expected.name] = actual
+            return
+        if isinstance(expected, FunctionType) and isinstance(actual, FunctionType):
+            for e, a in zip(expected.param_types, actual.param_types, strict=False):
+                self._collect_typevar_bindings(e, a, subs)
+            self._collect_typevar_bindings(expected.return_type, actual.return_type, subs)
+            return
+        if isinstance(expected, ListType) and isinstance(actual, ListType):
+            self._collect_typevar_bindings(expected.element_type, actual.element_type, subs)
+            return
+        if isinstance(expected, TupleType) and isinstance(actual, TupleType):
+            for e, a in zip(expected.element_types, actual.element_types, strict=False):
+                self._collect_typevar_bindings(e, a, subs)
+            return
+        if isinstance(expected, BorrowType) and isinstance(actual, BorrowType):
+            self._collect_typevar_bindings(expected.inner, actual.inner, subs)
+            return
+        if isinstance(expected, PointerType) and isinstance(actual, PointerType):
+            self._collect_typevar_bindings(expected.inner, actual.inner, subs)
+            return
+
     # Module and declarations
 
     def analyze_module(self, module: ast.Module) -> None:
@@ -457,20 +846,157 @@ class SemanticAnalyzer:
             self.analyze_import_decl(decl)
         elif isinstance(decl, ast.TypeAliasDecl):
             self.analyze_type_alias_decl(decl)
+        elif isinstance(decl, ast.TraitDecl):
+            self.analyze_trait_decl(decl)
+        elif isinstance(decl, ast.ImplDecl):
+            self.analyze_impl_decl(decl)
+
+    def analyze_trait_decl(self, decl: ast.TraitDecl) -> None:
+        """Analyze a trait declaration (prototype: signatures only)."""
+        if self.symbol_table.lookup(decl.name) is not None:
+            self.error(f"Trait '{decl.name}' is already defined", decl)
+            return
+
+        self.symbol_table.define(
+            Symbol(
+                name=decl.name,
+                kind=SymbolKind.TRAIT,
+                type=UNKNOWN_TYPE,
+                declaration_node=decl,
+            )
+        )
+
+        methods: dict[str, FunctionType] = {}
+        self._record_decl_type_params(decl, decl.type_params)
+        self._enter_scope(f"trait {decl.name}")
+        try:
+            for tp in decl.type_params:
+                self.symbol_table.define(
+                    Symbol(
+                        name=tp.name,
+                        kind=SymbolKind.TYPE_PARAM,
+                        type=TypeVarType(tp.name),
+                        declaration_node=decl,
+                    )
+                )
+                for b in tp.bounds:
+                    self._validate_trait_bound(b, context="Type parameter")
+
+            for m in decl.members:
+                if m.name in methods:
+                    self.error(f"Duplicate trait method '{m.name}'", m)
+                    continue
+                param_types = tuple(
+                    self.resolve_type_expr(p.type_annotation)
+                    if p.type_annotation is not None
+                    else UNKNOWN_TYPE
+                    for p in m.params
+                )
+                ret_t = (
+                    self.resolve_type_expr(m.return_type) if m.return_type is not None else NIL_TYPE
+                )
+                methods[m.name] = FunctionType(param_types=param_types, return_type=ret_t)
+        finally:
+            self._exit_scope()
+
+        self._traits[decl.name] = methods
+
+    def analyze_impl_decl(self, decl: ast.ImplDecl) -> None:
+        """Analyze an impl declaration (prototype)."""
+        if decl.trait is None:
+            # Inherent impls are syntax-only for now.
+            return
+
+        if not isinstance(decl.trait, ast.SimpleType) or decl.trait.type_args:
+            self.error("impl trait must be a trait name", decl.trait)
+            return
+
+        trait_name: str | None = None
+        required: dict[str, FunctionType] | None = None
+        parts = decl.trait.name.parts
+        if len(parts) == 1:
+            trait_name = parts[0]
+            required = self._traits.get(trait_name)
+        elif len(parts) == 2:
+            ns, member = parts
+            trait_name = member
+            required = self._namespace_traits.get(ns, {}).get(member)
+        else:
+            self.error("impl trait must be a simple trait name", decl.trait)
+            return
+
+        if required is None:
+            self.error(f"Unknown trait '{trait_name}'", decl.trait)
+            return
+
+        provided: dict[str, FunctionType] = {}
+        for fn in decl.members:
+            param_types = tuple(
+                self.resolve_type_expr(p.type_annotation)
+                if p.type_annotation is not None
+                else UNKNOWN_TYPE
+                for p in fn.params
+            )
+            ret_t = (
+                self.resolve_type_expr(fn.return_type) if fn.return_type is not None else NIL_TYPE
+            )
+            provided[fn.name] = FunctionType(param_types=param_types, return_type=ret_t)
+
+        for name, req_sig in required.items():
+            got = provided.get(name)
+            if got is None:
+                self.error(
+                    f"impl is missing required method '{name}' for trait '{trait_name}'",
+                    decl,
+                )
+                continue
+            if len(got.param_types) != len(req_sig.param_types):
+                self.error(
+                    (
+                        f"Method '{name}' has wrong arity: expected {len(req_sig.param_types)}, "
+                        f"got {len(got.param_types)}"
+                    ),
+                    decl,
+                )
+                continue
+            if not self.types_compatible(got.return_type, req_sig.return_type):
+                self.error(
+                    (
+                        f"Method '{name}' has wrong return type: expected {req_sig.return_type}, "
+                        f"got {got.return_type}"
+                    ),
+                    decl,
+                )
 
     def analyze_function_decl(self, decl: ast.FunctionDecl) -> None:
         """Analyze a function declaration."""
-        # Resolve parameter types
-        param_types = []
-        for param in decl.params:
-            if param.type_annotation:
-                param_type = self.resolve_type_expr(param.type_annotation)
-            else:
-                param_type = UNKNOWN_TYPE
-            param_types.append(param_type)
+        self._record_decl_type_params(decl, decl.type_params)
+        # Resolve parameter/return types in a scope that includes type parameters.
+        self._enter_scope(f"fn-sig {decl.name}")
+        try:
+            for tp in decl.type_params:
+                self.symbol_table.define(
+                    Symbol(
+                        name=tp.name,
+                        kind=SymbolKind.TYPE_PARAM,
+                        type=TypeVarType(tp.name),
+                        declaration_node=decl,
+                    )
+                )
+                for b in tp.bounds:
+                    self._validate_trait_bound(b, context="Type parameter")
 
-        # Resolve return type
-        return_type = self.resolve_type_expr(decl.return_type) if decl.return_type else NIL_TYPE
+            param_types: list[Type] = []
+            for param in decl.params:
+                if param.type_annotation:
+                    param_type = self.resolve_type_expr(param.type_annotation)
+                else:
+                    param_type = UNKNOWN_TYPE
+                param_types.append(param_type)
+
+            return_type = self.resolve_type_expr(decl.return_type) if decl.return_type else NIL_TYPE
+        finally:
+            self._exit_scope()
 
         # Create function symbol
         func_type = FunctionType(tuple(param_types), return_type)
@@ -486,7 +1012,19 @@ class SemanticAnalyzer:
             self.error(f"Function '{decl.name}' is already defined", decl)
 
         # Enter function scope
-        self.symbol_table.enter_scope(f"fn {decl.name}")
+        self._enter_scope(f"fn {decl.name}")
+
+        for tp in decl.type_params:
+            self.symbol_table.define(
+                Symbol(
+                    name=tp.name,
+                    kind=SymbolKind.TYPE_PARAM,
+                    type=TypeVarType(tp.name),
+                    declaration_node=decl,
+                )
+            )
+            for b in tp.bounds:
+                self._validate_trait_bound(b, context="Type parameter")
 
         # Define parameters
         for param, param_type in zip(decl.params, param_types, strict=False):
@@ -497,18 +1035,24 @@ class SemanticAnalyzer:
                 declaration_node=param,
             )
             self.symbol_table.define(param_symbol)
+            if self.ownership_mode != OwnershipMode.OFF:
+                self._own_define(param.name, param_type)
 
         # Analyze function body
         for stmt in decl.body:
             self.analyze_statement(stmt)
 
         # Exit function scope
-        self.symbol_table.exit_scope()
+        self._exit_scope()
 
     def analyze_let_decl(self, decl: ast.LetDecl) -> None:
         """Analyze a top-level binding declaration."""
         # Infer type from initializer
         init_type = self.infer_expr_type(decl.initializer)
+        if self.ownership_mode != OwnershipMode.OFF and isinstance(
+            decl.initializer, ast.Identifier
+        ):
+            self._own_mark_moved(decl.initializer.name, decl.initializer)
 
         # Check against declared type if present
         if decl.type_annotation:
@@ -533,6 +1077,29 @@ class SemanticAnalyzer:
 
         if not self.symbol_table.define(symbol):
             self.error(f"Variable '{decl.name}' is already defined", decl)
+        elif self.ownership_mode != OwnershipMode.OFF:
+            self._own_define(decl.name, final_type)
+            # Escape rule: disallow storing references in module-level bindings for now.
+            if isinstance(final_type, BorrowType) or self._expr_contains_reference_value(
+                decl.initializer
+            ):
+                self._own_diag(
+                    (
+                        "Storing references in module-level bindings is not supported yet "
+                        "(reference escape)"
+                    ),
+                    decl,
+                )
+            if isinstance(decl.initializer, ast.BorrowExpr):
+                base = self._borrow_base_name(decl.initializer.target)
+                if base is not None:
+                    self._ref_scopes[-1][decl.name] = base
+                self._borrow_acquire(
+                    target=base or "<unknown>",
+                    by=decl.name,
+                    is_mutable=decl.initializer.is_mutable,
+                    node=decl.initializer,
+                )
 
     def analyze_import_decl(self, decl: ast.ImportDecl) -> None:
         """Analyze an import declaration."""
@@ -561,6 +1128,10 @@ class SemanticAnalyzer:
             return
 
         if decl.imports:
+            module_path = self._resolve_module_path(decl.module)
+            trait_methods = (
+                {} if module_path is None else self._module_trait_cache.get(module_path, {})
+            )
             for name in decl.imports:
                 if name not in exports:
                     module_label = ".".join(decl.module.parts)
@@ -570,6 +1141,9 @@ class SemanticAnalyzer:
                     )
                     continue
                 self.symbol_table.define(exports[name])
+                if exports[name].kind == SymbolKind.TRAIT:
+                    # Make imported traits available for bounds/impl validation.
+                    self._traits[name] = trait_methods.get(name, {})
             return
 
         binding_name = decl.alias if decl.alias is not None else decl.module.parts[-1]
@@ -582,6 +1156,9 @@ class SemanticAnalyzer:
             )
         )
         self._namespace_exports[binding_name] = exports
+        module_path = self._resolve_module_path(decl.module)
+        if module_path is not None:
+            self._namespace_traits[binding_name] = self._module_trait_cache.get(module_path, {})
 
     def _load_module_exports(self, decl: ast.ImportDecl) -> dict[str, Symbol] | None:
         """Load exported top-level symbols from a sibling .aster module."""
@@ -603,9 +1180,46 @@ class SemanticAnalyzer:
                     self._load_module_exports(inner_decl)
             exports = self._collect_module_exports(module)
             self.module_exports_cache[module_path] = exports
+            self._module_trait_cache[module_path] = self._collect_module_traits(module)
             return exports
         finally:
             self.loading_modules.remove(module_path)
+
+    def _collect_module_traits(self, module: ast.Module) -> dict[str, dict[str, FunctionType]]:
+        """Collect method requirements for public traits in a module."""
+        out: dict[str, dict[str, FunctionType]] = {}
+        for decl in module.declarations:
+            if not isinstance(decl, ast.TraitDecl) or not decl.is_public:
+                continue
+            methods: dict[str, FunctionType] = {}
+            self._enter_scope(f"imported-trait {decl.name}")
+            try:
+                for tp in decl.type_params:
+                    self.symbol_table.define(
+                        Symbol(
+                            name=tp.name,
+                            kind=SymbolKind.TYPE_PARAM,
+                            type=TypeVarType(tp.name),
+                            declaration_node=decl,
+                        )
+                    )
+                for m in decl.members:
+                    param_types = tuple(
+                        self.resolve_type_expr(p.type_annotation)
+                        if p.type_annotation is not None
+                        else UNKNOWN_TYPE
+                        for p in m.params
+                    )
+                    ret_t = (
+                        self.resolve_type_expr(m.return_type)
+                        if m.return_type is not None
+                        else NIL_TYPE
+                    )
+                    methods[m.name] = FunctionType(param_types=param_types, return_type=ret_t)
+            finally:
+                self._exit_scope()
+            out[decl.name] = methods
+        return out
 
     def _resolve_module_path(self, module_name: ast.QualifiedName) -> Path | None:
         """Resolve a dotted module name from the current base directory."""
@@ -670,6 +1284,15 @@ class SemanticAnalyzer:
                     type=self.resolve_type_expr(decl.type_expr),
                     declaration_node=decl,
                 )
+            elif isinstance(decl, ast.TraitDecl):
+                if not decl.is_public:
+                    continue
+                exports[decl.name] = Symbol(
+                    name=decl.name,
+                    kind=SymbolKind.TRAIT,
+                    type=UNKNOWN_TYPE,
+                    declaration_node=decl,
+                )
         return exports
 
     def _infer_exported_let_type(self, expr: ast.Expr) -> Type:
@@ -686,7 +1309,23 @@ class SemanticAnalyzer:
 
     def analyze_type_alias_decl(self, decl: ast.TypeAliasDecl) -> None:
         """Analyze a type alias declaration."""
-        resolved_type = self.resolve_type_expr(decl.type_expr)
+        self._record_decl_type_params(decl, decl.type_params)
+        self._enter_scope(f"typealias {decl.name}")
+        try:
+            for tp in decl.type_params:
+                self.symbol_table.define(
+                    Symbol(
+                        name=tp.name,
+                        kind=SymbolKind.TYPE_PARAM,
+                        type=TypeVarType(tp.name),
+                        declaration_node=decl,
+                    )
+                )
+                for b in tp.bounds:
+                    self._validate_trait_bound(b, context="Type parameter")
+            resolved_type = self.resolve_type_expr(decl.type_expr)
+        finally:
+            self._exit_scope()
         if self.symbol_table.lookup(decl.name) is not None:
             self.error(f"Type '{decl.name}' is already defined", decl)
             return
@@ -726,6 +1365,10 @@ class SemanticAnalyzer:
         """Analyze a binding statement."""
         # Infer type from initializer
         init_type = self.infer_expr_type(stmt.initializer)
+        if self.ownership_mode != OwnershipMode.OFF and isinstance(
+            stmt.initializer, ast.Identifier
+        ):
+            self._own_mark_moved(stmt.initializer.name, stmt.initializer)
 
         if isinstance(stmt.pattern, ast.BindingPattern):
             # Check against declared type if present
@@ -750,6 +1393,18 @@ class SemanticAnalyzer:
 
             if not self.symbol_table.define(symbol):
                 self.error(f"Variable '{stmt.name}' is already defined", stmt)
+            elif self.ownership_mode != OwnershipMode.OFF:
+                self._own_define(stmt.name, final_type)
+                if isinstance(stmt.initializer, ast.BorrowExpr):
+                    base = self._borrow_base_name(stmt.initializer.target)
+                    if base is not None:
+                        self._ref_scopes[-1][stmt.name] = base
+                    self._borrow_acquire(
+                        target=base or "<unknown>",
+                        by=stmt.name,
+                        is_mutable=stmt.initializer.is_mutable,
+                        node=stmt.initializer,
+                    )
             return
 
         self._analyze_binding_pattern(
@@ -769,15 +1424,42 @@ class SemanticAnalyzer:
                 self.error(f"Undefined variable '{stmt.target.name}'", stmt)
                 return
 
-            # Check mutability
+            # Type check
+            value_type = self.infer_expr_type(stmt.value)
+            if self.ownership_mode != OwnershipMode.OFF and isinstance(stmt.value, ast.Identifier):
+                self._own_mark_moved(stmt.value.name, stmt.value)
+            if isinstance(symbol.type, BorrowType):
+                if not symbol.type.is_mutable:
+                    self.error(
+                        f"Cannot assign through immutable reference '{stmt.target.name}'",
+                        stmt,
+                    )
+                if not self.types_compatible(value_type, symbol.type.inner):
+                    self.error(
+                        f"Type mismatch: cannot assign {value_type} to {symbol.type.inner}",
+                        stmt,
+                    )
+                return
+
+            if self.ownership_mode != OwnershipMode.OFF:
+                b = self._borrow_effective(stmt.target.name)
+                if b.mutably_borrowed_by is not None:
+                    self._own_diag(
+                        f"Cannot assign to '{stmt.target.name}' while it is mutably borrowed",
+                        stmt,
+                    )
+                if b.immutably_borrowed_by:
+                    self._own_diag(
+                        f"Cannot assign to '{stmt.target.name}' while it is immutably borrowed",
+                        stmt,
+                    )
+
+            # Check mutability for value bindings.
             if not symbol.is_mutable:
                 self.error(
                     f"Cannot assign to immutable variable '{stmt.target.name}'",
                     stmt,
                 )
-
-            # Type check
-            value_type = self.infer_expr_type(stmt.value)
             if not self.types_compatible(value_type, symbol.type):
                 self.error(
                     f"Type mismatch: cannot assign {value_type} to {symbol.type}",
@@ -785,31 +1467,64 @@ class SemanticAnalyzer:
                 )
             return
 
-        # Member/index lvalues: only supported when the receiver is an identifier.
-        if isinstance(stmt.target, ast.MemberExpr) and isinstance(stmt.target.obj, ast.Identifier):
-            base = self.symbol_table.lookup(stmt.target.obj.name)
-            if base is None:
-                self.error(f"Undefined variable '{stmt.target.obj.name}'", stmt)
+        # Deref lvalue: *p <- v
+        if isinstance(stmt.target, ast.UnaryExpr) and stmt.target.operator == "*":
+            if isinstance(stmt.target.operand, ast.Identifier):
+                sym = self.symbol_table.lookup(stmt.target.operand.name)
+                target_t = UNKNOWN_TYPE if sym is None else sym.type
+            else:
+                target_t = self.infer_expr_type(stmt.target.operand)
+            value_t = self.infer_expr_type(stmt.value)
+            if isinstance(target_t, BorrowType):
+                if not target_t.is_mutable:
+                    self.error("Cannot assign through immutable reference", stmt)
+                if not self.types_compatible(value_t, target_t.inner):
+                    self.error(
+                        f"Type mismatch: cannot assign {value_t} to {target_t.inner}",
+                        stmt,
+                    )
                 return
-            if not base.is_mutable:
-                self.error(
-                    f"Cannot assign through immutable variable '{stmt.target.obj.name}'",
-                    stmt,
-                )
+            if isinstance(target_t, PointerType):
+                # Pointers are not fully implemented yet; allow type-checking for now.
+                if not self.types_compatible(value_t, target_t.inner):
+                    self.error(
+                        f"Type mismatch: cannot assign {value_t} to {target_t.inner}",
+                        stmt,
+                    )
+                return
+            self.error("Invalid assignment target", stmt)
+            return
+
+        # Member/index lvalues: supported for identifier-rooted chains.
+        if isinstance(stmt.target, ast.MemberExpr):
+            base_name = self._borrow_base_name(stmt.target)
+            if base_name is not None:
+                base = self.symbol_table.lookup(base_name)
+                if base is None:
+                    self.error(f"Undefined variable '{base_name}'", stmt)
+                    return
+                if not base.is_mutable:
+                    self.error(
+                        f"Cannot assign through immutable variable '{base_name}'",
+                        stmt,
+                    )
+            self._analyze_lvalue_chain(stmt.target)
             self.infer_expr_type(stmt.value)
             return
 
-        if isinstance(stmt.target, ast.IndexExpr) and isinstance(stmt.target.obj, ast.Identifier):
-            base = self.symbol_table.lookup(stmt.target.obj.name)
-            if base is None:
-                self.error(f"Undefined variable '{stmt.target.obj.name}'", stmt)
-                return
-            if not base.is_mutable:
-                self.error(
-                    f"Cannot assign through immutable variable '{stmt.target.obj.name}'",
-                    stmt,
-                )
-            self.infer_expr_type(stmt.target.index)
+        if isinstance(stmt.target, ast.IndexExpr):
+            base_name = self._borrow_base_name(stmt.target)
+            if base_name is not None:
+                base = self.symbol_table.lookup(base_name)
+                if base is None:
+                    self.error(f"Undefined variable '{base_name}'", stmt)
+                    return
+                if not base.is_mutable:
+                    self.error(
+                        f"Cannot assign through immutable variable '{base_name}'",
+                        stmt,
+                    )
+            self._analyze_lvalue_chain(stmt.target)
             self.infer_expr_type(stmt.value)
             return
 
@@ -819,39 +1534,99 @@ class SemanticAnalyzer:
         """Analyze a return statement."""
         if stmt.value:
             self.infer_expr_type(stmt.value)
+            if self.ownership_mode != OwnershipMode.OFF and isinstance(stmt.value, ast.Identifier):
+                self._own_mark_moved(stmt.value.name, stmt.value)
+
+            if self.ownership_mode != OwnershipMode.OFF:
+                # Escape rules (prototype):
+                # - returning a borrow of a local variable is disallowed
+                # - returning aggregates containing references is disallowed
+                if self._expr_contains_reference_value(stmt.value) and isinstance(
+                    stmt.value, ast.ListExpr | ast.TupleExpr | ast.RecordExpr
+                ):
+                    self._own_diag(
+                        "Cannot return aggregates containing references (reference escape)",
+                        stmt.value,
+                    )
+                elif isinstance(stmt.value, ast.BorrowExpr):
+                    base = self._borrow_base_name(stmt.value.target)
+                    if base is None:
+                        self._own_diag(
+                            "Cannot return a reference to a non-lvalue in this prototype",
+                            stmt.value,
+                        )
+                        return
+                    target_sym = self.symbol_table.lookup(base)
+                    if (
+                        target_sym is not None
+                        and target_sym.kind != SymbolKind.PARAMETER
+                        and not self._is_global_symbol(target_sym)
+                    ):
+                        self._own_diag(
+                            f"Cannot return a reference to local '{base}'",
+                            stmt.value,
+                        )
+                elif isinstance(stmt.value, ast.Identifier):
+                    sym = self.symbol_table.lookup(stmt.value.name)
+                    if sym is not None and isinstance(sym.type, BorrowType):
+                        # Returning a borrow parameter is allowed.
+                        if sym.kind == SymbolKind.PARAMETER:
+                            return
+                        origin = self._ref_origin(stmt.value.name)
+                        if origin is None:
+                            self._own_diag(
+                                "Cannot return a reference value of unknown origin",
+                                stmt.value,
+                            )
+                            return
+                        origin_sym = self.symbol_table.lookup(origin)
+                        if origin_sym is None:
+                            return
+                        if origin_sym.kind == SymbolKind.PARAMETER or self._is_global_symbol(
+                            origin_sym
+                        ):
+                            return
+                        self._own_diag(
+                            f"Cannot return a reference to local '{origin}'",
+                            stmt.value,
+                        )
         # TODO: Check return type against function signature
 
     def analyze_if_stmt(self, stmt: ast.IfStmt) -> None:
         """Analyze an if statement."""
         # Check condition type
         cond_type = self.infer_expr_type(stmt.condition)
+        if self.strict_types and cond_type.kind in (TypeKind.UNKNOWN, TypeKind.TYPEVAR):
+            self.error("If condition must be Bool (unknown in strict mode)", stmt)
         if not self.types_compatible(cond_type, BOOL_TYPE):
             self.error(f"If condition must be Bool, got {cond_type}", stmt)
 
         # Analyze blocks
-        self.symbol_table.enter_scope("<then>")
+        self._enter_scope("<then>")
         for s in stmt.then_block:
             self.analyze_statement(s)
-        self.symbol_table.exit_scope()
+        self._exit_scope()
 
         if stmt.else_block:
-            self.symbol_table.enter_scope("<else>")
+            self._enter_scope("<else>")
             for s in stmt.else_block:
                 self.analyze_statement(s)
-            self.symbol_table.exit_scope()
+            self._exit_scope()
 
     def analyze_while_stmt(self, stmt: ast.WhileStmt) -> None:
         """Analyze a while statement."""
         # Check condition type
         cond_type = self.infer_expr_type(stmt.condition)
+        if self.strict_types and cond_type.kind in (TypeKind.UNKNOWN, TypeKind.TYPEVAR):
+            self.error("While condition must be Bool (unknown in strict mode)", stmt)
         if not self.types_compatible(cond_type, BOOL_TYPE):
             self.error(f"While condition must be Bool, got {cond_type}", stmt)
 
         # Analyze body
-        self.symbol_table.enter_scope("<while>")
+        self._enter_scope("<while>")
         for s in stmt.body:
             self.analyze_statement(s)
-        self.symbol_table.exit_scope()
+        self._exit_scope()
 
     def analyze_for_stmt(self, stmt: ast.ForStmt) -> None:
         """Analyze a for statement."""
@@ -859,7 +1634,7 @@ class SemanticAnalyzer:
         self.infer_expr_type(stmt.iterable)
 
         # Enter loop scope and define loop variable
-        self.symbol_table.enter_scope("<for>")
+        self._enter_scope("<for>")
         loop_var = Symbol(
             name=stmt.variable,
             kind=SymbolKind.VARIABLE,
@@ -867,22 +1642,24 @@ class SemanticAnalyzer:
             declaration_node=stmt,
         )
         self.symbol_table.define(loop_var)
+        if self.ownership_mode != OwnershipMode.OFF:
+            self._own_define(stmt.variable, UNKNOWN_TYPE)
 
         # Analyze body
         for s in stmt.body:
             self.analyze_statement(s)
 
-        self.symbol_table.exit_scope()
+        self._exit_scope()
 
     def analyze_match_stmt(self, stmt: ast.MatchStmt) -> None:
         """Analyze a match statement."""
         subject_type = self.infer_expr_type(stmt.subject)
         for arm in stmt.arms:
-            self.symbol_table.enter_scope("<match-arm>")
+            self._enter_scope("<match-arm>")
             self._analyze_pattern(arm.pattern, subject_type, stmt.subject, stmt)
             for s in arm.body:
                 self.analyze_statement(s)
-            self.symbol_table.exit_scope()
+            self._exit_scope()
 
     def _analyze_pattern(
         self,
@@ -900,6 +1677,8 @@ class SemanticAnalyzer:
                 declaration_node=node,
             )
             self.symbol_table.define(bound)
+            if self.ownership_mode != OwnershipMode.OFF:
+                self._own_define(pattern.name, subject_type)
             return
         if isinstance(pattern, ast.RestPattern):
             bound = Symbol(
@@ -1323,7 +2102,58 @@ class SemanticAnalyzer:
             if symbol is None:
                 self.error(f"Undefined variable '{expr.name}'", expr)
                 return remember(ERROR_TYPE)
+            if self.ownership_mode != OwnershipMode.OFF:
+                st = self._own_lookup(expr.name)
+                if st is not None and st.move_only and st.moved:
+                    self._own_diag(f"Use of moved value '{expr.name}'", expr)
+                # Borrow enforcement (prototype): if a value binding is mutably borrowed, it
+                # cannot be used directly until the borrow ends. If it is immutably borrowed,
+                # it cannot be assigned to (enforced in analyze_assign_stmt).
+                if not isinstance(symbol.type, BorrowType):
+                    b = self._borrow_effective(expr.name)
+                    if b.mutably_borrowed_by is not None:
+                        self._own_diag(
+                            f"Cannot use '{expr.name}' while it is mutably borrowed",
+                            expr,
+                        )
+            # Implicit deref model: a binding typed as `&T` behaves like `T` in expression typing.
+            if isinstance(symbol.type, BorrowType):
+                return remember(symbol.type.inner)
             return remember(symbol.type)
+        elif isinstance(expr, ast.BorrowExpr):
+            base = self._borrow_base_name(expr.target)
+            if base is None:
+                if self.ownership_mode != OwnershipMode.OFF and not isinstance(
+                    expr.target, ast.MemberExpr | ast.IndexExpr
+                ):
+                    self._own_diag(
+                        (
+                            "Borrow targets must be identifiers, member accesses, or index "
+                            "lvalues in this prototype"
+                        ),
+                        expr,
+                    )
+                self.infer_expr_type(expr.target)
+                inner: Type
+                if isinstance(expr.target, ast.MemberExpr | ast.IndexExpr):
+                    inner = INT_TYPE
+                else:
+                    inner = UNKNOWN_TYPE
+                return remember(BorrowType(inner, is_mutable=expr.is_mutable))
+
+            sym = self.symbol_table.lookup(base)
+            if sym is None:
+                self.error(f"Undefined variable '{base}'", expr)
+                return remember(ERROR_TYPE)
+            if self.ownership_mode != OwnershipMode.OFF and expr.is_mutable and not sym.is_mutable:
+                self._own_diag(
+                    f"Cannot take &mut of immutable variable '{base}'",
+                    expr,
+                )
+            # Member/index types are not inferred yet; assume Int so common borrow patterns stay
+            # usable, including computed roots like `&mut {x: 1}.x`.
+            inner = sym.type if isinstance(expr.target, ast.Identifier) else INT_TYPE
+            return remember(BorrowType(inner, is_mutable=expr.is_mutable))
         elif isinstance(expr, ast.BinaryExpr):
             return remember(self.infer_binary_expr_type(expr))
         elif isinstance(expr, ast.UnaryExpr):
@@ -1332,7 +2162,7 @@ class SemanticAnalyzer:
             return remember(self.infer_call_expr_type(expr))
         elif isinstance(expr, ast.LambdaExpr):
             param_types: list[Type] = []
-            self.symbol_table.enter_scope("<lambda>")
+            self._enter_scope("<lambda>")
             try:
                 for p in expr.params:
                     pt = (
@@ -1349,16 +2179,20 @@ class SemanticAnalyzer:
                             declaration_node=p,
                         )
                     )
+                    if self.ownership_mode != OwnershipMode.OFF:
+                        self._own_define(p.name, pt)
 
                 ret_t: Type
                 if isinstance(expr.body, list):
                     for stmt in expr.body:
                         self.analyze_statement(stmt)
-                    ret_t = UNKNOWN_TYPE
+                    # Block lambdas default to Nil when they don't explicitly return.
+                    # If they do return, infer a best-effort return type from the body.
+                    ret_t = self._infer_return_type_from_stmts(expr.body)
                 else:
                     ret_t = self.infer_expr_type(expr.body)
             finally:
-                self.symbol_table.exit_scope()
+                self._exit_scope()
             return remember(FunctionType(tuple(param_types), ret_t))
         elif isinstance(expr, ast.MemberExpr):
             # TODO: Implement member type inference
@@ -1371,32 +2205,203 @@ class SemanticAnalyzer:
             return remember(UNKNOWN_TYPE)
         elif isinstance(expr, ast.ListExpr):
             # TODO: Infer element type
+            if self.ownership_mode != OwnershipMode.OFF:
+                for e in expr.elements:
+                    if self._expr_is_reference_value(e):
+                        self._own_diag(
+                            (
+                                "References in collection literals are not supported yet "
+                                "(reference escape)"
+                            ),
+                            e,
+                        )
             for elem in expr.elements:
                 self.infer_expr_type(elem)
             return remember(ListType(UNKNOWN_TYPE))
         elif isinstance(expr, ast.TupleExpr):
+            if self.ownership_mode != OwnershipMode.OFF:
+                for e in expr.elements:
+                    if self._expr_is_reference_value(e):
+                        self._own_diag(
+                            (
+                                "References in collection literals are not supported yet "
+                                "(reference escape)"
+                            ),
+                            e,
+                        )
             elem_types = tuple(self.infer_expr_type(e) for e in expr.elements)
             return remember(TupleType(elem_types))
+        elif isinstance(expr, ast.RecordExpr):
+            if self.ownership_mode != OwnershipMode.OFF:
+                for f in expr.fields:
+                    if self._expr_is_reference_value(f.value):
+                        self._own_diag(
+                            (
+                                "References in collection literals are not supported yet "
+                                "(reference escape)"
+                            ),
+                            f.value,
+                        )
+            for f in expr.fields:
+                self.infer_expr_type(f.value)
+            return remember(UNKNOWN_TYPE)
         elif isinstance(expr, ast.ParenExpr):
             return remember(self.infer_expr_type(expr.expr))
         else:
             return remember(UNKNOWN_TYPE)
+
+    def _infer_return_type_from_stmts(self, stmts: list[ast.Stmt]) -> Type:
+        """Best-effort return type inference for block lambdas.
+
+        We collect the types of any `return` statements we can see structurally, without attempting
+        to prove control-flow coverage. This keeps higher-order code usable without requiring full
+        function-level return type checking infrastructure.
+        """
+
+        collected: list[Type] = []
+
+        def walk(block: list[ast.Stmt]) -> None:
+            for s in block:
+                if isinstance(s, ast.ReturnStmt):
+                    if s.value is None:
+                        collected.append(NIL_TYPE)
+                    else:
+                        collected.append(self.infer_expr_type(s.value))
+                elif isinstance(s, ast.IfStmt):
+                    walk(s.then_block)
+                    if s.else_block:
+                        walk(s.else_block)
+                elif isinstance(s, ast.MatchStmt):
+                    for arm in s.arms:
+                        walk(arm.body)
+                elif isinstance(s, ast.WhileStmt | ast.ForStmt):
+                    walk(s.body)
+
+        walk(stmts)
+
+        if not collected:
+            return NIL_TYPE
+
+        # Unify: prefer a concrete type over Unknown when possible.
+        unified = collected[0]
+        for t in collected[1:]:
+            if unified == UNKNOWN_TYPE and t != UNKNOWN_TYPE:
+                unified = t
+                continue
+            if t == UNKNOWN_TYPE:
+                continue
+            if not self.types_compatible(unified, t) and not self.types_compatible(t, unified):
+                self.error(f"Inconsistent return types in lambda: {unified} vs {t}", stmts[0])
+                return UNKNOWN_TYPE
+
+        return unified
 
     def infer_binary_expr_type(self, expr: ast.BinaryExpr) -> Type:
         """Infer type of binary expression."""
         left_type = self.infer_expr_type(expr.left)
         right_type = self.infer_expr_type(expr.right)
 
+        def is_integral(t: Type) -> bool:
+            # Keep semantics permissive during prototyping: Unknown/typevars should not block
+            # arithmetic in higher-order/lambda-heavy code.
+            return t.kind in (TypeKind.INT, TypeKind.BITS, TypeKind.UNKNOWN, TypeKind.TYPEVAR)
+
+        def int_width(t: Type) -> int | None:
+            if isinstance(t, BitsType):
+                return t.bits
+            return None
+
+        def widen_integral(a: Type, b: Type) -> Type:
+            if a.kind == TypeKind.INT or b.kind == TypeKind.INT:
+                return INT_TYPE
+            assert isinstance(a, BitsType) and isinstance(b, BitsType)
+            width = max(a.bits, b.bits)
+            if width == 4:
+                return NIBBLE_TYPE
+            if width == 8:
+                return BYTE_TYPE
+            if width == 16:
+                return WORD_TYPE
+            if width == 32:
+                return DWORD_TYPE
+            return QWORD_TYPE
+
         # Arithmetic operators
         if expr.operator in ("+", "-", "*", "/", "%"):
-            if not self.types_compatible(left_type, INT_TYPE):
-                self.error(f"Arithmetic requires Int, got {left_type}", expr)
-            if not self.types_compatible(right_type, INT_TYPE):
-                self.error(f"Arithmetic requires Int, got {right_type}", expr)
-            return INT_TYPE
+            # String concatenation: String + String -> String
+            #
+            # The interpreter and VM both support string concatenation, so semantic analysis
+            # should accept it as well (and report mixed String/Int uses as errors).
+            if expr.operator == "+" and (left_type == STRING_TYPE or right_type == STRING_TYPE):
+                if not self.types_compatible(left_type, STRING_TYPE):
+                    self.error(f"String + requires String, got {left_type}", expr)
+                if not self.types_compatible(right_type, STRING_TYPE):
+                    self.error(f"String + requires String, got {right_type}", expr)
+                return STRING_TYPE
+
+            if left_type.kind in (TypeKind.UNKNOWN, TypeKind.TYPEVAR):
+                if self.strict_types:
+                    self.error(
+                        f"Cannot use unknown type on left side of '{expr.operator}' in strict mode",
+                        expr,
+                    )
+                return INT_TYPE
+            if right_type.kind in (TypeKind.UNKNOWN, TypeKind.TYPEVAR):
+                if self.strict_types:
+                    self.error(
+                        f"Cannot use unknown type on right side of '{expr.operator}' "
+                        "in strict mode",
+                        expr,
+                    )
+                return INT_TYPE
+            if not is_integral(left_type):
+                self.error(f"Arithmetic requires an integer, got {left_type}", expr)
+                return INT_TYPE
+            if not is_integral(right_type):
+                self.error(f"Arithmetic requires an integer, got {right_type}", expr)
+                return INT_TYPE
+            return widen_integral(left_type, right_type)
+
+        # Bitwise operators
+        if expr.operator in ("&", "|", "^", "<<", ">>"):
+            if left_type.kind in (TypeKind.UNKNOWN, TypeKind.TYPEVAR):
+                if self.strict_types:
+                    self.error(
+                        f"Cannot use unknown type on left side of '{expr.operator}' in strict mode",
+                        expr,
+                    )
+                return INT_TYPE
+            if right_type.kind in (TypeKind.UNKNOWN, TypeKind.TYPEVAR):
+                if self.strict_types:
+                    self.error(
+                        f"Cannot use unknown type on right side of '{expr.operator}' "
+                        "in strict mode",
+                        expr,
+                    )
+                return INT_TYPE
+            if not is_integral(left_type):
+                self.error(f"Bitwise operator requires an integer, got {left_type}", expr)
+                return INT_TYPE
+            if not is_integral(right_type):
+                self.error(f"Bitwise operator requires an integer, got {right_type}", expr)
+                return INT_TYPE
+
+            # Shifts preserve the left type when it is fixed-width; otherwise Int.
+            if expr.operator in ("<<", ">>"):
+                return left_type if left_type.kind == TypeKind.BITS else INT_TYPE
+
+            return widen_integral(left_type, right_type)
 
         # Comparison operators
         elif expr.operator in ("==", "!=", "<", "<=", ">", ">="):
+            if self.strict_types and (
+                left_type.kind in (TypeKind.UNKNOWN, TypeKind.TYPEVAR)
+                or right_type.kind in (TypeKind.UNKNOWN, TypeKind.TYPEVAR)
+            ):
+                self.error(
+                    f"Cannot compare unknown types in strict mode ({left_type} vs {right_type})",
+                    expr,
+                )
             if not self.types_compatible(left_type, right_type):
                 self.error(
                     f"Cannot compare {left_type} with {right_type}",
@@ -1406,6 +2411,11 @@ class SemanticAnalyzer:
 
         # Logical operators
         elif expr.operator in ("and", "or"):
+            if self.strict_types and (
+                left_type.kind in (TypeKind.UNKNOWN, TypeKind.TYPEVAR)
+                or right_type.kind in (TypeKind.UNKNOWN, TypeKind.TYPEVAR)
+            ):
+                self.error("Logical operators require Bool (unknown in strict mode)", expr)
             if not self.types_compatible(left_type, BOOL_TYPE):
                 self.error(f"Logical operator requires Bool, got {left_type}", expr)
             if not self.types_compatible(right_type, BOOL_TYPE):
@@ -1416,16 +2426,46 @@ class SemanticAnalyzer:
 
     def infer_unary_expr_type(self, expr: ast.UnaryExpr) -> Type:
         """Infer type of unary expression."""
+        if expr.operator == "*":
+            operand_t: Type
+            if isinstance(expr.operand, ast.Identifier):
+                sym = self.symbol_table.lookup(expr.operand.name)
+                operand_t = UNKNOWN_TYPE if sym is None else sym.type
+            else:
+                operand_t = self.infer_expr_type(expr.operand)
+
+            if operand_t.kind in (TypeKind.UNKNOWN, TypeKind.TYPEVAR):
+                return UNKNOWN_TYPE
+            if isinstance(operand_t, BorrowType):
+                return operand_t.inner
+            if isinstance(operand_t, PointerType):
+                return operand_t.inner
+            self.error(f"Deref requires a reference/pointer, got {operand_t}", expr)
+            return UNKNOWN_TYPE
+
         operand_type = self.infer_expr_type(expr.operand)
 
         if expr.operator == "-":
-            if not self.types_compatible(operand_type, INT_TYPE):
+            if operand_type.kind in (TypeKind.UNKNOWN, TypeKind.TYPEVAR):
+                if self.strict_types:
+                    self.error("Cannot negate unknown type in strict mode", expr)
+                return INT_TYPE
+            if operand_type.kind != TypeKind.INT:
                 self.error(f"Negation requires Int, got {operand_type}", expr)
             return INT_TYPE
         elif expr.operator == "not":
             if not self.types_compatible(operand_type, BOOL_TYPE):
                 self.error(f"Logical not requires Bool, got {operand_type}", expr)
             return BOOL_TYPE
+        elif expr.operator == "~":
+            if operand_type.kind in (TypeKind.UNKNOWN, TypeKind.TYPEVAR):
+                if self.strict_types:
+                    self.error("Cannot apply '~' to unknown type in strict mode", expr)
+                return INT_TYPE
+            if operand_type.kind not in (TypeKind.INT, TypeKind.BITS):
+                self.error(f"Bitwise not requires an integer, got {operand_type}", expr)
+                return INT_TYPE
+            return operand_type
 
         return UNKNOWN_TYPE
 
@@ -1467,17 +2507,91 @@ class SemanticAnalyzer:
                 )
 
             # Check argument types
-            for i, (arg, param_type) in enumerate(
-                zip(expr.args, func_type.param_types, strict=False)
-            ):
-                arg_type = self.infer_expr_type(arg)
-                if not self.types_compatible(arg_type, param_type):
-                    self.error(
-                        f"Argument {i+1} type mismatch: expected {param_type}, got {arg_type}",
-                        expr,
-                    )
+            subs: dict[str, Type] = {}
+            arg_types: list[Type] = []
+            for arg in expr.args:
+                arg_types.append(self.infer_expr_type(arg))
 
-            return func_type.return_type
+            for param_t, arg_t in zip(func_type.param_types, arg_types, strict=False):
+                self._collect_typevar_bindings(param_t, arg_t, subs)
+
+            for i, (arg_t, param_t) in enumerate(
+                zip(arg_types, func_type.param_types, strict=False)
+            ):
+                inst_param = self._substitute_typevars(param_t, subs)
+                if not self.types_compatible(arg_t, inst_param):
+                    if expr.func.name in {"ord", "ascii_bytes", "unicode_bytes"}:
+                        self.error(f"{expr.func.name}() expects String", expr)
+                    else:
+                        self.error(
+                            f"Argument {i+1} type mismatch: expected {inst_param}, got {arg_t}",
+                            expr,
+                        )
+
+            if self.ownership_mode != OwnershipMode.OFF:
+                mut_borrows: set[str] = set()
+                shared_borrows: set[str] = set()
+                moved_args: set[str] = set()
+                for inst_param, arg_expr in zip(
+                    (self._substitute_typevars(p, subs) for p in func_type.param_types),
+                    expr.args,
+                    strict=False,
+                ):
+                    if isinstance(inst_param, BorrowType):
+                        arg_name: str | None = None
+                        if isinstance(arg_expr, ast.Identifier):
+                            arg_name = arg_expr.name
+                        elif isinstance(arg_expr, ast.BorrowExpr):
+                            arg_name = self._borrow_base_name(arg_expr.target)
+                        if arg_name is None:
+                            self._own_diag(
+                                "Borrow arguments must be identifiers in this prototype",
+                                arg_expr,
+                            )
+                            continue
+                        sym = self.symbol_table.lookup(arg_name)
+                        if inst_param.is_mutable and (sym is None or not sym.is_mutable):
+                            self._own_diag(
+                                f"Cannot take &mut of immutable variable '{arg_name}'",
+                                arg_expr,
+                            )
+                        if inst_param.is_mutable:
+                            if arg_name in mut_borrows or arg_name in shared_borrows:
+                                self._own_diag(
+                                    f"Conflicting borrows of '{arg_name}' in the same call",
+                                    arg_expr,
+                                )
+                            mut_borrows.add(arg_name)
+                        else:
+                            if arg_name in mut_borrows:
+                                self._own_diag(
+                                    f"Conflicting borrows of '{arg_name}' in the same call",
+                                    arg_expr,
+                                )
+                            shared_borrows.add(arg_name)
+                        continue
+
+                    if isinstance(inst_param, PointerType) and inst_param.pointer_kind == "own":
+                        if not isinstance(arg_expr, ast.Identifier):
+                            self._own_diag(
+                                (
+                                    "Passing *own values requires an identifier argument in this "
+                                    "prototype"
+                                ),
+                                arg_expr,
+                            )
+                            continue
+                        arg_name = arg_expr.name
+                        if arg_name in moved_args:
+                            self._own_diag(
+                                f"Value '{arg_name}' moved more than once in the same call",
+                                arg_expr,
+                            )
+                            continue
+                        moved_args.add(arg_name)
+                        self._own_mark_moved(arg_name, arg_expr)
+
+            return self._substitute_typevars(func_type.return_type, subs)
         else:
             callee_t = self.infer_expr_type(expr.func)
             for arg in expr.args:
@@ -1493,17 +2607,22 @@ class SemanticAnalyzer:
                     expr,
                 )
 
-            for i, (arg, param_type) in enumerate(
-                zip(expr.args, callee_t.param_types, strict=False)
+            subs2: dict[str, Type] = {}
+            arg_types2: list[Type] = [self.infer_expr_type(a) for a in expr.args]
+            for param_t, arg_t in zip(callee_t.param_types, arg_types2, strict=False):
+                self._collect_typevar_bindings(param_t, arg_t, subs2)
+
+            for i, (arg_t, param_t) in enumerate(
+                zip(arg_types2, callee_t.param_types, strict=False)
             ):
-                arg_type = self.infer_expr_type(arg)
-                if not self.types_compatible(arg_type, param_type):
+                inst_param = self._substitute_typevars(param_t, subs2)
+                if not self.types_compatible(arg_t, inst_param):
                     self.error(
-                        f"Argument {i+1} type mismatch: expected {param_type}, got {arg_type}",
+                        f"Argument {i+1} type mismatch: expected {inst_param}, got {arg_t}",
                         expr,
                     )
 
-            return callee_t.return_type
+            return self._substitute_typevars(callee_t.return_type, subs2)
 
     # Type utilities
 
@@ -1515,6 +2634,11 @@ class SemanticAnalyzer:
                 name = parts[0]
                 type_map = {
                     "Int": INT_TYPE,
+                    "Nibble": NIBBLE_TYPE,
+                    "Byte": BYTE_TYPE,
+                    "Word": WORD_TYPE,
+                    "DWord": DWORD_TYPE,
+                    "QWord": QWORD_TYPE,
                     "String": STRING_TYPE,
                     "Bool": BOOL_TYPE,
                     "Nil": NIL_TYPE,
@@ -1522,8 +2646,30 @@ class SemanticAnalyzer:
                 if name in type_map:
                     return type_map[name]
                 symbol = self.symbol_table.lookup(name)
-                if symbol is not None and symbol.kind == SymbolKind.TYPE_ALIAS:
+                if symbol is not None and symbol.kind == SymbolKind.TYPE_PARAM:
                     return symbol.type
+                if symbol is not None and symbol.kind == SymbolKind.TYPE_ALIAS:
+                    if not type_expr.type_args:
+                        return symbol.type
+                    decl = symbol.declaration_node
+                    if not isinstance(decl, ast.TypeAliasDecl):
+                        return symbol.type
+                    if not decl.type_params:
+                        return symbol.type
+                    if len(type_expr.type_args) != len(decl.type_params):
+                        self.error(
+                            (
+                                f"Type alias '{name}' expects {len(decl.type_params)} type "
+                                f"argument(s), got {len(type_expr.type_args)}"
+                            ),
+                            type_expr,
+                        )
+                        return symbol.type
+                    subs = {
+                        tp.name: self.resolve_type_expr(arg)
+                        for tp, arg in zip(decl.type_params, type_expr.type_args, strict=False)
+                    }
+                    return self._substitute_typevars(symbol.type, subs)
                 return UNKNOWN_TYPE
             if len(parts) == 2:
                 namespace, member = parts
@@ -1531,28 +2677,51 @@ class SemanticAnalyzer:
                 if ns_exports is not None:
                     sym = ns_exports.get(member)
                     if sym is not None and sym.kind == SymbolKind.TYPE_ALIAS:
-                        return sym.type
+                        if not type_expr.type_args:
+                            return sym.type
+                        decl = sym.declaration_node
+                        if not isinstance(decl, ast.TypeAliasDecl):
+                            return sym.type
+                        if not decl.type_params:
+                            return sym.type
+                        if len(type_expr.type_args) != len(decl.type_params):
+                            self.error(
+                                (
+                                    f"Type alias '{namespace}.{member}' expects "
+                                    f"{len(decl.type_params)} type argument(s), got "
+                                    f"{len(type_expr.type_args)}"
+                                ),
+                                type_expr,
+                            )
+                            return sym.type
+                        subs = {
+                            tp.name: self.resolve_type_expr(arg)
+                            for tp, arg in zip(decl.type_params, type_expr.type_args, strict=False)
+                        }
+                        return self._substitute_typevars(sym.type, subs)
             return UNKNOWN_TYPE
         elif isinstance(type_expr, ast.FunctionType):
             param_types = tuple(self.resolve_type_expr(pt) for pt in type_expr.param_types)
             return_type = self.resolve_type_expr(type_expr.return_type)
             return FunctionType(param_types, return_type)
         elif isinstance(type_expr, ast.BorrowTypeExpr):
-            if not self._warned_borrow_surface:
+            if self.ownership_mode == OwnershipMode.WARN and not self._warned_borrow_surface:
                 self.warn(
-                    "Borrow types (&T, &mut T) are parsed and type-checked structurally, "
-                    "but borrow/aliasing rules are not enforced yet.",
+                    (
+                        "Ownership checking is enabled (experimental). Borrow types "
+                        "(&T, &mut T) are allowed."
+                    ),
                     type_expr,
                 )
                 self._warned_borrow_surface = True
             inner = self.resolve_type_expr(type_expr.inner)
             return BorrowType(inner, is_mutable=type_expr.is_mutable)
         elif isinstance(type_expr, ast.PointerTypeExpr):
-            if not self._warned_pointer_surface:
+            if self.ownership_mode == OwnershipMode.WARN and not self._warned_pointer_surface:
                 self.warn(
                     (
-                        "Pointer types (*own/*shared/*weak/*raw) are parsed and type-checked "
-                        "structurally, but ownership/move rules are not enforced yet."
+                        "Ownership checking is enabled (experimental). Pointer types "
+                        "(*own/*shared/*weak/*raw) are allowed."
                     ),
                     type_expr,
                 )
@@ -1566,7 +2735,11 @@ class SemanticAnalyzer:
                     ),
                     type_expr,
                 )
-            elif type_expr.pointer_kind == "raw" and not self._warned_raw_pointer:
+            elif (
+                self.ownership_mode == OwnershipMode.WARN
+                and type_expr.pointer_kind == "raw"
+                and not self._warned_raw_pointer
+            ):
                 self.warn(
                     "Raw pointers (*raw T) are unsafe; no safety checks are implemented yet.",
                     type_expr,
@@ -1582,6 +2755,35 @@ class SemanticAnalyzer:
             return True  # Error recovery
         if actual.kind == TypeKind.UNKNOWN or expected.kind == TypeKind.UNKNOWN:
             return True  # Allow unknown types during inference
+        if actual.kind == TypeKind.TYPEVAR or expected.kind == TypeKind.TYPEVAR:
+            return True  # Generic prototype: treat type vars as compatible with anything
+
+        # Borrow compatibility:
+        # - allow passing `&T` to `&T` (mutability must not be weakened)
+        # - allow passing `T` to `&T` (implicit borrow)
+        # - allow passing `&T` to `T` (implicit deref)
+        if isinstance(actual, BorrowType) and isinstance(expected, BorrowType):
+            if expected.is_mutable and not actual.is_mutable:
+                return False
+            return self.types_compatible(actual.inner, expected.inner)
+        if isinstance(expected, BorrowType):
+            a = actual.inner if isinstance(actual, BorrowType) else actual
+            return self.types_compatible(a, expected.inner)
+        if isinstance(actual, BorrowType):
+            return self.types_compatible(actual.inner, expected)
+
+        # Implicit borrow passing: allow `T` where `&T` is expected (and the checker enforces
+        # mutability/aliasing rules separately for `&mut`).
+        # NOTE: handled above, kept for historical context.
+
+        # Integral widenings (prototype): allow Int <-> fixed-width integers, and allow narrowing
+        # only when the expected width is >= the actual width.
+        if isinstance(actual, BitsType) and expected.kind == TypeKind.INT:
+            return True
+        if actual.kind == TypeKind.INT and isinstance(expected, BitsType):
+            return True
+        if isinstance(actual, BitsType) and isinstance(expected, BitsType):
+            return actual.bits <= expected.bits
 
         # Exact match
         return actual == expected

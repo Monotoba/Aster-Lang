@@ -188,7 +188,13 @@ PipelineExpr ::= OrExpr ( "|>" OrExpr )*
 
 OrExpr ::= AndExpr ( "or" AndExpr )*
 
-AndExpr ::= CompareExpr ( "and" CompareExpr )*
+AndExpr ::= BitOrExpr ( "and" BitOrExpr )*
+
+BitOrExpr ::= BitXorExpr ( "|" BitXorExpr )*
+
+BitXorExpr ::= BitAndExpr ( "^" BitAndExpr )*
+
+BitAndExpr ::= CompareExpr ( "&" CompareExpr )*
 
 CompareExpr ::= RangeExpr ( CompareOp RangeExpr )*
 
@@ -201,7 +207,9 @@ CompareOp ::= "=="
             | "is"
             | "in"
 
-RangeExpr ::= AddExpr ( RangeOp AddExpr )?
+RangeExpr ::= ShiftExpr ( RangeOp ShiftExpr )?
+
+ShiftExpr ::= AddExpr ( ( "<<" | ">>" ) AddExpr )*
 
 RangeOp ::= ".."
           | "..<"
@@ -218,14 +226,17 @@ MulOp ::= "*"
         | "%"
         | "//"
 
-UnaryExpr ::= UnaryOp UnaryExpr
+UnaryExpr ::= BorrowExpr
+            | UnaryOp UnaryExpr
             | AwaitExpr
+
+BorrowExpr ::= "&" "mut"? PostfixExpr
 
 UnaryOp ::= "-"
           | "+"
           | "not"
-          | "&"
           | "*"
+          | "~"
 
 AwaitExpr ::= "await" AwaitExpr
             | TryExpr

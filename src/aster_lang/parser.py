@@ -86,6 +86,12 @@ class Parser:
 
         if self.check(TokenKind.FN):
             return self.parse_function_decl(is_public)
+        elif self.check(TokenKind.TRAIT):
+            return self.parse_trait_decl(is_public)
+        elif self.check(TokenKind.IMPL):
+            if is_public:
+                raise ParseError("impl blocks cannot be declared pub", self.current)
+            return self.parse_impl_decl()
         elif self.check(TokenKind.TYPEALIAS):
             return self.parse_type_alias_decl(is_public)
         elif self.check(TokenKind.USE):
@@ -122,6 +128,8 @@ class Parser:
         name_token = self.expect(TokenKind.IDENTIFIER)
         name = name_token.text
 
+        type_params = self.parse_type_params()
+
         # Parameters
         self.expect(TokenKind.LPAREN)
         params = []
@@ -140,6 +148,7 @@ class Parser:
 
         return ast.FunctionDecl(
             name=name,
+            type_params=type_params,
             params=params,
             return_type=return_type,
             body=body,
@@ -167,21 +176,109 @@ class Parser:
 
         return params
 
+    def parse_type_params(self) -> list[ast.TypeParam]:
+        """Parse optional type parameters: [T, U] or [T: Bound + Bound2]."""
+        type_params: list[ast.TypeParam] = []
+        if self.match(TokenKind.LBRACKET):
+            while not self.check(TokenKind.RBRACKET):
+                name = self.expect(TokenKind.IDENTIFIER).text
+                bounds: list[ast.TypeExpr] = []
+                if self.match(TokenKind.COLON):
+                    bounds.append(self.parse_type_expr())
+                    while self.match(TokenKind.PLUS):
+                        bounds.append(self.parse_type_expr())
+                type_params.append(ast.TypeParam(name=name, bounds=bounds))
+                if not self.match(TokenKind.COMMA):
+                    break
+                if self.check(TokenKind.RBRACKET):
+                    break
+            self.expect(TokenKind.RBRACKET)
+        return type_params
+
+    def parse_function_sig(self) -> ast.FunctionSig:
+        """Parse a function signature inside a trait block."""
+        self.expect(TokenKind.FN)
+        name = self.expect(TokenKind.IDENTIFIER).text
+
+        self.expect(TokenKind.LPAREN)
+        params: list[ast.ParamDecl] = []
+        if not self.check(TokenKind.RPAREN):
+            params = self.parse_param_list()
+        self.expect(TokenKind.RPAREN)
+
+        return_type = None
+        if self.match(TokenKind.ARROW):
+            return_type = self.parse_type_expr()
+
+        if self.check(TokenKind.COLON):
+            raise ParseError(
+                "Trait methods are signatures only (no body) in this prototype",
+                self.current,
+            )
+        self.skip_newlines()
+        return ast.FunctionSig(name=name, params=params, return_type=return_type)
+
+    def parse_trait_decl(self, is_public: bool = False) -> ast.TraitDecl:
+        """Parse trait declaration: trait Name[T]? : NEWLINE INDENT ... DEDENT."""
+        self.expect(TokenKind.TRAIT)
+        name = self.expect(TokenKind.IDENTIFIER).text
+        type_params = self.parse_type_params()
+        self.expect(TokenKind.COLON)
+
+        self.expect(TokenKind.NEWLINE)
+        self.expect(TokenKind.INDENT)
+        members: list[ast.FunctionSig] = []
+        self.skip_newlines()
+        while not self.check(TokenKind.DEDENT, TokenKind.EOF):
+            if self.check(TokenKind.FN):
+                members.append(self.parse_function_sig())
+                continue
+            raise ParseError("Expected trait member", self.current)
+        self.expect(TokenKind.DEDENT)
+        self.skip_newlines()
+        return ast.TraitDecl(
+            name=name,
+            type_params=type_params,
+            members=members,
+            is_public=is_public,
+        )
+
+    def parse_impl_decl(self) -> ast.ImplDecl:
+        """Parse impl declaration.
+
+        - impl Type: fn ...
+        - impl Trait for Type: fn ...
+        """
+        self.expect(TokenKind.IMPL)
+        first = self.parse_type_expr()
+        trait: ast.TypeExpr | None = None
+        target = first
+        if self.match(TokenKind.FOR):
+            trait = first
+            target = self.parse_type_expr()
+
+        self.expect(TokenKind.COLON)
+        self.expect(TokenKind.NEWLINE)
+        self.expect(TokenKind.INDENT)
+        members: list[ast.FunctionDecl] = []
+        self.skip_newlines()
+        while not self.check(TokenKind.DEDENT, TokenKind.EOF):
+            is_public = self.match(TokenKind.PUB)
+            if not self.check(TokenKind.FN):
+                raise ParseError("Expected impl member function", self.current)
+            members.append(self.parse_function_decl(is_public))
+            self.skip_newlines()
+        self.expect(TokenKind.DEDENT)
+        self.skip_newlines()
+        return ast.ImplDecl(target=target, trait=trait, members=members)
+
     def parse_type_alias_decl(self, is_public: bool = False) -> ast.TypeAliasDecl:
         """Parse type alias: typealias Name[T1, T2] = Type"""
         self.expect(TokenKind.TYPEALIAS)
         name_token = self.expect(TokenKind.IDENTIFIER)
         name = name_token.text
 
-        # Type parameters
-        type_params = []
-        if self.match(TokenKind.LBRACKET):
-            while not self.check(TokenKind.RBRACKET):
-                param_token = self.expect(TokenKind.IDENTIFIER)
-                type_params.append(param_token.text)
-                if not self.match(TokenKind.COMMA):
-                    break
-            self.expect(TokenKind.RBRACKET)
+        type_params = self.parse_type_params()
 
         self.expect(TokenKind.EQUALS, "Expected '=' in type alias")
         type_expr = self.parse_type_expr()
@@ -353,6 +450,24 @@ class Parser:
                     return ast.LetStmt(
                         pattern=pattern,
                         type_annotation=None,
+                        initializer=initializer,
+                        is_mutable=False,
+                    )
+                if (
+                    pattern is not None
+                    and isinstance(pattern, ast.BindingPattern)
+                    and self.check(TokenKind.COLON)
+                ):
+                    # Typed local binding: name: Type := expr
+                    self.advance()  # consume :
+                    type_annotation = self.parse_type_expr()
+                    self.expect(TokenKind.BIND)
+                    initializer = self.parse_expression()
+                    self.skip_newlines()
+
+                    return ast.LetStmt(
+                        pattern=pattern,
+                        type_annotation=type_annotation,
                         initializer=initializer,
                         is_mutable=False,
                     )
@@ -624,8 +739,17 @@ class Parser:
                 right = self.parse_expression(token_precedence + 1)
                 left = ast.BinaryExpr(left=left, operator=operator, right=right)
 
-            elif self.check(TokenKind.LPAREN):
-                # Function call
+            elif self.check(TokenKind.LPAREN, TokenKind.LBRACKET, TokenKind.DOT):
+                left = self.parse_postfix_suffix(left)
+
+            else:
+                break
+
+        return left
+
+    def parse_postfix_suffix(self, left: ast.Expr) -> ast.Expr:
+        while True:
+            if self.check(TokenKind.LPAREN):
                 self.advance()
                 args = []
                 if not self.check(TokenKind.RPAREN):
@@ -637,27 +761,31 @@ class Parser:
                             break
                 self.expect(TokenKind.RPAREN)
                 left = ast.CallExpr(func=left, args=args)
+                continue
 
-            elif self.check(TokenKind.LBRACKET):
-                # Index
+            if self.check(TokenKind.LBRACKET):
                 self.advance()
                 index = self.parse_expression()
                 self.expect(TokenKind.RBRACKET)
                 left = ast.IndexExpr(obj=left, index=index)
+                continue
 
-            elif self.check(TokenKind.DOT):
-                # Member access
+            if self.check(TokenKind.DOT):
                 self.advance()
                 member_token = self.expect(TokenKind.IDENTIFIER)
                 left = ast.MemberExpr(obj=left, member=member_token.text)
+                continue
 
-            else:
-                break
-
-        return left
+            return left
 
     def parse_primary(self) -> ast.Expr:
         """Parse a primary expression."""
+        # Borrow expressions: &x, &mut x, &mut f().x, &mut xs()[0]
+        if self.match(TokenKind.AMP):
+            is_mut = self.match(TokenKind.MUT)
+            target = self.parse_postfix_suffix(self.parse_primary())
+            return ast.BorrowExpr(target=target, is_mutable=is_mut)
+
         # Lambda: x -> expr
         if self.check(TokenKind.IDENTIFIER):
             snap = self.snapshot()
@@ -715,7 +843,7 @@ class Parser:
                 self.restore(snap)
 
         # Unary operators
-        if self.check(TokenKind.MINUS, TokenKind.NOT):
+        if self.check(TokenKind.MINUS, TokenKind.NOT, TokenKind.TILDE, TokenKind.STAR):
             operator = self.advance().text
             operand = self.parse_expression(70)  # High precedence for unary
             return ast.UnaryExpr(operator=operator, operand=operand)
@@ -811,6 +939,11 @@ class Parser:
             TokenKind.LE,
             TokenKind.GT,
             TokenKind.GE,
+            TokenKind.PIPE,
+            TokenKind.CARET,
+            TokenKind.AMP,
+            TokenKind.SHL,
+            TokenKind.SHR,
             TokenKind.PLUS,
             TokenKind.MINUS,
             TokenKind.STAR,
@@ -832,6 +965,10 @@ class Parser:
         if kind in (TokenKind.PLUS, TokenKind.MINUS):
             return 50
 
+        # Shifts
+        if kind in (TokenKind.SHL, TokenKind.SHR):
+            return 45
+
         # Comparison
         if kind in (TokenKind.LT, TokenKind.LE, TokenKind.GT, TokenKind.GE):
             return 40
@@ -839,6 +976,14 @@ class Parser:
         # Equality
         if kind in (TokenKind.EQ, TokenKind.NE):
             return 30
+
+        # Bitwise AND / XOR / OR
+        if kind == TokenKind.AMP:
+            return 25
+        if kind == TokenKind.CARET:
+            return 24
+        if kind == TokenKind.PIPE:
+            return 23
 
         # Logical AND
         if kind == TokenKind.AND:

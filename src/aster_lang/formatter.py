@@ -63,14 +63,19 @@ class Formatter:
             self._format_import_decl(decl)
         elif isinstance(decl, ast.TypeAliasDecl):
             self._format_type_alias_decl(decl)
+        elif isinstance(decl, ast.TraitDecl):
+            self._format_trait_decl(decl)
+        elif isinstance(decl, ast.ImplDecl):
+            self._format_impl_decl(decl)
         else:
             self._emit(f"# (unknown decl: {type(decl).__name__})")
 
     def _format_function_decl(self, decl: ast.FunctionDecl) -> None:
         pub = "pub " if decl.is_public else ""
+        tparams = self._format_type_params(decl.type_params)
         params = ", ".join(self._format_param(p) for p in decl.params)
         ret = f" -> {self._format_type(decl.return_type)}" if decl.return_type else ""
-        self._emit(f"{pub}fn {decl.name}({params}){ret}:")
+        self._emit(f"{pub}fn {decl.name}{tparams}({params}){ret}:")
         self._indent()
         for stmt in decl.body:
             self._format_stmt(stmt)
@@ -100,9 +105,47 @@ class Formatter:
 
     def _format_type_alias_decl(self, decl: ast.TypeAliasDecl) -> None:
         pub = "pub " if decl.is_public else ""
-        params = f"[{', '.join(decl.type_params)}]" if decl.type_params else ""
+        params = self._format_type_params(decl.type_params)
         type_str = self._format_type(decl.type_expr)
         self._emit(f"{pub}typealias {decl.name}{params} = {type_str}")
+
+    def _format_trait_decl(self, decl: ast.TraitDecl) -> None:
+        pub = "pub " if decl.is_public else ""
+        params = self._format_type_params(decl.type_params)
+        self._emit(f"{pub}trait {decl.name}{params}:")
+        self._indent()
+        for m in decl.members:
+            self._emit(self._format_function_sig(m))
+        self._dedent()
+
+    def _format_function_sig(self, sig: ast.FunctionSig) -> str:
+        params = ", ".join(self._format_param(p) for p in sig.params)
+        ret = f" -> {self._format_type(sig.return_type)}" if sig.return_type else ""
+        return f"fn {sig.name}({params}){ret}"
+
+    def _format_type_params(self, params: list[ast.TypeParam]) -> str:
+        if not params:
+            return ""
+        parts: list[str] = []
+        for p in params:
+            if p.bounds:
+                bounds = " + ".join(self._format_type(b) for b in p.bounds)
+                parts.append(f"{p.name}: {bounds}")
+            else:
+                parts.append(p.name)
+        return f"[{', '.join(parts)}]"
+
+    def _format_impl_decl(self, decl: ast.ImplDecl) -> None:
+        head = "impl "
+        if decl.trait is None:
+            head += self._format_type(decl.target)
+        else:
+            head += f"{self._format_type(decl.trait)} for {self._format_type(decl.target)}"
+        self._emit(f"{head}:")
+        self._indent()
+        for m in decl.members:
+            self._format_function_decl(m)
+        self._dedent()
 
     # ------------------------------------------------------------------
     # Statements
@@ -255,6 +298,9 @@ class Formatter:
             if expr.operator == "not":
                 return f"not {operand}"
             return f"{expr.operator}{operand}"
+        if isinstance(expr, ast.BorrowExpr):
+            mut = "mut " if expr.is_mutable else ""
+            return f"&{mut}{self._format_expr(expr.target)}"
         if isinstance(expr, ast.CallExpr):
             func = self._format_expr(expr.func)
             args = ", ".join(self._format_expr(a) for a in expr.args)
@@ -285,18 +331,22 @@ class Formatter:
     _PRECEDENCE: dict[str, int] = {
         "or": 1,
         "and": 2,
-        "not": 3,
-        "==": 4,
-        "!=": 4,
-        "<": 4,
-        ">": 4,
-        "<=": 4,
-        ">=": 4,
-        "+": 5,
-        "-": 5,
-        "*": 6,
-        "/": 6,
-        "%": 6,
+        "|": 3,
+        "^": 4,
+        "&": 5,
+        "==": 6,
+        "!=": 6,
+        "<": 6,
+        ">": 6,
+        "<=": 6,
+        ">=": 6,
+        "<<": 7,
+        ">>": 7,
+        "+": 8,
+        "-": 8,
+        "*": 9,
+        "/": 9,
+        "%": 9,
         "**": 7,
     }
 

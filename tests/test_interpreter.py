@@ -120,6 +120,87 @@ def test_comparison_equal() -> None:
     assert result.output == "true"
 
 
+def test_mut_borrow_parameter_can_mutate_caller() -> None:
+    result = interpret_source(
+        """fn inc(x: &mut Int):
+    x <- x + 1
+
+fn main():
+    mut a := 1
+    inc(a)
+    print(a)
+"""
+    )
+    assert result.error is None
+    assert result.output == "2"
+
+
+def test_mut_borrow_can_target_record_member() -> None:
+    result = interpret_source(
+        """fn inc(x: &mut Int):
+    x <- x + 1
+
+fn main():
+    mut r := {x: 1}
+    inc(&mut r.x)
+    print(r.x)
+"""
+    )
+    assert result.error is None
+    assert result.output == "2"
+
+
+def test_mut_borrow_can_target_list_index() -> None:
+    result = interpret_source(
+        """fn inc(x: &mut Int):
+    x <- x + 1
+
+fn main():
+    mut xs := [1, 2]
+    inc(&mut xs[0])
+    print(xs[0])
+"""
+    )
+    assert result.error is None
+    assert result.output == "2"
+
+
+def test_mut_borrow_can_target_computed_record_member() -> None:
+    result = interpret_source(
+        """fn main():
+    p := &mut {x: 1}.x
+    p <- 7
+    print(*p)
+"""
+    )
+    assert result.error is None
+    assert result.output == "7"
+
+
+def test_mut_borrow_can_target_computed_list_index() -> None:
+    result = interpret_source(
+        """fn main():
+    p := &mut [1, 2][0]
+    p <- 9
+    print(*p)
+"""
+    )
+    assert result.error is None
+    assert result.output == "9"
+
+
+def test_collection_equality() -> None:
+    result = interpret_source(
+        """fn main():
+    print([1, 2] == [1, 2])
+    print((1, 2) == (1, 2))
+    print({x: 1, y: 2} == {x: 1, y: 2})
+"""
+    )
+    assert result.error is None
+    assert result.output == "true\ntrue\ntrue"
+
+
 def test_comparison_not_equal() -> None:
     """Test inequality comparison."""
     result = interpret_source("""fn main():
@@ -189,6 +270,57 @@ def test_logical_not() -> None:
     print(x)
 """)
     assert result.output == "false"
+
+
+# Bitwise operators and fixed-width integers
+
+
+def test_bitwise_and_or_xor_not_and_shifts() -> None:
+    result = interpret_source(
+        """fn main():
+    x := 10
+    y := 12
+    print(x & y)
+    print(x | y)
+    print(x ^ y)
+    print(~x)
+    print(x << 1)
+    print(y >> 2)
+"""
+    )
+    assert result.output == "8\n14\n6\n-11\n20\n3"
+
+
+def test_byte_cast_wraps() -> None:
+    result = interpret_source(
+        """fn main():
+    b := byte(300)
+    print(b)
+"""
+    )
+    assert result.output == "44"
+
+
+def test_byte_annotation_requires_fit() -> None:
+    result = interpret_source(
+        """fn main():
+    b: Byte := 300
+    print(b)
+"""
+    )
+    assert result.error is not None
+
+
+def test_byte_addition_wraps() -> None:
+    result = interpret_source(
+        """fn main():
+    a := byte(250)
+    b := byte(10)
+    c := a + b
+    print(c)
+"""
+    )
+    assert result.output == "4"
 
 
 # Variables and assignment
@@ -381,6 +513,16 @@ def test_lambda_expression_call() -> None:
     assert result.output == "42"
 
 
+def test_interpreter_runs_min_max() -> None:
+    result = interpret_source(
+        """fn main():
+    print(max(3, 7))
+    print(min(3, 7))
+"""
+    )
+    assert result.output == "7\n3"
+
+
 def test_lambda_closure_captures_by_reference() -> None:
     result = interpret_source(
         """fn main():
@@ -426,6 +568,27 @@ def test_list_index_assignment() -> None:
     assert result.output == "9"
 
 
+def test_nested_list_index_assignment() -> None:
+    """Test nested list index assignment through an identifier-rooted chain."""
+    result = interpret_source("""fn main():
+    mut r := {items: [1, 2]}
+    r.items[0] <- 9
+    print(r.items[0])
+""")
+    assert result.error is None
+    assert result.output == "9"
+
+
+def test_computed_list_index_assignment() -> None:
+    """Test list index assignment on a computed temporary root."""
+    result = interpret_source("""fn main():
+    [1, 2][0] <- 9
+    print("ok")
+""")
+    assert result.error is None
+    assert result.output == "ok"
+
+
 def test_tuple_creation() -> None:
     """Test tuple creation."""
     result = interpret_source("""fn main():
@@ -465,6 +628,27 @@ def test_record_member_assignment() -> None:
     assert result.output == "7"
 
 
+def test_nested_record_member_assignment() -> None:
+    """Test nested record member assignment through an identifier-rooted chain."""
+    result = interpret_source("""fn main():
+    mut r := {inner: {x: 1}}
+    r.inner.x <- 7
+    print(r.inner.x)
+""")
+    assert result.error is None
+    assert result.output == "7"
+
+
+def test_computed_record_member_assignment() -> None:
+    """Test record member assignment on a computed temporary root."""
+    result = interpret_source("""fn main():
+    {x: 1}.x <- 7
+    print("ok")
+""")
+    assert result.error is None
+    assert result.output == "ok"
+
+
 # Built-in functions
 
 
@@ -474,6 +658,97 @@ def test_builtin_print() -> None:
     print("hello, world")
 """)
     assert result.output == "hello, world"
+
+
+def test_builtin_print_rejects_multiple_args() -> None:
+    result = interpret_source("""fn main():
+    print(1, 2)
+""")
+    assert result.error is not None
+    assert "expects 1 argument" in result.error
+
+
+def test_builtin_int_rejects_invalid_string() -> None:
+    result = interpret_source("""fn main():
+    print(int("nope"))
+""")
+    assert result.error is not None
+    assert "Cannot convert" in result.error
+
+
+def test_builtin_len_accepts_record() -> None:
+    result = interpret_source("""fn main():
+    r := {x: 1, y: 2}
+    print(len(r))
+""")
+    assert result.error is None
+    assert result.output == "2"
+
+
+def test_builtin_str_formats_values() -> None:
+    result = interpret_source("""fn main():
+    print(str(true))
+    print(str(nil))
+    print(str({x: 2}))
+""")
+    assert result.error is None
+    assert result.output == "true\nnil\n{x: 2}"
+
+
+def test_builtin_len_rejects_int() -> None:
+    result = interpret_source("""fn main():
+    print(len(1))
+""")
+    assert result.error is not None
+    assert "len() not supported for IntValue" in result.error
+
+
+def test_builtin_ascii_bytes_output() -> None:
+    result = interpret_source("""fn main():
+    print(ascii_bytes("hi"))
+""")
+    assert result.error is None
+    assert result.output == "[104, 105]"
+
+
+def test_builtin_ascii_bytes_rejects_non_ascii() -> None:
+    result = interpret_source("""fn main():
+    print(ascii_bytes("café"))
+""")
+    assert result.error is not None
+    assert "ascii_bytes() only supports ASCII" in result.error
+
+
+def test_builtin_unicode_bytes_output() -> None:
+    result = interpret_source("""fn main():
+    print(unicode_bytes("café"))
+""")
+    assert result.error is None
+    assert result.output == "[99, 97, 102, 195, 169]"
+
+
+def test_builtin_unicode_bytes_rejects_non_string() -> None:
+    result = interpret_source("""fn main():
+    print(unicode_bytes(1))
+""")
+    assert result.error is not None
+    assert "unicode_bytes() expects String" in result.error
+
+
+def test_builtin_fixed_width_equals_int() -> None:
+    result = interpret_source("""fn main():
+    print(byte(255) == 255)
+""")
+    assert result.error is None
+    assert result.output == "true"
+
+
+def test_builtin_range_rejects_bool() -> None:
+    result = interpret_source("""fn main():
+    print(range(false))
+""")
+    assert result.error is not None
+    assert "range() requires integers" in result.error
 
 
 def test_hello_world_demo_output() -> None:
