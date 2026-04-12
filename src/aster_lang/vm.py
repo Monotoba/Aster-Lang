@@ -146,21 +146,43 @@ class _Compiler:
                     borrows.append(None)
             self._module_fn_param_borrows[label][decl.name] = borrows
 
+        global_mutable: dict[str, bool] = {}
+        global_ref_mutable: dict[str, bool] = {}
+        for decl in module.declarations:
+            if isinstance(decl, ast.LetDecl):
+                global_mutable[decl.name] = decl.is_mutable
+                if isinstance(decl.initializer, ast.BorrowExpr):
+                    global_ref_mutable[decl.name] = decl.initializer.is_mutable
+
         init_id = f"{label}::__init__"
-        init_fn, export_spec = self._compile_module_init(label, module, init_id)
+        init_fn, export_spec = self._compile_module_init(
+            label,
+            module,
+            init_id,
+            global_mutable=global_mutable,
+            global_ref_mutable=global_ref_mutable,
+        )
         self._functions[init_id] = init_fn
         self._modules[label] = ModuleSpec(label=label, init_fn=init_id, exports=export_spec)
 
         for decl in module.declarations:
             if isinstance(decl, ast.FunctionDecl):
                 fn_id = f"{label}::{decl.name}"
-                self._functions[fn_id] = self._compile_function(decl, fn_id)
+                self._functions[fn_id] = self._compile_function(
+                    decl,
+                    fn_id,
+                    global_mutable=global_mutable,
+                    global_ref_mutable=global_ref_mutable,
+                )
 
     def _compile_module_init(
         self,
         label: str,
         module: ast.Module,
         init_id: str,
+        *,
+        global_mutable: dict[str, bool],
+        global_ref_mutable: dict[str, bool],
     ) -> tuple[BCFunction, dict[str, tuple[str, str]]]:
         # Module init is a regular function with access to globals via LOAD/STORE_GLOBAL.
         # It handles: imports and top-level let declarations.
@@ -228,7 +250,13 @@ class _Compiler:
                     return_type=None,
                     body=[ast.ReturnStmt(decl.initializer)],
                 )
-                expr_fn = self._compile_function(fn, "__expr_tmp__", globals_only=True)
+                expr_fn = self._compile_function(
+                    fn,
+                    "__expr_tmp__",
+                    globals_only=True,
+                    global_mutable=global_mutable,
+                    global_ref_mutable=global_ref_mutable,
+                )
                 # Inline: compile the expression by reusing its bytecode, dropping final RETURN.
                 # This is clunky but keeps semantics consistent with the function compiler subset.
                 # expr_fn always ends with CONST None; RETURN, so we strip those and strip RETURN.
@@ -259,13 +287,24 @@ class _Compiler:
         *,
         globals_only: bool = False,
         free_map: dict[str, int] | None = None,
+        global_mutable: dict[str, bool] | None = None,
+        global_ref_mutable: dict[str, bool] | None = None,
+        free_mutable: set[str] | None = None,
+        free_ref_mutable: set[str] | None = None,
+        free_ref_slots: set[str] | None = None,
     ) -> BCFunction:
         free_map = {} if free_map is None else dict(free_map)
+        global_mutable = {} if global_mutable is None else dict(global_mutable)
+        global_ref_mutable = {} if global_ref_mutable is None else dict(global_ref_mutable)
+        free_mutable = set() if free_mutable is None else set(free_mutable)
+        free_ref_mutable = set() if free_ref_mutable is None else set(free_ref_mutable)
+        free_ref_slots = set() if free_ref_slots is None else set(free_ref_slots)
         module_label = fn_id.split("::", 1)[0]
         scopes: list[dict[str, int]] = [{}]
         next_local = 0
         mut_slots: set[int] = set()  # slots allowed to be reassigned via <-
         ref_slots: set[int] = set()
+        ref_mutable_slots: set[int] = set()
         # Slots initialized from borrow expressions are immutable bindings but support `p <- v`
         # by writing through the referenced cell instead of rebinding the slot.
 
@@ -283,7 +322,13 @@ class _Compiler:
             next_local += 1
             return idx
 
-        def define(name: str, *, is_mutable: bool = False, is_ref: bool = False) -> int:
+        def define(
+            name: str,
+            *,
+            is_mutable: bool = False,
+            is_ref: bool = False,
+            is_ref_mutable: bool = False,
+        ) -> int:
             nonlocal next_local
             if name in scopes[-1]:
                 raise VMError(f"Duplicate definition '{name}' in VM backend")
@@ -294,6 +339,8 @@ class _Compiler:
                 mut_slots.add(idx)
             if is_ref:
                 ref_slots.add(idx)
+                if is_ref_mutable:
+                    ref_mutable_slots.add(idx)
             return idx
 
         def lookup(name: str) -> int:
@@ -331,34 +378,86 @@ class _Compiler:
                 raise VMError("Can only patch jump instructions")
             code[at] = Instr(ins.op, target)
 
-        def emit_name_ref(name: str) -> None:
+        def emit_name_ref(name: str, *, ref_is_mutable: bool) -> None:
             if name in free_map:
-                emit(Op.REF_FREE, free_map[name])
+                emit(Op.REF_FREE, (free_map[name], ref_is_mutable))
                 return
             if globals_only:
-                emit(Op.REF_GLOBAL, self._const(name))
+                emit(Op.REF_GLOBAL, (self._const(name), ref_is_mutable))
                 return
             try:
-                emit(Op.REF_LOCAL, lookup(name))
+                emit(Op.REF_LOCAL, (lookup(name), ref_is_mutable))
             except VMError:
-                emit(Op.REF_GLOBAL, self._const(name))
+                emit(Op.REF_GLOBAL, (self._const(name), ref_is_mutable))
 
-        def compile_lvalue_ref(target: ast.Expr, *, allow_temporary_root: bool = False) -> None:
+        def _check_mutable_borrow(name: str) -> None:
+            if name in free_map:
+                if name in free_ref_slots:
+                    if name not in free_ref_mutable:
+                        raise VMError(f"Cannot take &mut of immutable reference '{name}'")
+                    return
+                if name not in free_mutable:
+                    raise VMError(f"Cannot take &mut of immutable variable '{name}'")
+                return
+            if globals_only:
+                if name in global_ref_mutable:
+                    if not global_ref_mutable[name]:
+                        raise VMError(f"Cannot take &mut of immutable reference '{name}'")
+                    return
+                if not global_mutable.get(name, False):
+                    raise VMError(f"Cannot take &mut of immutable variable '{name}'")
+                return
+            try:
+                slot = lookup(name)
+            except VMError:
+                if name in global_ref_mutable:
+                    if not global_ref_mutable[name]:
+                        raise VMError(f"Cannot take &mut of immutable reference '{name}'") from None
+                    return
+                if not global_mutable.get(name, False):
+                    raise VMError(f"Cannot take &mut of immutable variable '{name}'") from None
+                return
+            if slot in ref_slots:
+                if slot not in ref_mutable_slots:
+                    raise VMError(f"Cannot take &mut of immutable reference '{name}'")
+                return
+            if slot not in mut_slots:
+                raise VMError(f"Cannot take &mut of immutable variable '{name}'")
+
+        def compile_lvalue_ref(
+            target: ast.Expr,
+            *,
+            allow_temporary_root: bool = False,
+            require_mutable_base: bool = False,
+            ref_is_mutable: bool = False,
+        ) -> None:
             if isinstance(target, ast.Identifier):
-                emit_name_ref(target.name)
+                if require_mutable_base:
+                    _check_mutable_borrow(target.name)
+                emit_name_ref(target.name, ref_is_mutable=ref_is_mutable)
                 return
             if isinstance(target, ast.MemberExpr):
-                compile_lvalue_ref(target.obj, allow_temporary_root=True)
+                compile_lvalue_ref(
+                    target.obj,
+                    allow_temporary_root=True,
+                    require_mutable_base=require_mutable_base,
+                    ref_is_mutable=ref_is_mutable,
+                )
                 emit(Op.REF_MEMBER, self._const(target.member))
                 return
             if isinstance(target, ast.IndexExpr):
-                compile_lvalue_ref(target.obj, allow_temporary_root=True)
+                compile_lvalue_ref(
+                    target.obj,
+                    allow_temporary_root=True,
+                    require_mutable_base=require_mutable_base,
+                    ref_is_mutable=ref_is_mutable,
+                )
                 compile_expr(target.index)
                 emit(Op.REF_INDEX)
                 return
             if allow_temporary_root:
                 compile_expr(target)
-                emit(Op.BOX)
+                emit(Op.BOX, ref_is_mutable)
                 return
             raise VMError("VM backend only supports lvalue borrow and assignment targets for now")
 
@@ -389,7 +488,11 @@ class _Compiler:
                 return
             if isinstance(expr, ast.BorrowExpr):
                 # Borrow expressions produce a cell reference.
-                compile_lvalue_ref(expr.target)
+                compile_lvalue_ref(
+                    expr.target,
+                    require_mutable_base=expr.is_mutable,
+                    ref_is_mutable=expr.is_mutable,
+                )
                 return
             if isinstance(expr, ast.ParenExpr):
                 compile_expr(expr.expr)
@@ -611,9 +714,7 @@ class _Compiler:
                             | ast.NilLiteral,
                         ):
                             return
-                        raise VMError(
-                            "Unsupported expression in VM backend: " f"{type(e).__name__}"
-                        )
+                        raise VMError(f"Unsupported expression in VM backend: {type(e).__name__}")
 
                     def walk_stmt(s: ast.Stmt) -> None:
                         if isinstance(s, ast.LetStmt):
@@ -673,10 +774,19 @@ class _Compiler:
 
                 captures: list[tuple[str, int]] = []
                 lambda_free_map: dict[str, int] = {}
+                lambda_free_mutable: set[str] = set()
+                lambda_free_ref_mutable: set[str] = set()
+                lambda_free_ref_slots: set[str] = set()
                 for name in sorted(lexical_free):
                     if name in free_map:
                         captures.append(("free", free_map[name]))
                         lambda_free_map[name] = len(captures) - 1
+                        if name in free_ref_slots:
+                            lambda_free_ref_slots.add(name)
+                            if name in free_ref_mutable:
+                                lambda_free_ref_mutable.add(name)
+                        elif name in free_mutable:
+                            lambda_free_mutable.add(name)
                         continue
                     try:
                         slot = lookup(name)
@@ -684,6 +794,12 @@ class _Compiler:
                         continue  # globals are read dynamically; no capture needed
                     captures.append(("local", slot))
                     lambda_free_map[name] = len(captures) - 1
+                    if slot in ref_slots:
+                        lambda_free_ref_slots.add(name)
+                        if slot in ref_mutable_slots:
+                            lambda_free_ref_mutable.add(name)
+                    elif slot in mut_slots:
+                        lambda_free_mutable.add(name)
 
                 # Compile lambda body as a synthetic function.
                 params = [ast.ParamDecl(p.name, p.type_annotation) for p in expr.params]
@@ -703,14 +819,19 @@ class _Compiler:
                     lambda_id,
                     globals_only=False,
                     free_map=lambda_free_map,
+                    global_mutable=global_mutable,
+                    global_ref_mutable=global_ref_mutable,
+                    free_mutable=lambda_free_mutable,
+                    free_ref_mutable=lambda_free_ref_mutable,
+                    free_ref_slots=lambda_free_ref_slots,
                 )
 
                 # Build closure: push captured cell refs, then MAKE_CLOSURE.
                 for kind, ref in captures:
                     if kind == "local":
-                        emit(Op.REF_LOCAL, ref)
+                        emit(Op.REF_LOCAL, (ref, None))
                     elif kind == "free":
-                        emit(Op.REF_FREE, ref)
+                        emit(Op.REF_FREE, (ref, None))
                     else:
                         raise VMError("Internal error: invalid capture kind")
                 emit(Op.MAKE_CLOSURE, (self._const(lambda_id), len(captures)))
@@ -763,12 +884,19 @@ class _Compiler:
             if isinstance(stmt, ast.LetStmt):
                 compile_expr(stmt.initializer)
                 if isinstance(stmt.pattern, ast.BindingPattern):
+                    is_ref = isinstance(stmt.initializer, ast.BorrowExpr)
+                    is_ref_mutable = (
+                        stmt.initializer.is_mutable
+                        if isinstance(stmt.initializer, ast.BorrowExpr)
+                        else False
+                    )
                     emit(
                         Op.STORE,
                         define(
                             stmt.pattern.name,
                             is_mutable=stmt.is_mutable,
-                            is_ref=isinstance(stmt.initializer, ast.BorrowExpr),
+                            is_ref=is_ref,
+                            is_ref_mutable=is_ref_mutable,
                         ),
                     )
                 else:
@@ -780,6 +908,13 @@ class _Compiler:
                 if isinstance(stmt.target, ast.Identifier):
                     compile_expr(stmt.value)
                     if stmt.target.name in free_map:
+                        if (
+                            stmt.target.name in free_ref_slots
+                            and stmt.target.name not in free_ref_mutable
+                        ):
+                            raise VMError(
+                                f"Cannot assign through immutable reference '{stmt.target.name}'"
+                            )
                         emit(Op.STORE_FREE, free_map[stmt.target.name])
                         return
                     try:
@@ -788,10 +923,21 @@ class _Compiler:
                             raise VMError(
                                 f"Cannot assign to immutable binding '{stmt.target.name}'"
                             )
+                        if slot in ref_slots and slot not in ref_mutable_slots:
+                            raise VMError(
+                                f"Cannot assign through immutable reference '{stmt.target.name}'"
+                            )
                         emit(Op.STORE, slot)
                     except VMError as exc:
                         if "immutable" in str(exc):
                             raise
+                        if (
+                            stmt.target.name in global_ref_mutable
+                            and not global_ref_mutable[stmt.target.name]
+                        ):
+                            raise VMError(
+                                f"Cannot assign through immutable reference '{stmt.target.name}'"
+                            ) from None
                         emit(Op.STORE_GLOBAL, self._const(stmt.target.name))
                     return
                 if isinstance(stmt.target, ast.UnaryExpr) and stmt.target.operator == "*":
@@ -818,12 +964,20 @@ class _Compiler:
                     emit(Op.STORE_DEREF)
                     return
                 if isinstance(stmt.target, ast.MemberExpr):
-                    compile_lvalue_ref(stmt.target)
+                    compile_lvalue_ref(
+                        stmt.target,
+                        require_mutable_base=True,
+                        ref_is_mutable=True,
+                    )
                     compile_expr(stmt.value)
                     emit(Op.STORE_DEREF)
                     return
                 if isinstance(stmt.target, ast.IndexExpr):
-                    compile_lvalue_ref(stmt.target)
+                    compile_lvalue_ref(
+                        stmt.target,
+                        require_mutable_base=True,
+                        ref_is_mutable=True,
+                    )
                     compile_expr(stmt.value)
                     emit(Op.STORE_DEREF)
                     return
@@ -1163,7 +1317,7 @@ class _Compiler:
                             return fail_sites
 
                         raise VMError(
-                            "Unsupported match pattern in VM backend: " f"{type(pattern).__name__}"
+                            f"Unsupported match pattern in VM backend: {type(pattern).__name__}"
                         )
 
                     fail_sites = compile_pattern(arm.pattern, subj_slot)

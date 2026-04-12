@@ -19,6 +19,10 @@ class _RefCell:
     def value(self, new_value: object) -> None:
         raise NotImplementedError
 
+    @property
+    def is_mutable(self) -> bool:
+        raise NotImplementedError
+
 
 class _Cell(_RefCell):
     __slots__ = ("_value",)
@@ -34,13 +38,38 @@ class _Cell(_RefCell):
     def value(self, new_value: object) -> None:
         self._value = new_value
 
+    @property
+    def is_mutable(self) -> bool:
+        return True
+
+
+class _BorrowRef(_RefCell):
+    __slots__ = ("_base", "_is_mutable")
+
+    def __init__(self, base: _RefCell, is_mutable: bool) -> None:
+        self._base = base
+        self._is_mutable = is_mutable
+
+    @property
+    def value(self) -> object:
+        return self._base.value
+
+    @value.setter
+    def value(self, new_value: object) -> None:
+        self._base.value = new_value
+
+    @property
+    def is_mutable(self) -> bool:
+        return self._is_mutable
+
 
 class _MemberCell(_RefCell):
-    __slots__ = ("_base", "_member")
+    __slots__ = ("_base", "_member", "_is_mutable")
 
     def __init__(self, base: _RefCell, member: str) -> None:
         self._base = base
         self._member = member
+        self._is_mutable = base.is_mutable
 
     @property
     def value(self) -> object:
@@ -60,13 +89,18 @@ class _MemberCell(_RefCell):
         new_obj[self._member] = new_value
         self._base.value = new_obj
 
+    @property
+    def is_mutable(self) -> bool:
+        return self._is_mutable
+
 
 class _IndexCell(_RefCell):
-    __slots__ = ("_base", "_index")
+    __slots__ = ("_base", "_index", "_is_mutable")
 
     def __init__(self, base: _RefCell, index: object) -> None:
         self._base = base
         self._index = index
+        self._is_mutable = base.is_mutable
 
     @property
     def value(self) -> object:
@@ -104,11 +138,15 @@ class _IndexCell(_RefCell):
             return
         raise VMError("Unsupported index reference assignment")
 
+    @property
+    def is_mutable(self) -> bool:
+        return self._is_mutable
+
 
 @dataclass(slots=True, frozen=True)
 class _Closure:
     fn_id: str
-    free: tuple[_Cell, ...]
+    free: tuple[_RefCell, ...]
 
 
 @dataclass(slots=True)
@@ -116,7 +154,7 @@ class _Frame:
     fn: BCFunction
     ip: int
     locals: list[_Cell]
-    free: list[_Cell]
+    free: list[_RefCell]
     stack: list[object]
     globals: dict[str, _Cell]
     module_label: str
@@ -276,7 +314,7 @@ class VM:
         args: list[object],
         *,
         module_label: str,
-        free: tuple[_Cell, ...] = (),
+        free: tuple[_RefCell, ...] = (),
     ) -> object:
         if len(args) != len(fn.params):
             raise VMError(f"{fn.name}() expected {len(fn.params)} args, got {len(args)}")
@@ -325,6 +363,8 @@ class VM:
                 cell = frame.locals[ins.arg]
                 value = frame.stack.pop()
                 if isinstance(cell.value, _RefCell):
+                    if not cell.value.is_mutable:
+                        raise VMError("Cannot assign through immutable reference")
                     cell.value.value = value
                 else:
                     cell.value = value
@@ -334,26 +374,48 @@ class VM:
                 continue
 
             if ins.op == Op.REF_LOCAL:
-                assert isinstance(ins.arg, int)
-                frame.stack.append(frame.locals[ins.arg])
+                if isinstance(ins.arg, tuple):
+                    idx, is_mutable = ins.arg
+                else:
+                    idx, is_mutable = ins.arg, True
+                assert isinstance(idx, int)
+                if is_mutable is None:
+                    frame.stack.append(frame.locals[idx])
+                else:
+                    frame.stack.append(_BorrowRef(frame.locals[idx], bool(is_mutable)))
                 continue
             if ins.op == Op.REF_FREE:
-                assert isinstance(ins.arg, int)
-                frame.stack.append(frame.free[ins.arg])
+                if isinstance(ins.arg, tuple):
+                    idx, is_mutable = ins.arg
+                else:
+                    idx, is_mutable = ins.arg, True
+                assert isinstance(idx, int)
+                if is_mutable is None:
+                    frame.stack.append(frame.free[idx])
+                else:
+                    frame.stack.append(_BorrowRef(frame.free[idx], bool(is_mutable)))
                 continue
             if ins.op == Op.REF_GLOBAL:
-                assert isinstance(ins.arg, int)
-                name_obj = consts[ins.arg]
+                if isinstance(ins.arg, tuple):
+                    name_k, is_mutable = ins.arg
+                else:
+                    name_k, is_mutable = ins.arg, True
+                assert isinstance(name_k, int)
+                name_obj = consts[name_k]
                 if not isinstance(name_obj, str):
                     raise VMError("REF_GLOBAL name constant must be a string")
                 gcell = frame.globals.get(name_obj)
                 if gcell is None:
                     gcell = _Cell(None)
                     frame.globals[name_obj] = gcell
-                frame.stack.append(gcell)
+                if is_mutable is None:
+                    frame.stack.append(gcell)
+                else:
+                    frame.stack.append(_BorrowRef(gcell, bool(is_mutable)))
                 continue
             if ins.op == Op.BOX:
-                frame.stack.append(_Cell(frame.stack.pop()))
+                is_mutable = bool(ins.arg) if ins.arg is not None else True
+                frame.stack.append(_BorrowRef(_Cell(frame.stack.pop()), is_mutable))
                 continue
             if ins.op == Op.REF_MEMBER:
                 assert isinstance(ins.arg, int)
@@ -378,12 +440,14 @@ class VM:
                 continue
             if ins.op == Op.STORE_FREE:
                 assert isinstance(ins.arg, int)
-                cell = frame.free[ins.arg]
+                free_cell: _RefCell = frame.free[ins.arg]
                 value = frame.stack.pop()
-                if isinstance(cell.value, _RefCell):
-                    cell.value.value = value
+                if isinstance(free_cell.value, _RefCell):
+                    if not free_cell.value.is_mutable:
+                        raise VMError("Cannot assign through immutable reference")
+                    free_cell.value.value = value
                 else:
-                    cell.value = value
+                    free_cell.value = value
                 continue
             if ins.op == Op.MAKE_CLOSURE:
                 assert isinstance(ins.arg, tuple) and len(ins.arg) == 2
@@ -410,6 +474,8 @@ class VM:
                 ref = frame.stack.pop()
                 if not isinstance(ref, _RefCell):
                     raise VMError("STORE_DEREF expects a cell reference")
+                if not ref.is_mutable:
+                    raise VMError("Cannot assign through immutable reference")
                 ref.value = value
                 continue
 
@@ -597,6 +663,8 @@ class VM:
                     frame.globals[name_obj] = gcell
                 value = frame.stack.pop()
                 if isinstance(gcell.value, _RefCell):
+                    if not gcell.value.is_mutable:
+                        raise VMError("Cannot assign through immutable reference")
                     gcell.value.value = value
                 else:
                     gcell.value = value

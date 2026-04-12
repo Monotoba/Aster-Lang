@@ -189,6 +189,29 @@ def test_mut_borrow_can_target_computed_list_index() -> None:
     assert result.output == "9"
 
 
+def test_mut_borrow_rejects_immutable_variable() -> None:
+    result = interpret_source(
+        """fn main():
+    x := 1
+    p := &mut x
+"""
+    )
+    assert result.error is not None
+    assert "Cannot take &mut of immutable variable 'x'" in result.error
+
+
+def test_assign_through_immutable_reference_rejected() -> None:
+    result = interpret_source(
+        """fn main():
+    x := 1
+    p := &x
+    p <- 2
+"""
+    )
+    assert result.error is not None
+    assert "Cannot assign through immutable reference 'p'" in result.error
+
+
 def test_collection_equality() -> None:
     result = interpret_source(
         """fn main():

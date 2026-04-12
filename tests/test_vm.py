@@ -199,6 +199,18 @@ def test_vm_mut_borrow_can_target_computed_list_index() -> None:
     assert run_source_vm(src) == "9"
 
 
+def test_vm_mut_borrow_rejects_immutable_variable() -> None:
+    src = "fn main():\n    x := 1\n    p := &mut x\n"
+    with pytest.raises(VMError, match="Cannot take &mut of immutable variable 'x'"):
+        run_source_vm(src)
+
+
+def test_vm_assign_through_immutable_reference_rejected() -> None:
+    src = "fn main():\n    x := 1\n    p := &x\n    p <- 2\n"
+    with pytest.raises(VMError, match="Cannot assign through immutable reference 'p'"):
+        run_source_vm(src)
+
+
 def test_vm_runs_if_else() -> None:
     src = (
         "fn main():\n"

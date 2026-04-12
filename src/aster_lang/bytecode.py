@@ -24,7 +24,7 @@ class Op(Enum):
     REF_LOCAL = auto()  # arg=slot:int, push a reference (cell) to locals[slot]
     REF_FREE = auto()  # arg=slot:int, push a reference (cell) to free[slot]
     REF_GLOBAL = auto()  # arg=name_const_index, push a reference (cell) to globals[name]
-    BOX = auto()  # pop value, wrap it in a mutable temporary cell, and push the cell
+    BOX = auto()  # pop value, wrap it in a temporary cell, and push the cell (arg=mutable?)
     REF_MEMBER = auto()  # arg=key_const_index, pop base cell, push a member reference
     REF_INDEX = auto()  # pop index, pop base cell, push an index reference
     LOAD_FREE = auto()  # arg=slot:int, push free[slot].value
