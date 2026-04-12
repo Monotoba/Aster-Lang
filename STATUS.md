@@ -172,6 +172,7 @@ Next steps (choose based on goals):
 - Backend registry reports unknown backend names with available list
 - Added backend registry test to verify available-backend listing in errors
 - Added caching/incremental compilation notes doc
+- Added caching next-actions checklist
 - Added `aster.toml`-driven module search roots shared by runtime and semantic analysis
 - Added `package.name` support for current-package import prefixes
 - Full suite currently passes with 695 tests
