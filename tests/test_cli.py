@@ -64,6 +64,15 @@ def test_vm_command_runs_program(tmp_path: Path, capsys: CapsysFixture) -> None:
     assert capsys.readouterr().out.strip() == "ok"
 
 
+def test_repl_command_returns_zero(capsys: CapsysFixture, monkeypatch: pytest.MonkeyPatch) -> None:
+    def _raise_eof(_: str) -> str:
+        raise EOFError
+
+    monkeypatch.setattr("builtins.input", _raise_eof)
+    assert main(["repl"]) == 0
+    _ = capsys.readouterr()
+
+
 def test_run_command_reports_missing_module(tmp_path: Path, capsys: CapsysFixture) -> None:
     program = tmp_path / "main.aster"
     program.write_text(

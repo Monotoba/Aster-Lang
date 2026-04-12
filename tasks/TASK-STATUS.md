@@ -122,6 +122,7 @@ Ownership and references, now including expression-level `&x` / `&mut x` borrowi
 - user docs highlight REPL/VM learning flow vs backend builds
 - user guide now mentions `aster vm` direct VM command
 - CLI test added for `aster vm`
+- CLI test added for `aster repl`
 - backend adapter follow-ups added to NEXT-STEPS
 - backend adapter `aster backends` follow-up added
 - `aster backends` command implemented and documented
