@@ -117,6 +117,12 @@ Memory:
 - Use `malloc/free` in the spike with explicit ownership notes.
 - Strings owned by the producer; no ref-counting yet.
 
+### ABI sketch (C)
+
+- All functions return `AsterValue`.
+- Parameters passed as `AsterValue` (no generics in the spike).
+- `main` lowered to `aster_main()` with no arguments.
+
 ## Ownership lowering strategy
 
 Goal: make ownership/borrow semantics explicit in MIR so backends can enforce or optimize

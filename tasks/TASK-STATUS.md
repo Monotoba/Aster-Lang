@@ -101,7 +101,7 @@ Ownership and references, now including expression-level `&x` / `&mut x` borrowi
 - added a beginner tutorial track: 20 tutorials plus 6 progressively more complex runnable programs under `tutorials/` and `tutorials/programs/`
 
 ## In progress
-- native backend feasibility study (C-first spike plan, IR mapping, runtime stub sketch)
+- native backend feasibility study (C-first spike plan, IR mapping, runtime stub/ABI sketch)
 - VM artifact format option documented in user guides
 - backend registry tests added for adapter scaffolding
 - backend registry validates artifact formats
