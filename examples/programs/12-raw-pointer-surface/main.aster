@@ -1,0 +1,7 @@
+fn read_byte(ptr: *raw Byte) -> Byte:
+    return byte(0)
+
+fn main():
+    # There is no pointer value model at runtime yet; this example focuses on API surface.
+    print("see README for --ownership modes")
+

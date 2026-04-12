@@ -1,0 +1,25 @@
+typealias Box[T] = T
+
+trait Show:
+    fn show(self) -> String
+
+impl Show for Int:
+    fn show(self) -> String:
+        return str(self)
+
+fn id[T](x: T) -> T:
+    return x
+
+fn use_bound[T: Show](x: T) -> String:
+    # Bound is currently only checked semantically; there is no trait-based dispatch here yet.
+    return "ok: " + str(x)
+
+fn main():
+    a := id(123)
+    b := id("hi")
+    c: Box[Int] := 5
+    print(a)
+    print(b)
+    print(c)
+    print(use_bound(999))
+

@@ -1,0 +1,14 @@
+pub fn gcd(a: Int, b: Int) -> Int:
+    mut x := abs(a)
+    mut y := abs(b)
+    while y != 0:
+        t := x % y
+        x <- y
+        y <- t
+    return x
+
+pub fn lcm(a: Int, b: Int) -> Int:
+    if a == 0 or b == 0:
+        return 0
+    return abs(a * b) / gcd(a, b)
+

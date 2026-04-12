@@ -1,0 +1,6 @@
+use math_utils as m
+
+fn main():
+    print("gcd(54, 24)=" + str(m.gcd(54, 24)))
+    print("lcm(21, 6)=" + str(m.lcm(21, 6)))
+

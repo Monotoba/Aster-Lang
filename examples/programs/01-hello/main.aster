@@ -1,0 +1,6 @@
+fn main():
+    name := "Aster"
+    print("hello, " + name)
+    print(1 + 2 * 3)
+    print(true and not false)
+

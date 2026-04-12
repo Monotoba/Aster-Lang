@@ -1,0 +1,24 @@
+fn make_counter(start: Int) -> Fn() -> Int:
+    mut n := start
+    return () -> :
+        n <- n + 1
+        return n
+
+fn each(xs: List[Int], f: Fn(Int) -> Nil):
+    for x in xs:
+        f(x)
+
+fn main():
+    c1: Fn() -> Int := make_counter(0)
+    c2: Fn() -> Int := make_counter(10)
+
+    print(c1())
+    print(c1())
+    print(c2())
+    print(c1())
+
+    xs := range(5)
+    add_to_counter := (x: Int) -> :
+        print(x)
+        print(c1())
+    each(xs, add_to_counter)

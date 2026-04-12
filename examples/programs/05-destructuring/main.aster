@@ -1,0 +1,13 @@
+fn main():
+    pair := (10, 20)
+    (x, y) := pair
+    print(x + y)
+
+    [head, *tail] := [1, 2, 3, 4]
+    print(head)
+    print(len(tail))
+
+    p := {x: head, y: len(tail)}
+    {x: px, y: py} := p
+    print(px + py)
+

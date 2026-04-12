@@ -1,0 +1,11 @@
+fn sum_to(n: Int) -> Int:
+    mut total := 0
+    mut i := 1
+    while i <= n:
+        total <- total + i
+        i <- i + 1
+    return total
+
+fn main():
+    print(sum_to(10))
+

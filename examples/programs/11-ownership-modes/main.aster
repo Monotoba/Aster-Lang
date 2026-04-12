@@ -1,0 +1,11 @@
+fn bump(x: &mut Int) -> Int:
+    # Surface-only today: borrow types are not enforced at runtime yet.
+    return x + 1
+
+fn head(xs: &List[Int]) -> Int:
+    return xs[0]
+
+fn main():
+    nums := [10, 20, 30]
+    print(head(nums))
+    print(bump(1))

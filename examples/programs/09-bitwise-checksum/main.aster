@@ -1,0 +1,14 @@
+fn xor_checksum(bytes: List[Int]) -> Int:
+    mut acc := 0
+    for b in bytes:
+        acc <- acc ^ b
+    return acc
+
+fn main():
+    data := [1, 2, 3, 4, 255]
+    print(xor_checksum(data))
+
+    # "byte(...)" wraps modulo 256.
+    b := byte(300)
+    print(b)
+

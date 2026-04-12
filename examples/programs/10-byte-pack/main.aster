@@ -1,0 +1,10 @@
+fn pack_nibbles(hi: Int, lo: Int) -> Byte:
+    # Force nibble range and pack.
+    h := hi & 15
+    l := lo & 15
+    return byte((h << 4) | l)
+
+fn main():
+    b: Byte := pack_nibbles(10, 3)
+    print(b)
+    print(int(b))

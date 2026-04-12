@@ -1,0 +1,17 @@
+fn describe(v) -> String:
+    match v:
+        0:
+            return "zero"
+        1 | 2:
+            return "small"
+        {kind: "point", x, y}:
+            return "point(" + str(x) + "," + str(y) + ")"
+        _:
+            return "other"
+
+fn main():
+    print(describe(0))
+    print(describe(2))
+    print(describe({kind: "point", x: 3, y: 4}))
+    print(describe(99))
+
