@@ -22,3 +22,4 @@ Native backend feasibility (near-term checklist):
 - Decide on single TU vs per-module C emission
 - Define minimal `AsterValue` tag set for the spike
 - Prototype a `cc` build/run harness once IR emission exists
+- Decide whether to emit debug-friendly C with source mapping comments
