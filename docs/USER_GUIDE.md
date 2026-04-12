@@ -10,9 +10,10 @@ This project currently provides a language and toolchain design package plus a s
 - `aster build file.aster` — build artifacts (`--backend python|vm|c`, `--ownership off|warn|deny`, `--vm-artifact-format json|binary`; `c` is a placeholder that emits a stub `.c` file)
 - `aster backends` — list available build backends and formats
 - `aster repl` — interactive shell
+- `aster vm file.aster` — run the experimental VM directly
 - `aster rr grammar/aster-full.ebnf` — grammar workflow helper
 
-Beginner-friendly flow: use `aster repl` and `aster run --backend vm` to learn the language.
+Beginner-friendly flow: use `aster repl`, `aster run --backend vm`, or `aster vm` to learn the language.
 Advanced flow: use `aster build --backend ...` to produce artifacts.
 
 ## Current scaffold command

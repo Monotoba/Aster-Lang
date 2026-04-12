@@ -120,6 +120,7 @@ Ownership and references, now including expression-level `&x` / `&mut x` borrowi
 - native backend notes updated with C stub output detail
 - user-facing docs mention the C stub output
 - user docs highlight REPL/VM learning flow vs backend builds
+- user guide now mentions `aster vm` direct VM command
 - backend adapter follow-ups added to NEXT-STEPS
 - backend adapter `aster backends` follow-up added
 - `aster backends` command implemented and documented
