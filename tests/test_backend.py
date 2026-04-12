@@ -50,16 +50,19 @@ def test_backend_registry_unknown_backend_lists_available() -> None:
         registry.get("c")
 
 
-def test_c_backend_adapter_writes_stub(tmp_path: Path) -> None:
+def test_c_backend_adapter_builds(tmp_path: Path) -> None:
     entry = tmp_path / "main.aster"
     entry.write_text("fn main():\n    print(1)\n", encoding="utf-8")
     adapter = CBackendAdapter()
     options = BackendBuildOptions(entry_path=entry, out_dir=tmp_path / "out", clean=True)
     artifact = adapter.build(options)
 
-    assert artifact.errors
-    assert artifact.entry_path.exists()
-    assert artifact.entry_path.suffix == ".c"
+    # The .c source is always written.
+    c_outputs = [p for p in artifact.outputs if p.suffix == ".c"]
+    assert c_outputs, "expected a .c file in outputs"
+    assert c_outputs[0].exists()
+    # No fatal errors expected for a valid program.
+    assert not any("fatal" in e.lower() for e in artifact.errors)
 
 
 def test_backend_build_options_defaults() -> None:

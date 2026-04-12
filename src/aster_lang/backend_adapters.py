@@ -7,7 +7,8 @@ from dataclasses import dataclass
 
 from aster_lang.backend import BackendArtifact, BackendBuildOptions, BackendRegistry
 from aster_lang.builder import build_project, build_project_hir, build_project_vm
-from aster_lang.c_transpiler import CTranspiler
+from aster_lang.c_transpiler import CBuildError, CTranspiler, compile_c
+from aster_lang.mir import lower_hir
 
 
 @dataclass
@@ -78,25 +79,34 @@ class CBackendAdapter:
             shutil.rmtree(output_dir)
         output_dir.mkdir(parents=True, exist_ok=True)
 
-        # Build HIR
+        # Build HIR then lower to MIR
         hir_result = build_project_hir(
             entry_path=options.entry_path,
             dep_overrides=options.dep_overrides,
             extra_roots=options.extra_roots,
             resolver_config=options.resolver_config,
         )
+        mmod = lower_hir(hir_result.module)
 
+        # Transpile MIR → C
         c_path = output_dir / f"{options.entry_path.stem}.c"
-        transpiler = CTranspiler()
-
-        c_code = transpiler.transpile(hir_result.module)
+        c_code = CTranspiler().transpile(mmod)
         c_path.write_text(c_code, encoding="utf-8")
 
         errors = list(hir_result.errors)
-        errors.append("C backend is a stub — full code generation is not yet implemented")
+
+        # Optionally compile to a native binary
+        bin_path = output_dir / options.entry_path.stem
+        try:
+            warnings = compile_c(c_code, bin_path)
+            errors.extend(warnings)
+        except CBuildError as exc:
+            errors.append(str(exc))
+            bin_path = c_path  # fall back to .c as the primary output
+
         return BackendArtifact(
-            entry_path=c_path,
-            outputs=[c_path],
+            entry_path=bin_path,
+            outputs=[c_path, bin_path],
             format="c",
             metadata={"out_dir": output_dir},
             errors=errors,
