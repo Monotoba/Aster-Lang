@@ -14,14 +14,16 @@ class BackendArtifact:
     entry_path: Path
     outputs: list[Path]
     metadata: dict[str, object] = field(default_factory=dict)
+    format: str | None = None
 
 
 class BackendAdapter(Protocol):
     """Interface for backend adapters."""
 
     name: str
+    supported_formats: tuple[str, ...]
 
-    def build(self, *, entry_path: Path) -> BackendArtifact:
+    def build(self, *, entry_path: Path, artifact_format: str | None = None) -> BackendArtifact:
         """Build a backend artifact for the given entry file."""
         raise NotImplementedError
 
