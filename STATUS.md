@@ -177,6 +177,7 @@ Next steps (choose based on goals):
 - Added backend adapter follow-ups to NEXT-STEPS
 - Added `aster backends` follow-up to NEXT-STEPS
 - Added `aster backends` CLI command and docs
+- Highlighted REPL/VM learning flow vs backend builds in docs
 - Clarified native backend feasibility status (scoped; spike not started)
 - Added caching/incremental compilation notes doc
 - Added caching next-actions checklist

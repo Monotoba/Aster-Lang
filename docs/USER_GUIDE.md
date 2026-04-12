@@ -12,6 +12,9 @@ This project currently provides a language and toolchain design package plus a s
 - `aster repl` — interactive shell
 - `aster rr grammar/aster-full.ebnf` — grammar workflow helper
 
+Beginner-friendly flow: use `aster repl` and `aster run --backend vm` to learn the language.
+Advanced flow: use `aster build --backend ...` to produce artifacts.
+
 ## Current scaffold command
 
 ```bash

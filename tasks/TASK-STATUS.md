@@ -119,6 +119,7 @@ Ownership and references, now including expression-level `&x` / `&mut x` borrowi
 - placeholder C backend now emits a stub `.c` file
 - native backend notes updated with C stub output detail
 - user-facing docs mention the C stub output
+- user docs highlight REPL/VM learning flow vs backend builds
 - backend adapter follow-ups added to NEXT-STEPS
 - backend adapter `aster backends` follow-up added
 - `aster backends` command implemented and documented

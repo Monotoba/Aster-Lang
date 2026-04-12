@@ -84,6 +84,7 @@ The repository has moved well beyond the initial scaffold. It now includes:
 - `aster run --backend interpreter|vm <file>` to select the execution backend without switching commands
 - `aster build --backend python|vm|c <file>` to choose between Python transpilation, a VM bundle with a launcher plus a serialized, versioned, integrity-checked bytecode artifact (optional HMAC signature via `ASTER_VM_SIGNING_KEY`), or the placeholder C backend (emits a stub `.c` file)
 - `aster backends` to list available build backends and formats
+- REPL and VM flows for learning the language (`aster repl`, `aster run --backend vm`, `aster vm <file>`), while advanced users can compile using `aster build --backend ...`
 - semantic-only lint (`aster check <file>`) for CI workflows
 - recursive build output (`aster build <file>`) emits a runnable `__aster_build__/` directory
 - `aster build --out-dir <dir>` and `--clean` for build artifact control
