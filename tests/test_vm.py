@@ -390,6 +390,12 @@ def test_vm_supports_computed_member_and_index_assignment() -> None:
     assert run_source_vm(src) == "ok"
 
 
+def test_vm_index_error_message() -> None:
+    src = "fn main():\n    r := {x: 1}\n    print(r[0])\n"
+    with pytest.raises(VMError, match="Cannot index dict with int"):
+        run_source_vm(src)
+
+
 def test_vm_rejects_unsupported_control_flow() -> None:
     src = "fn main():\n    mut t := (1, 2)\n    t[0] <- 0\n"
     try:

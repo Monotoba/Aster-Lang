@@ -607,7 +607,9 @@ class VM:
                         raise VMError(f"Missing record field '{idx}'")
                     frame.stack.append(obj[idx])
                     continue
-                raise VMError("Unsupported index operation in VM backend")
+                obj_type = type(obj).__name__
+                index_type = type(idx).__name__
+                raise VMError(f"Cannot index {obj_type} with {index_type}")
             if ins.op == Op.IS_LIST:
                 obj = frame.stack.pop()
                 frame.stack.append(isinstance(obj, list))
