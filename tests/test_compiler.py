@@ -59,6 +59,13 @@ def test_transpile_list_destructuring_binding_with_rest() -> None:
     assert "[head, *tail] = items" in code
 
 
+def test_transpile_record_destructuring_binding() -> None:
+    code = py("fn main():\n    {x, y} := rec\n")
+    assert "__aster_tmp0 = rec" in code
+    assert 'x = __aster_tmp0["x"]' in code
+    assert 'y = __aster_tmp0["y"]' in code
+
+
 def test_transpile_bool_literals() -> None:
     code = py("x := true\ny := false\n")
     assert "x = True" in code

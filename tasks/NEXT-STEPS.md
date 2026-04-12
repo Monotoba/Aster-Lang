@@ -16,6 +16,5 @@ Phase 6 remaining:
 - define HIR
 - define MIR / typed IR
 - ownership lowering strategy
-- compile record destructuring bindings
 - native backend feasibility study
 - caching and incremental compilation

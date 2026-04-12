@@ -60,6 +60,7 @@ class Transpiler:
         self._has_main: bool = False
         self._module_import_prefix = module_import_prefix
         self._aster_module_labels = aster_module_labels
+        self._temp_index: int = 0
 
     # ------------------------------------------------------------------
     # Output helpers
@@ -69,6 +70,11 @@ class Transpiler:
 
     def _blank(self) -> None:
         self._lines.append("")
+
+    def _next_temp(self) -> str:
+        name = f"__aster_tmp{self._temp_index}"
+        self._temp_index += 1
+        return name
 
     # ------------------------------------------------------------------
     # Public entry point
@@ -147,7 +153,18 @@ class Transpiler:
 
     def _transpile_stmt(self, stmt: ast.Stmt) -> None:
         if isinstance(stmt, ast.LetStmt):
-            self._emit(f"{self._binding_target(stmt.pattern)} = {self._expr(stmt.initializer)}")
+            if self._pattern_contains_record(stmt.pattern):
+                temp = self._next_temp()
+                self._emit(f"{temp} = {self._expr(stmt.initializer)}")
+                cond = self._pattern_cond(stmt.pattern, temp)
+                if cond != "True":
+                    self._emit(f"if not ({cond}):")
+                    self._depth += 1
+                    self._emit('raise RuntimeError("Binding pattern does not match initializer")')
+                    self._depth -= 1
+                self._pattern_emit_bindings(stmt.pattern, temp)
+            else:
+                self._emit(f"{self._binding_target(stmt.pattern)} = {self._expr(stmt.initializer)}")
         elif isinstance(stmt, ast.AssignStmt):
             self._emit(f"{self._expr(stmt.target)} = {self._expr(stmt.value)}")
         elif isinstance(stmt, ast.ReturnStmt):
@@ -340,6 +357,16 @@ class Transpiler:
             return any(self._pattern_has_bindings(e) for e in pattern.elements)
         if isinstance(pattern, ast.RecordPattern):
             return any(self._pattern_has_bindings(f.pattern) for f in pattern.fields)
+        return False
+
+    def _pattern_contains_record(self, pattern: ast.Pattern) -> bool:
+        """Return True if pattern contains a record pattern anywhere."""
+        if isinstance(pattern, ast.RecordPattern):
+            return True
+        if isinstance(pattern, ast.OrPattern):
+            return any(self._pattern_contains_record(alt) for alt in pattern.alternatives)
+        if isinstance(pattern, ast.ListPattern | ast.TuplePattern):
+            return any(self._pattern_contains_record(elem) for elem in pattern.elements)
         return False
 
     def _binding_target(self, pattern: ast.Pattern) -> str:

@@ -17,6 +17,7 @@ Ownership and references, now including expression-level `&x` / `&mut x` borrowi
 - structural binding or-patterns (e.g. `[x, 0] | [0, x]`) compiled with nested if/else binding extraction
 - trailing rest patterns in tuple and list match arms
 - local tuple/list/record destructuring bindings, including trailing list rest capture
+- compiler transpiler emits record destructuring bindings using field extraction
 - CLI and semantic diagnostics for missing modules and cyclic imports
 - `pub`-aware exports for imported functions and top-level bindings
 - parent package-root lookup for dotted imports
