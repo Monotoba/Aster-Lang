@@ -151,6 +151,7 @@ Next steps (choose based on goals):
 - Documented `--vm-artifact-format` in user-facing guides
 - Added basic backend registry tests
 - Backend registry now validates artifact formats per adapter
+- Developer guide updated for backend interface modules
 - Backend interface layer marked in progress in next-steps tracking
 - Added optional compressed binary VM artifacts (`--vm-artifact-format binary`)
 - Scoped a native backend feasibility study in compiler notes

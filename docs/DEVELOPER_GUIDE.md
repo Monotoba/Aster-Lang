@@ -15,6 +15,8 @@
 - `parser.py` — recursive-descent / Pratt hybrid parser
 - `interpreter.py` — direct execution engine
 - `compiler.py` — lowering and backend entry points
+- `backend.py` — backend adapter interface and registry
+- `backend_adapters.py` — default backend adapters wired into CLI build
 - `formatter.py` — canonical source formatting
 - `cli.py` — command-line entry
 - `diagnostics.py` — error and warning structures

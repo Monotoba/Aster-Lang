@@ -106,6 +106,7 @@ Ownership and references, now including expression-level `&x` / `&mut x` borrowi
 - VM artifact format option documented in user guides
 - backend registry tests added for adapter scaffolding
 - backend registry validates artifact formats
+- developer guide updated with backend interface modules
 
 ## Blocked
 - none
