@@ -23,6 +23,7 @@ Start with C for the feasibility spike, then revisit LLVM/Wasm after the IR inte
 - How much of the ownership surface should be represented in C stubs vs no-op?
 - How to map module imports in a C-only artifact (single TU vs per-module linking)?
 - What ABI conventions should be locked down for interop?
+- Should the spike emit debug-friendly C with source mapping comments?
 
 ## Next actions
 

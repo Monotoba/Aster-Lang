@@ -163,6 +163,7 @@ Next steps (choose based on goals):
 - Added native backend feasibility notes doc
 - Added next actions checklist for native backend feasibility
 - Added native backend feasibility checklist to NEXT-STEPS
+- Added debug-output question to native backend open issues
 - Added `aster.toml`-driven module search roots shared by runtime and semantic analysis
 - Added `package.name` support for current-package import prefixes
 - Full suite currently passes with 692 tests
