@@ -1858,3 +1858,56 @@ fn print_it[T: Show](x: T):
     analyzer.analyze(module)
     assert analyzer.has_errors()
     assert any("expects 0 argument(s), got 2" in e.message for e in analyzer.errors)
+
+
+def test_trait_call_site_resolution_on_concrete_type_passes() -> None:
+    source = """
+trait Show:
+    fn show(self) -> String
+
+impl Show for Int:
+    fn show(self) -> String:
+        return "42"
+
+fn main():
+    x := 42
+    x.show()
+"""
+    module = parse_module(source)
+    analyzer = SemanticAnalyzer()
+    analyzer.analyze(module)
+    assert not analyzer.has_errors()
+
+
+def test_trait_call_site_resolution_on_multiple_bounds_passes() -> None:
+    source = """
+trait Show:
+    fn show(self) -> String
+trait Debug:
+    fn debug(self) -> String
+
+fn print_it[T: Show + Debug](x: T):
+    x.show()
+    x.debug()
+"""
+    module = parse_module(source)
+    analyzer = SemanticAnalyzer()
+    analyzer.analyze(module)
+    assert not analyzer.has_errors()
+
+
+def test_trait_call_site_resolution_ambiguous_method_reports_error() -> None:
+    source = """
+trait A:
+    fn foo(self) -> Int
+trait B:
+    fn foo(self) -> Int
+
+fn test[T: A + B](x: T):
+    x.foo()
+"""
+    module = parse_module(source)
+    analyzer = SemanticAnalyzer()
+    analyzer.analyze(module)
+    assert analyzer.has_errors()
+    assert any("Ambiguous method 'foo'" in e.message for e in analyzer.errors)

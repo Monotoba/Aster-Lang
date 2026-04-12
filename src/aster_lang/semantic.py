@@ -554,6 +554,9 @@ class SemanticAnalyzer:
         # Live type-param bounds for the current function scope (trait call-site resolution).
         # type_var_name -> tuple of trait name refs (simple "TraitName" or "ns.TraitName")
         self._current_typevar_bounds: dict[str, tuple[str, ...]] = {}
+        # Trait implementations: (Type, TraitName) -> methods.
+        # TraitName is a simple "TraitName" or "ns.TraitName" string.
+        self._impls: dict[tuple[Type, str], dict[str, FunctionType]] = {}
         # Ownership/borrow prototype enforcement (opt-in).
         # Stack of scopes: name -> moved-state.
         self._own_scopes: list[dict[str, _OwnVarState]] = [{}]
@@ -919,14 +922,17 @@ class SemanticAnalyzer:
             return
 
         trait_name: str | None = None
+        trait_full_name: str | None = None
         required: dict[str, FunctionType] | None = None
         parts = decl.trait.name.parts
         if len(parts) == 1:
             trait_name = parts[0]
+            trait_full_name = trait_name
             required = self._traits.get(trait_name)
         elif len(parts) == 2:
             ns, member = parts
             trait_name = member
+            trait_full_name = f"{ns}.{member}"
             required = self._namespace_traits.get(ns, {}).get(member)
         else:
             self.error("impl trait must be a simple trait name", decl.trait)
@@ -935,6 +941,8 @@ class SemanticAnalyzer:
         if required is None:
             self.error(f"Unknown trait '{trait_name}'", decl.trait)
             return
+
+        target_type = self.resolve_type_expr(decl.target)
 
         provided: dict[str, FunctionType] = {}
         for fn in decl.members:
@@ -952,6 +960,10 @@ class SemanticAnalyzer:
                 self.resolve_type_expr(fn.return_type) if fn.return_type is not None else NIL_TYPE
             )
             provided[fn.name] = FunctionType(param_types=param_types, return_type=ret_t)
+
+        # Record the impl for call-site resolution
+        if trait_full_name:
+            self._impls[(target_type, trait_full_name)] = provided
 
         for name, req_sig in required.items():
             got = provided.get(name)
@@ -1238,12 +1250,18 @@ class SemanticAnalyzer:
             out[decl.name] = methods
         return out
 
-    def _resolve_trait_method(self, receiver_t: Type, method_name: str) -> FunctionType | None:
+    def _resolve_trait_method(
+        self, receiver_t: Type, method_name: str, node: ast.Node | None = None
+    ) -> FunctionType | None:
         """Look up a method by name on a receiver type using trait bounds or concrete impls.
 
         For TypeVarType receivers, searches bounds recorded in _current_typevar_bounds.
-        Returns the FunctionType of the matched method, or None if not found.
+        For concrete types, searches recorded impls in _impls.
+        If multiple matching traits are found, reports an error (ambiguity) and returns None.
+        Returns the FunctionType of the matched method, or None if not found or ambiguous.
         """
+        matches: list[tuple[str, FunctionType]] = []
+
         if isinstance(receiver_t, TypeVarType):
             bounds = self._current_typevar_bounds.get(receiver_t.name, ())
             for bound_ref in bounds:
@@ -1253,8 +1271,27 @@ class SemanticAnalyzer:
                 else:
                     methods = self._namespace_traits.get(parts[0], {}).get(parts[1], {})
                 if method_name in methods:
-                    return methods[method_name]
-        return None
+                    matches.append((bound_ref, methods[method_name]))
+        else:
+            # Check concrete impls
+            for (target_t, trait_ref), methods in self._impls.items():
+                if self.types_compatible(receiver_t, target_t) and method_name in methods:
+                    matches.append((trait_ref, methods[method_name]))
+
+        if not matches:
+            return None
+
+        if len(matches) > 1:
+            if node is not None:
+                trait_names = [m[0] for m in matches]
+                self.error(
+                    f"Ambiguous method '{method_name}': "
+                    f"found in multiple trait bounds {trait_names}",
+                    node,
+                )
+            return None
+
+        return matches[0][1]
 
     def _resolve_module_path(self, module_name: ast.QualifiedName) -> Path | None:
         """Resolve a dotted module name from the current base directory."""
@@ -2664,7 +2701,7 @@ class SemanticAnalyzer:
             # Trait call-site resolution prototype: x.method(args) where x has a bounded type var.
             receiver_t = self.infer_expr_type(expr.func.obj)
             method_name = expr.func.member
-            method_sig = self._resolve_trait_method(receiver_t, method_name)
+            method_sig = self._resolve_trait_method(receiver_t, method_name, node=expr)
             for arg in expr.args:
                 self.infer_expr_type(arg)
             if method_sig is None:
