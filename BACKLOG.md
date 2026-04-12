@@ -51,7 +51,7 @@
 - [x] idempotence tests
 
 ## Phase 6: compiler
-- [ ] define HIR
+- [x] define HIR
 - [ ] define MIR / typed IR
 - [ ] ownership lowering strategy
 - [ ] compile record destructuring bindings
