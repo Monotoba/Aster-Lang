@@ -72,6 +72,15 @@ Decision criteria:
 - Debuggability and ease of inspection.
 - ABI stability and FFI surface for future interop.
 
+### Initial target choice (proposed)
+
+Start with a C backend for the feasibility spike:
+- Lowest tooling barrier (system C compiler, no large toolchain dependency).
+- Easy to inspect generated output and integrate minimal runtime glue.
+- Allows validating the standard IR + adapter boundary before LLVM/Wasm work.
+
+LLVM/Wasm remains a follow-on target once the IR interface stabilizes.
+
 ## Ownership lowering strategy
 
 Goal: make ownership/borrow semantics explicit in MIR so backends can enforce or optimize

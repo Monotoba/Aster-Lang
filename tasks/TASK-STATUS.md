@@ -101,7 +101,7 @@ Ownership and references, now including expression-level `&x` / `&mut x` borrowi
 - added a beginner tutorial track: 20 tutorials plus 6 progressively more complex runnable programs under `tutorials/` and `tutorials/programs/`
 
 ## In progress
-- none
+- native backend feasibility study (evaluate C vs LLVM, define spike scope)
 
 ## Blocked
 - none
