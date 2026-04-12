@@ -7,7 +7,7 @@
 - [x] create scaffold package
 - [x] create tests and CI
 - [ ] refine package boundaries after first parser milestone
-- [ ] docs: clarify binding syntax (`:=` / `mut`) vs. internal `Let*` AST naming (no `let` keyword)
+- [x] docs: clarify binding syntax (`:=` / `mut`) vs. internal `Let*` AST naming (no `let` keyword)
 
 ## Phase 2: lexer and parser
 - [x] implement token model
@@ -56,7 +56,7 @@
 - [ ] ownership lowering strategy
 - [ ] compile record destructuring bindings
 - [x] experimental bytecode VM backend (subset)
-- [ ] expand VM backend coverage and integrate as an optional backend for `aster run/build`
+- [ ] expand VM backend coverage (remaining runtime parity gaps, artifact compression/binary polish, and backend integration) now that it is an optional backend for `aster run/build`
 - [ ] native backend feasibility study
 - [ ] caching and incremental compilation
 
@@ -71,5 +71,5 @@
 - [ ] stdlib design
 - [ ] richer package manifest design
 - [ ] dependency mapping and package resolution
-- [ ] versioning and compatibility policy
+- [x] versioning and compatibility policy
 - [ ] unsafe / FFI policy

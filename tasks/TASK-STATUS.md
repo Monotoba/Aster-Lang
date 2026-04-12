@@ -1,7 +1,7 @@
 # TASK STATUS
 
 ## Active stream
-Ownership and references surface syntax, starting with parse/format/type-resolution support for `&T`, `&mut T`, and `*own/*shared/*weak/*raw T` in type annotations.
+Ownership and references, now including expression-level `&x` / `&mut x` borrowing plus `*expr` deref, and tightening type checking toward backend-ready strictness.
 
 ## Completed
 - lexer, parser, AST, semantic analyzer, interpreter, formatter, REPL, and Python transpiler
@@ -44,6 +44,43 @@ Ownership and references surface syntax, starting with parse/format/type-resolut
 - assignment to member/index lvalues implemented for both interpreter and VM (identifier receivers only)
 - VM backend now supports short-circuit `and` / `or`
 - lambda expressions (closures) supported across parser, semantic analysis, interpreter, formatter, and VM backend
+- trait/impl surface syntax parsed and formatted; semantic prototype validates `impl Trait for Type` method presence/arity
+- generic function type parameters parsed/formatted; semantic resolves type parameters as type variables and validates simple trait bounds
+- trait bounds in generics validate against imported traits (named and qualified namespace imports)
+- `impl` trait validation supports qualified imported traits (e.g. `impl traits.Show for Int:` after `use traits`)
+- semantic analysis records generic type parameters and their trait-bound strings on declarations for later phases (ownership)
+- semantic analysis instantiates generic function calls and generic type aliases (prototype substitution) to keep `aster check/build` usable without ownership
+- semantic analysis now accepts `String + String` and infers best-effort return types for block lambdas (helps higher-order code type-check)
+- parser now supports typed non-`mut` local bindings (`x: Int := 1`), matching the documented surface syntax
+- fixed-width unsigned integer types added (`Nibble`/`Byte`/`Word`/`DWord`/`QWord`) with cast builtins and bitwise operators (`& | ^ ~ << >>`) across lexer/parser/formatter/semantic/interpreter/VM
+- ownership/borrow surface diagnostics are now opt-in via `aster check/build --ownership off|warn|deny` (default: off)
+- expression-level borrow `&x` / `&mut x` and deref `*expr` implemented across semantics, interpreter, and VM backend; `&mut` parameters can mutate caller bindings
+- VM backend now supports borrowed member/index targets for `&mut r.x` and `&mut xs[i]`
+- nested identifier-rooted member/index borrow and assignment targets now work across semantics, interpreter, and VM (`r.inner.x`, `r.items[0]`, `&mut r.inner.x`)
+- computed-root member/index borrow and assignment targets now work across parser, semantics, interpreter, formatter, and VM (`&mut {x: 1}.x`, `&mut [1, 2][0]`, `{x: 1}.x <- 7`)
+- `aster run --backend vm` now routes the standard run command through the experimental VM backend while preserving `--dep/--search-root`
+- `aster build --backend vm` now emits a runnable Python launcher, a serialized `*.asterbc.json` bytecode artifact, and a minimal bundled VM runtime subset
+- `vm.py` now reuses `vm_runtime.py` as the single runtime source of truth instead of maintaining a duplicate VM implementation
+- serialized VM bytecode artifacts now carry explicit format/version markers and the loader rejects incompatible artifacts clearly
+- serialized VM bytecode artifacts now also carry SHA-256 integrity metadata and the loader rejects tampered artifacts before decode
+- VM artifact loading now has an explicit supported-version window and reports too-old vs too-new schema versions separately
+- VM artifacts can optionally include an HMAC-SHA256 signature when `ASTER_VM_SIGNING_KEY` is provided; the loader verifies it before decode
+- VM `max`/`min` now match interpreter arity and integer-only behavior
+- VM `print` now matches interpreter arity (single argument) and error messaging
+- VM `int()` now mirrors interpreter conversions and errors (Bool/String/Int handling)
+- VM `len()` now matches interpreter support (String/List/Tuple only)
+- VM `ascii_bytes` output and errors now have parity coverage
+- `unicode_bytes` builtin added across semantics, interpreter, and VM (UTF-8 bytes)
+- fixed-width equality (`byte(255) == 255`) now has explicit interpreter/VM parity coverage
+- VM equality now uses deep structural comparison for lists/tuples/records
+- record `len()` now matches interpreter/VM behavior (records supported)
+- VM `range()` now explicitly rejects Bool inputs, matching interpreter behavior
+- VM error messages for `len()`/`range()` now match interpreter wording
+- VM `len()` error messages now use interpreter type names (e.g. `IntValue`)
+- VM `unicode_bytes` now masks output bytes (Byte-like ints) to match `ascii_bytes` semantics
+- semantic errors for `ord`/`ascii_bytes`/`unicode_bytes` now match interpreter wording (`expects String`)
+- `aster check/build --types loose|strict` added to optionally reject unknown-typed arithmetic/bitwise uses in strict mode
+- added a beginner tutorial track: 20 tutorials plus 6 progressively more complex runnable programs under `tutorials/` and `tutorials/programs/`
 
 ## In progress
 - none
@@ -52,7 +89,8 @@ Ownership and references surface syntax, starting with parse/format/type-resolut
 - none
 
 ## Next recommended task
-Backend follow-through: expand the VM backend toward interpreter parity (mutability enforcement, more assignment targets, and destructuring bindings), and then decide whether to integrate the VM as an optional backend for `aster run/build`.
+Backend follow-through: expand the VM backend toward interpreter parity and decide the next artifact step beyond schema/integrity/signing checks, such as compression or a binary encoding.
+Note: keep JSON VM artifacts for now and check back with the user before changing formats.
 
 ## Risks
 - imported module symbols use lightweight semantic export inference, not full cross-module type checking

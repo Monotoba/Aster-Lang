@@ -80,13 +80,19 @@ The repository has moved well beyond the initial scaffold. It now includes:
 - file-based module imports with `pub`-aware exports for functions, bindings, and type aliases
 - `typealias` declarations registered in the symbol table and exportable across modules; qualified type names (`mod.Vec`) usable in annotations
 - manifest-based module configuration via `aster.toml`: `[package].name`, `[modules].search_roots`, and `[dependencies]` with local path entries
-- `--dep NAME=PATH` and `--search-root PATH` CLI flags on `run`, `check`, and `build` to override manifest resolution
+- `--dep NAME=PATH` and `--search-root PATH` CLI flags on `run`, `check`, `build`, and `vm` to override manifest resolution
+- `aster run --backend interpreter|vm <file>` to select the execution backend without switching commands
+- `aster build --backend python|vm <file>` to choose between Python transpilation and a VM bundle with a launcher plus a serialized, versioned, integrity-checked bytecode artifact (optional HMAC signature via `ASTER_VM_SIGNING_KEY`)
 - semantic-only lint (`aster check <file>`) for CI workflows
 - recursive build output (`aster build <file>`) emits a runnable `__aster_build__/` directory
 - `aster build --out-dir <dir>` and `--clean` for build artifact control
 - `aster lock <file>` to write `aster.lock`, and `--lockfile` on `check/build` for pinned resolution
 - AST pretty-printer (`aster ast <file>`) for debugging parse output
-- 411 passing tests
+- bitwise operators: `& | ^ ~ << >>`
+- fixed-width unsigned integer types: `Nibble`/`Byte`/`Word`/`DWord`/`QWord` plus cast builtins (`nibble/byte/word/dword/qword`)
+- string byte helpers: `ascii_bytes` (ASCII-only) and `unicode_bytes` (UTF-8)
+- opt-in ownership/borrow surface diagnostics: `aster check/build --ownership off|warn|deny` (default: `off`)
+- 533 passing tests
 
 ## License
 

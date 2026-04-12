@@ -7,5 +7,5 @@
 5. Decide whether non-trailing or multiple rest patterns belong in the language.
 6. Start comment-preserving formatter work once the AST/CST strategy is chosen.
 7. Docs cleanup: clarify that bindings are `:=`/`mut` (no `let` keyword), even though AST nodes are named `LetDecl`/`LetStmt`.
-8. Backend: expand VM coverage toward interpreter parity (mutability enforcement, destructuring bindings, more lvalue forms).
-9. Backend: consider a `--backend vm` option for `aster run/build` once VM coverage is sufficient.
+8. Backend: expand VM coverage toward interpreter parity (mutability enforcement, destructuring bindings, more runtime parity).
+9. Backend: keep JSON VM artifacts for now; revisit compression/binary encoding later (check back with the user before changing formats).

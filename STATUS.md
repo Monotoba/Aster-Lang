@@ -23,8 +23,14 @@ Phases 2–5 are largely complete. The language can parse, format, analyze, exec
 - **`typealias` declarations** registered in symbol table; `pub typealias` exported and importable; qualified type names (`mod.Vec`, `alias.Vec`) usable in annotations
 - **AST pretty-printer** (`aster ast <file>`) for debugging parse output
 - **Interactive REPL** (`aster repl`) with persistent state and multi-line input
+- **Selectable run backend**: `aster run --backend interpreter|vm <file>`
+- **Selectable build backend**: `aster build --backend python|vm <file>`
+- **VM build artifacts**: `aster build --backend vm` emits a runnable launcher plus a serialized, versioned, integrity-checked `*.asterbc.json` bytecode program and minimal bundled VM runtime; the loader currently supports schema version `1`, with optional HMAC signing via `ASTER_VM_SIGNING_KEY`
 - **String operations**: `+` concatenation, `len()`, `str()`, `int()` built-ins
-- **411 passing tests** covering parser, semantics, interpreter, formatter, CLI, compiler, REPL, AST printer, typed HIR, and the experimental bytecode VM backend
+- **Fixed-width unsigned integers**: `Nibble`/`Byte`/`Word`/`DWord`/`QWord` plus cast builtins (`nibble/byte/word/dword/qword`) and bitwise ops (`& | ^ ~ << >>`)
+- **533 passing tests** covering parser, semantics, interpreter, formatter, CLI, compiler, REPL, AST printer, typed HIR, and the experimental bytecode VM backend
+- beginner-friendly tutorials and runnable example programs under `tutorials/` (20 tutorials; explicitly avoiding ownership/borrow enforcement by default)
+- progressively more complex multi-file example programs under `examples/programs/`
 - language and toolchain docs
 - Bottlecaps-compatible EBNF grammar files
 - AI workflow docs and recovery docs
@@ -75,11 +81,12 @@ Phases 2–5 are largely complete. The language can parse, format, analyze, exec
 
 ## Interpreter Features
 - Runtime value model: Int, String, Bool, Nil, List, Tuple, Record, Function
+- Borrow expressions `&x` / `&mut x` with implicit deref for borrowed bindings; `&mut` parameters can mutate caller bindings, including nested and computed postfix targets like `&mut r.inner.x`, `&mut {x: 1}.x`, and `&mut make_list()[0]`
 - Environment with variable bindings and mutability tracking
 - Expression evaluation: arithmetic, comparison, logical, unary operators
 - Statement execution: bindings, assign, return, if/else, while, for, break, continue
 - Function calls with closures and parameter passing
-- Built-in functions (print with newline separation)
+- Built-in functions (print with newline separation), plus string byte helpers (`ord`, `ascii_bytes`, `unicode_bytes`)
 - Collection operations: list/tuple creation, indexing, record member access
 - Tuple-pattern destructuring with nested bindings in match arms
 - List-pattern destructuring with nested bindings in match arms
@@ -133,4 +140,4 @@ Next steps (choose based on goals):
 - Added local tuple/list/record destructuring bindings across parser, formatter, semantics, interpreter, and transpiler
 - Added `aster.toml`-driven module search roots shared by runtime and semantic analysis
 - Added `package.name` support for current-package import prefixes
-- Full suite currently passes with 411 tests
+- Full suite currently passes with 533 tests
