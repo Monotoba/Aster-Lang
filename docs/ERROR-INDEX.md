@@ -688,6 +688,52 @@ was not exported.
 **Fix:** Ensure the target declaration has `pub`, or import the module without
 specifying names (`use mod`).
 
+### INT-012 — Math domain error
+
+**Messages:**
+- `math.sqrt: domain error (negative input)`
+- `math.log: domain error (non-positive input)`
+- `math.log2: domain error (non-positive input)`
+- `math.log10: domain error (non-positive input)`
+
+**Cause:** A `math` module function was called with an argument outside its
+mathematical domain (e.g. `sqrt` of a negative number, `log` of zero).
+
+**Example:**
+```aster
+use math
+fn main():
+    x := math.sqrt(-1)   # INT-012
+```
+
+**Fix:** Guard with a range check before calling:
+```aster
+use math
+fn main():
+    n := -4
+    if n >= 0:
+        print(math.sqrt(n))
+```
+
+---
+
+### INT-013 — str.char_at index out of bounds
+
+**Message:** `str.char_at: index <i> out of bounds for string of length <n>`
+
+**Cause:** `str.char_at` was called with an index that is negative or ≥ the
+length of the string.
+
+**Example:**
+```aster
+use str
+fn main():
+    c := str.char_at("hi", 10)   # INT-013
+```
+
+**Fix:** Check `str.find` or the string length first, or use `str.slice` for
+safe substrings.
+
 ---
 
 ## VM Backend Errors (VM)
@@ -972,6 +1018,8 @@ Try `aster run` (interpreter) if the backend rejects the program.
 | INT-009 | Type conversion failure |
 | INT-010 | Immutable ref passed as &mut |
 | INT-011 | Module export missing (runtime) |
+| INT-012 | Math domain error |
+| INT-013 | str.char_at out of bounds |
 | VM-001 | Unsupported expression/statement |
 | VM-002 | Unsupported operator |
 | VM-003 | Duplicate VM definition |
