@@ -55,6 +55,23 @@ Interface sketch:
 This interface layer will be the anchor for future targets while keeping the
 front-end stable.
 
+## Native backend feasibility study
+
+Goal: identify the shortest path to a native backend target and validate the
+standard IR + adapter boundary.
+
+Scope for the feasibility pass:
+- Pick a first native target (LLVM IR or C) based on tooling availability.
+- Identify the minimum runtime services needed (allocator, string, list/tuple/record).
+- Define the calling convention for Aster functions and closures.
+- Map the standard IR control-flow and ownership annotations to the target.
+- Produce a small end-to-end spike: `main()` with arithmetic, calls, and a loop.
+
+Decision criteria:
+- Toolchain footprint (dependency size, platform availability).
+- Debuggability and ease of inspection.
+- ABI stability and FFI surface for future interop.
+
 ## Ownership lowering strategy
 
 Goal: make ownership/borrow semantics explicit in MIR so backends can enforce or optimize

@@ -59,7 +59,7 @@
 - [x] experimental bytecode VM backend (subset)
 - [x] expand VM backend coverage (runtime parity test gap closed; artifact compression/binary polish deferred)
 - [x] VM artifact compression/binary encoding (optional binary artifacts)
-- [ ] native backend feasibility study
+- [ ] native backend feasibility study (LLVM vs C, minimum runtime, calling convention)
 - [ ] caching and incremental compilation
 
 ## Phase 7: tooling

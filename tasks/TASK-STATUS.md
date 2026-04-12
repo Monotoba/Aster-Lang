@@ -21,6 +21,7 @@ Ownership and references, now including expression-level `&x` / `&mut x` borrowi
 - ownership lowering strategy documented in compiler notes
 - backend interface layer documented for multi-backend support
 - VM build now supports optional compressed binary artifacts
+- native backend feasibility study scoped in compiler notes
 - CLI and semantic diagnostics for missing modules and cyclic imports
 - `pub`-aware exports for imported functions and top-level bindings
 - parent package-root lookup for dotted imports
