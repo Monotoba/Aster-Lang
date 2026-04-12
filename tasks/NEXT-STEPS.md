@@ -15,6 +15,5 @@ Open questions / deferred decisions:
 Phase 6 remaining:
 - define HIR
 - define MIR / typed IR
-- standard backend interface layer (shared IR + adapter boundary) [in progress]
 - native backend feasibility study
 - caching and incremental compilation

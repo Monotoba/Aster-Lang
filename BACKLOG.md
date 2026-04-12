@@ -54,7 +54,7 @@
 - [x] define HIR
 - [x] define MIR / typed IR
 - [x] ownership lowering strategy
-- [ ] standard backend interface layer (shared IR + adapter boundary)
+- [x] standard backend interface layer (shared IR + adapter boundary)
 - [x] compile record destructuring bindings
 - [x] experimental bytecode VM backend (subset)
 - [x] expand VM backend coverage (runtime parity test gap closed; artifact compression/binary polish deferred)
