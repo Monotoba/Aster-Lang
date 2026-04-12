@@ -124,9 +124,9 @@ def build_parser() -> argparse.ArgumentParser:
     build_p.add_argument("path", type=Path)
     build_p.add_argument(
         "--backend",
-        choices=["python", "vm"],
+        choices=["python", "vm", "c"],
         default="python",
-        help="build backend (default: python)",
+        help="build backend (default: python; c is a placeholder)",
     )
     build_p.add_argument(
         "--vm-artifact-format",

@@ -108,6 +108,7 @@ Ownership and references, now including expression-level `&x` / `&mut x` borrowi
 - native backend feasibility open-questions expanded
 - native backend feasibility checklist updated with debug-output decision
 - placeholder C backend adapter registered (not implemented yet)
+- build docs updated to mention the placeholder `c` backend
 - backend registry validation tests cover None format
 - backend registry now errors with available backends on unknown names
 - VM artifact format option documented in user guides

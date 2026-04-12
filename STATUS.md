@@ -166,6 +166,7 @@ Next steps (choose based on goals):
 - Added debug-output question to native backend open issues
 - Added debug-output decision to native backend next steps
 - Added a placeholder C backend adapter (returns not implemented)
+- Documented `c` backend placeholder in build CLI docs
 - Added backend registry test for None-format validation
 - Backend registry reports unknown backend names with available list
 - Added `aster.toml`-driven module search roots shared by runtime and semantic analysis

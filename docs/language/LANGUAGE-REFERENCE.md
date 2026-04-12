@@ -61,7 +61,7 @@ search_roots = ["src", "vendor"]
 With that manifest, `use helpers` can resolve `src/helpers.aster` and `vendor/helpers.aster` relative to the project root.
 If `package.name` is set, imports may also use the current package prefix explicitly, for example `use app.helpers`.
 
-In the build toolchain (`aster check` and `aster build`), unresolved `use` imports are treated as external Python imports (for example `use os`). Runtime interpretation (`aster run`) still requires Aster modules to exist. VM builds can select `--vm-artifact-format json|binary` to emit either JSON or compressed binary artifacts.
+In the build toolchain (`aster check` and `aster build`), unresolved `use` imports are treated as external Python imports (for example `use os`). Runtime interpretation (`aster run`) still requires Aster modules to exist. VM builds can select `--vm-artifact-format json|binary` to emit either JSON or compressed binary artifacts. The `c` backend is a placeholder in `aster build --backend c` until native codegen lands.
 
 ### Public declaration
 ```aster
