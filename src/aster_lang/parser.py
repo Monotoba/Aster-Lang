@@ -368,6 +368,9 @@ class Parser:
             return_type = self.parse_type_expr()
             return ast.FunctionType(param_types=param_types, return_type=return_type)
 
+        if self.match(TokenKind.SELF):
+            return ast.SelfType()
+
         # Simple type: Name or Name[T1, T2]
         name = self.parse_qualified_name()
 

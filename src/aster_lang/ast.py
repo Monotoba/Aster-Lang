@@ -512,3 +512,10 @@ class PointerTypeExpr(TypeExpr):
 
     pointer_kind: str
     inner: TypeExpr
+
+
+@dataclass(slots=True)
+class SelfType(TypeExpr):
+    """Self type: Self (inside traits/impls)"""
+
+    pass

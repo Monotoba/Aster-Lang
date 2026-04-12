@@ -230,6 +230,17 @@ class TypeVarType(Type):
 
 
 @dataclass(frozen=True)
+class SelfType(Type):
+    """Placeholder for 'Self' type inside traits."""
+
+    def __init__(self) -> None:
+        object.__setattr__(self, "kind", TypeKind.TYPEVAR)
+
+    def __str__(self) -> str:
+        return "Self"
+
+
+@dataclass(frozen=True)
 class UnknownType(Type):
     """Unknown type for inference."""
 
@@ -565,6 +576,8 @@ class SemanticAnalyzer:
         # Trait implementations: (Type, TraitName) -> methods.
         # TraitName is a simple "TraitName" or "ns.TraitName" string.
         self._impls: dict[tuple[Type, str], dict[str, FunctionType]] = {}
+        # The 'Self' type for the current trait/impl scope.
+        self._current_self_type: Type | None = None
         # Ownership/borrow prototype enforcement (opt-in).
         # Stack of scopes: name -> moved-state.
         self._own_scopes: list[dict[str, _OwnVarState]] = [{}]
@@ -791,6 +804,8 @@ class SemanticAnalyzer:
     def _substitute_typevars(self, t: Type, subs: dict[str, Type]) -> Type:
         if isinstance(t, TypeVarType):
             return subs.get(t.name, t)
+        if isinstance(t, SelfType):
+            return subs.get("Self", t)
         if isinstance(t, FunctionType):
             return FunctionType(
                 tuple(self._substitute_typevars(p, subs) for p in t.param_types),
@@ -883,6 +898,8 @@ class SemanticAnalyzer:
         methods: dict[str, FunctionType] = {}
         self._record_decl_type_params(decl, decl.type_params)
         self._enter_scope(f"trait {decl.name}")
+        old_self = self._current_self_type
+        self._current_self_type = SelfType()
         try:
             for tp in decl.type_params:
                 self.symbol_table.define(
@@ -915,6 +932,7 @@ class SemanticAnalyzer:
                 )
                 methods[m.name] = FunctionType(param_types=param_types, return_type=ret_t)
         finally:
+            self._current_self_type = old_self
             self._exit_scope()
 
         self._traits[decl.name] = methods
@@ -953,21 +971,28 @@ class SemanticAnalyzer:
         target_type = self.resolve_type_expr(decl.target)
 
         provided: dict[str, FunctionType] = {}
-        for fn in decl.members:
-            # Strip implicit 'self' to match the same convention as trait recording.
-            explicit_params = (
-                fn.params[1:] if fn.params and fn.params[0].name == "self" else fn.params
-            )
-            param_types = tuple(
-                self.resolve_type_expr(p.type_annotation)
-                if p.type_annotation is not None
-                else UNKNOWN_TYPE
-                for p in explicit_params
-            )
-            ret_t = (
-                self.resolve_type_expr(fn.return_type) if fn.return_type is not None else NIL_TYPE
-            )
-            provided[fn.name] = FunctionType(param_types=param_types, return_type=ret_t)
+        old_self = self._current_self_type
+        self._current_self_type = target_type
+        try:
+            for fn in decl.members:
+                # Strip implicit 'self' to match the same convention as trait recording.
+                explicit_params = (
+                    fn.params[1:] if fn.params and fn.params[0].name == "self" else fn.params
+                )
+                param_types = tuple(
+                    self.resolve_type_expr(p.type_annotation)
+                    if p.type_annotation is not None
+                    else UNKNOWN_TYPE
+                    for p in explicit_params
+                )
+                ret_t = (
+                    self.resolve_type_expr(fn.return_type)
+                    if fn.return_type is not None
+                    else NIL_TYPE
+                )
+                provided[fn.name] = FunctionType(param_types=param_types, return_type=ret_t)
+        finally:
+            self._current_self_type = old_self
 
         # Record the impl for call-site resolution
         if trait_full_name:
@@ -1300,7 +1325,12 @@ class SemanticAnalyzer:
                 )
             return None
 
-        return matches[0][1]
+        # Substitute 'Self' in the matched method signature with the actual receiver type.
+        sig = matches[0][1]
+        substituted = self._substitute_typevars(sig, {"Self": receiver_t})
+        if isinstance(substituted, FunctionType):
+            return substituted
+        return sig
 
     def _resolve_module_path(self, module_name: ast.QualifiedName) -> Path | None:
         """Resolve a dotted module name from the current base directory."""
@@ -2914,6 +2944,11 @@ class SemanticAnalyzer:
                 )
                 self._warned_raw_pointer = True
             return PointerType(type_expr.pointer_kind, inner)
+        elif isinstance(type_expr, ast.SelfType):
+            if self._current_self_type is not None:
+                return self._current_self_type
+            self.error("'Self' type used outside of trait or implementation", type_expr)
+            return ERROR_TYPE
         return UNKNOWN_TYPE
 
     def types_compatible(self, actual: Type, expected: Type) -> bool:
@@ -2923,8 +2958,14 @@ class SemanticAnalyzer:
             return True  # Error recovery
         if actual.kind == TypeKind.UNKNOWN or expected.kind == TypeKind.UNKNOWN:
             return True  # Allow unknown types during inference
-        if actual.kind == TypeKind.TYPEVAR or expected.kind == TypeKind.TYPEVAR:
-            return True  # Generic prototype: treat type vars as compatible with anything
+
+        # Self placeholder is compatible with anything during trait/impl validation.
+        if isinstance(actual, SelfType) or isinstance(expected, SelfType):
+            return True
+
+        # Type variables are only compatible with themselves in this prototype.
+        if isinstance(actual, TypeVarType) or isinstance(expected, TypeVarType):
+            return actual == expected
 
         # Borrow compatibility:
         # - allow passing `&T` to `&T` (mutability must not be weakened)

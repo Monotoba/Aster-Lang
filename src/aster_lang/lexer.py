@@ -31,6 +31,7 @@ class TokenKind(Enum):
     NOT = auto()
     AND = auto()
     OR = auto()
+    SELF = auto()
 
     # Operators
     ASSIGN = auto()  # <-
@@ -106,6 +107,7 @@ KEYWORDS = {
     "not": TokenKind.NOT,
     "and": TokenKind.AND,
     "or": TokenKind.OR,
+    "Self": TokenKind.SELF,
 }
 
 

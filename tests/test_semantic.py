@@ -1951,3 +1951,42 @@ fn main():
     analyzer = SemanticAnalyzer()
     analyzer.analyze(module)
     assert not analyzer.has_errors()
+
+
+def test_trait_self_type_inference_passes() -> None:
+    source = """
+trait Clone:
+    fn clone(self) -> Self
+
+impl Clone for Int:
+    fn clone(self) -> Int:
+        return 42
+
+fn test[T: Clone](x: T):
+    # If Self is working, x.clone() should return T
+    y: T := x.clone()
+"""
+    module = parse_module(source)
+    analyzer = SemanticAnalyzer()
+    analyzer.analyze(module)
+    assert not analyzer.has_errors()
+
+
+def test_trait_self_type_inference_mismatch_fails() -> None:
+    source = """
+trait Clone:
+    fn clone(self) -> Self
+
+impl Clone for Int:
+    fn clone(self) -> Int:
+        return 42
+
+fn test[T: Clone](x: T):
+    # x.clone() returns T, which is not String
+    y: String := x.clone()
+"""
+    module = parse_module(source)
+    analyzer = SemanticAnalyzer()
+    analyzer.analyze(module)
+    assert analyzer.has_errors()
+    assert any("Type mismatch" in e.message for e in analyzer.errors)
