@@ -29,6 +29,7 @@ Caching and incremental compilation is done:
 - `math` module — `floor`, `ceil`, `round`, `sqrt`, `pow`, `log`, `log2`, `log10`, `sin`, `cos`, `tan`, `abs`, `min`, `max`, `clamp`, `pi`, `e`, `tau`, `inf`
 - `str` module — `split`, `join`, `strip`, `lstrip`, `rstrip`, `upper`, `lower`, `starts_with`, `ends_with`, `contains`, `find`, `replace`, `pad_left`, `pad_right`, `chars`, `char_at`, `repeat`, `slice`
 - `std` module — `type_of`, `panic`, `todo`, `input`
+- `linalg` module — vectors (`vec`, `vadd`, `vsub`, `vmul`, `vscale`, `vneg`, `vdot`, `vcross`, `vlen`, `vlen_sq`, `vnorm`, `vlerp`) and matrices (`mat`, `identity`, `mrows`, `mcols`, `mget`, `mrow`, `mcol`, `madd`, `msub`, `mscale`, `mmul`, `mvmul`, `mtranspose`, `mdet`, `minv`)
 - `FloatValue` runtime type added to interpreter
 - `FloatType` added to semantic type system
 - Native module registry (`native_modules.py`) with interpreter interception and semantic symbol hook

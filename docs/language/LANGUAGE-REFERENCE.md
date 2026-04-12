@@ -456,3 +456,66 @@ fn main():
 fn unfinished():
     std.todo()  # raises at runtime if called
 ```
+
+### linalg
+
+Linear algebra: vectors and matrices. Vectors are plain `List[Float/Int]`; matrices are
+`List[List[Float/Int]]` in row-major order. Import with `use linalg`.
+
+#### Vectors
+
+| Function | Returns | Description |
+|----------|---------|-------------|
+| `linalg.vec(x, y, ...)` | List | Construct a vector from scalar components |
+| `linalg.vdim(v)` | Int | Number of components |
+| `linalg.vadd(a, b)` | List | Element-wise addition |
+| `linalg.vsub(a, b)` | List | Element-wise subtraction |
+| `linalg.vmul(a, b)` | List | Element-wise (Hadamard) product |
+| `linalg.vscale(v, s)` | List | Multiply each component by scalar `s` |
+| `linalg.vneg(v)` | List | Negate all components |
+| `linalg.vdot(a, b)` | Int or Float | Dot product |
+| `linalg.vcross(a, b)` | List | Cross product (3D vectors only) |
+| `linalg.vlen(v)` | Float | Euclidean length (magnitude) |
+| `linalg.vlen_sq(v)` | Int or Float | Squared length |
+| `linalg.vnorm(v)` | List | Unit vector in same direction (raises on zero-length) |
+| `linalg.vlerp(a, b, t)` | List | Linear interpolation: `a + t*(b-a)` |
+
+#### Matrices
+
+| Function | Returns | Description |
+|----------|---------|-------------|
+| `linalg.mat(row0, row1, ...)` | List[List] | Construct from row vectors (each a `List`) |
+| `linalg.identity(n)` | List[List] | n×n identity matrix |
+| `linalg.mrows(m)` | Int | Number of rows |
+| `linalg.mcols(m)` | Int | Number of columns |
+| `linalg.mget(m, i, j)` | Int or Float | Element at row `i`, column `j` |
+| `linalg.mrow(m, i)` | List | Row vector `i` |
+| `linalg.mcol(m, j)` | List | Column vector `j` |
+| `linalg.madd(a, b)` | List[List] | Element-wise addition |
+| `linalg.msub(a, b)` | List[List] | Element-wise subtraction |
+| `linalg.mscale(m, s)` | List[List] | Multiply every element by scalar `s` |
+| `linalg.mmul(a, b)` | List[List] | Matrix product |
+| `linalg.mvmul(m, v)` | List | Matrix × column vector |
+| `linalg.mtranspose(m)` | List[List] | Transpose |
+| `linalg.mdet(m)` | Int or Float | Determinant (square matrices only) |
+| `linalg.minv(m)` | List[List] | Inverse (raises if singular) |
+
+```aster
+use linalg
+
+fn main():
+    # Vector example
+    a := linalg.vec(3, 4)
+    print(linalg.vlen(a))          # 5
+    b := linalg.vnorm(a)
+    print(linalg.vlen(b))          # 1.0
+
+    # Matrix example
+    m := linalg.mat([2, 0], [0, 3])
+    v := linalg.vec(5, 7)
+    r := linalg.mvmul(m, v)
+    print(r[0])                    # 10
+    print(r[1])                    # 21
+
+    print(linalg.mdet(m))          # 6
+```

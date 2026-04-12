@@ -31,7 +31,7 @@ Phases 2–5 are largely complete. The language can parse, format, analyze, exec
 - **VM build artifacts**: `aster build --backend vm` emits a runnable launcher plus a serialized, versioned, integrity-checked `*.asterbc.json` bytecode program and minimal bundled VM runtime; the loader currently supports schema version `1`, with optional HMAC signing via `ASTER_VM_SIGNING_KEY`
 - **String operations**: `+` concatenation, `len()`, `str()`, `int()` built-ins
 - **Fixed-width unsigned integers**: `Nibble`/`Byte`/`Word`/`DWord`/`QWord` plus cast builtins (`nibble/byte/word/dword/qword`) and bitwise ops (`& | ^ ~ << >>`)
-- **850 passing tests** covering parser, semantics, interpreter, formatter, CLI, compiler, REPL, AST printer, typed HIR, the experimental bytecode VM backend, the caching layer, test runner, doc generator, and native stdlib modules
+- **889 passing tests** covering parser, semantics, interpreter, formatter, CLI, compiler, REPL, AST printer, typed HIR, the experimental bytecode VM backend, the caching layer, test runner, doc generator, and native stdlib modules
 - beginner-friendly tutorials and runnable example programs under `tutorials/` (20 tutorials; explicitly avoiding ownership/borrow enforcement by default)
 - progressively more complex multi-file example programs under `examples/programs/`
 - language and toolchain docs
@@ -45,7 +45,7 @@ Phases 2–5 are largely complete. The language can parse, format, analyze, exec
 - **Test runner**: `aster test [path]` discovers `test_*.aster` files, runs every `fn test_*()`, reports pass/fail; `assert(cond)` and `assert(cond, message)` built-ins available in test files
 - **Doc generator**: `aster doc <file>` extracts `##` doc comments from `pub` declarations and emits a Markdown file; `--out-dir` controls output location
 - **Error index**: `docs/ERROR-INDEX.md` catalogs 55 named errors (PAR/SEM/INT/VM/MOD/LCK/CLI) with causes, examples, and fixes
-- **Standard library**: native `math`, `str`, and `std` modules importable via `use math`, `use str`, `use std`; backed by Python's standard library; no `.aster` files needed
+- **Standard library**: native `math`, `str`, `std`, and `linalg` modules importable via `use math` etc.; backed by Python's standard library; no `.aster` files needed
 - **FloatValue** runtime type and **FloatType** semantic type added; used by math module return values
 
 ## Lexer Features

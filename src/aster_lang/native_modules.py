@@ -383,6 +383,316 @@ def _build_std_module() -> object:
 
 
 # ---------------------------------------------------------------------------
+# linalg module
+# ---------------------------------------------------------------------------
+
+
+def _build_linalg_module() -> object:
+    """Linear algebra: vectors and matrices backed by plain Aster lists."""
+    interp = _interp()
+    IV = interp.IntValue  # type: ignore[attr-defined]
+    LV = interp.ListValue  # type: ignore[attr-defined]
+    BF = interp.BuiltinFunction  # type: ignore[attr-defined]
+    MV = interp.ModuleValue  # type: ignore[attr-defined]
+    IE = interp.InterpreterError  # type: ignore[attr-defined]
+
+    # ------------------------------------------------------------------
+    # Python-level helpers
+    # ------------------------------------------------------------------
+
+    def _v2py(v: object) -> list:
+        """ListValue of numerics → list[float]."""
+        if not isinstance(v, interp.ListValue):  # type: ignore[attr-defined]
+            raise IE("linalg: expected a vector (List), got " + type(v).__name__)
+        return [_to_float(e) for e in v.elements]  # type: ignore[attr-defined]
+
+    def _py2v(xs: list) -> object:
+        """list[float] → ListValue, using Int when value is whole."""
+        return LV(tuple(_int_or_float(x) for x in xs))
+
+    def _m2py(m: object) -> list:
+        """ListValue of ListValues → list[list[float]]."""
+        if not isinstance(m, interp.ListValue):  # type: ignore[attr-defined]
+            raise IE("linalg: expected a matrix (List of Lists), got " + type(m).__name__)
+        rows = []
+        for i, row in enumerate(m.elements):  # type: ignore[attr-defined]
+            if not isinstance(row, interp.ListValue):  # type: ignore[attr-defined]
+                raise IE(f"linalg: matrix row {i} must be a List")
+            rows.append([_to_float(e) for e in row.elements])  # type: ignore[attr-defined]
+        return rows
+
+    def _py2m(rows: list) -> object:
+        """list[list[float]] → ListValue of ListValues."""
+        return LV(tuple(_py2v(row) for row in rows))
+
+    def _check_same_dim(a: list, b: list, name: str) -> None:
+        if len(a) != len(b):
+            raise IE(f"linalg.{name}: dimension mismatch ({len(a)} vs {len(b)})")
+
+    def _check_same_shape(a: list, b: list, name: str) -> None:
+        ra, rb = len(a), len(b)
+        if ra != rb or (ra > 0 and len(a[0]) != len(b[0])):
+            raise IE(
+                f"linalg.{name}: shape mismatch "
+                f"({ra}×{len(a[0]) if ra else 0} vs {rb}×{len(b[0]) if rb else 0})"
+            )
+
+    def _require_square(m: list, name: str) -> int:
+        n = len(m)
+        if n == 0:
+            raise IE(f"linalg.{name}: empty matrix")
+        for i, row in enumerate(m):
+            if len(row) != n:
+                raise IE(
+                    f"linalg.{name}: matrix must be square "
+                    f"(row {i} has {len(row)} cols, expected {n})"
+                )
+        return n
+
+    def _det_py(m: list) -> float:
+        """Determinant via cofactor expansion."""
+        n = len(m)
+        if n == 1:
+            return m[0][0]
+        if n == 2:
+            return m[0][0] * m[1][1] - m[0][1] * m[1][0]
+        result = 0.0
+        for j in range(n):
+            minor = [[m[r][c] for c in range(n) if c != j] for r in range(1, n)]
+            result += ((-1.0) ** j) * m[0][j] * _det_py(minor)
+        return result
+
+    def _inv_py(m: list) -> list:
+        """Matrix inverse via Gaussian elimination with partial pivoting."""
+        n = len(m)
+        aug = [row[:] + [1.0 if i == j else 0.0 for j in range(n)] for i, row in enumerate(m)]
+        for col in range(n):
+            pivot = max(range(col, n), key=lambda r: abs(aug[r][col]))
+            aug[col], aug[pivot] = aug[pivot], aug[col]
+            if abs(aug[col][col]) < 1e-12:
+                raise IE("linalg.minv: matrix is singular (no inverse)")
+            div = aug[col][col]
+            aug[col] = [x / div for x in aug[col]]
+            for row in range(n):
+                if row != col:
+                    factor = aug[row][col]
+                    aug[row] = [aug[row][k] - factor * aug[col][k] for k in range(2 * n)]
+        return [row[n:] for row in aug]
+
+    # ------------------------------------------------------------------
+    # Vector functions
+    # ------------------------------------------------------------------
+
+    def _vec(args: list) -> object:
+        """vec(x, y, ...) — construct a vector from scalar components."""
+        if not args:
+            raise IE("linalg.vec: requires at least one component")
+        return _py2v([_to_float(a) for a in args])
+
+    def _vdim(args: list) -> object:
+        v = _v2py(args[0])
+        return IV(len(v))
+
+    def _vadd(args: list) -> object:
+        a, b = _v2py(args[0]), _v2py(args[1])
+        _check_same_dim(a, b, "vadd")
+        return _py2v([x + y for x, y in zip(a, b, strict=True)])
+
+    def _vsub(args: list) -> object:
+        a, b = _v2py(args[0]), _v2py(args[1])
+        _check_same_dim(a, b, "vsub")
+        return _py2v([x - y for x, y in zip(a, b, strict=True)])
+
+    def _vmul(args: list) -> object:
+        """Element-wise (Hadamard) product."""
+        a, b = _v2py(args[0]), _v2py(args[1])
+        _check_same_dim(a, b, "vmul")
+        return _py2v([x * y for x, y in zip(a, b, strict=True)])
+
+    def _vscale(args: list) -> object:
+        v = _v2py(args[0])
+        s = _to_float(args[1])
+        return _py2v([x * s for x in v])
+
+    def _vdot(args: list) -> object:
+        a, b = _v2py(args[0]), _v2py(args[1])
+        _check_same_dim(a, b, "vdot")
+        return _int_or_float(sum(x * y for x, y in zip(a, b, strict=True)))
+
+    def _vcross(args: list) -> object:
+        a, b = _v2py(args[0]), _v2py(args[1])
+        if len(a) != 3 or len(b) != 3:
+            raise IE("linalg.vcross: cross product requires 3-dimensional vectors")
+        return _py2v(
+            [
+                a[1] * b[2] - a[2] * b[1],
+                a[2] * b[0] - a[0] * b[2],
+                a[0] * b[1] - a[1] * b[0],
+            ]
+        )
+
+    def _vlen(args: list) -> object:
+        v = _v2py(args[0])
+        return _int_or_float(_math.sqrt(sum(x * x for x in v)))
+
+    def _vlen_sq(args: list) -> object:
+        v = _v2py(args[0])
+        return _int_or_float(sum(x * x for x in v))
+
+    def _vnorm(args: list) -> object:
+        v = _v2py(args[0])
+        length = _math.sqrt(sum(x * x for x in v))
+        if length < 1e-15:
+            raise IE("linalg.vnorm: cannot normalize zero-length vector")
+        return _py2v([x / length for x in v])
+
+    def _vneg(args: list) -> object:
+        return _py2v([-x for x in _v2py(args[0])])
+
+    def _vlerp(args: list) -> object:
+        a, b = _v2py(args[0]), _v2py(args[1])
+        t = _to_float(args[2])
+        _check_same_dim(a, b, "vlerp")
+        return _py2v([x + t * (y - x) for x, y in zip(a, b, strict=True)])
+
+    # ------------------------------------------------------------------
+    # Matrix functions
+    # ------------------------------------------------------------------
+
+    def _mat(args: list) -> object:
+        """mat(row0, row1, ...) — construct a matrix from row vectors (Lists)."""
+        if not args:
+            raise IE("linalg.mat: requires at least one row")
+        rows = [_v2py(a) for a in args]
+        ncols = len(rows[0])
+        for i, row in enumerate(rows[1:], 1):
+            if len(row) != ncols:
+                raise IE(f"linalg.mat: row {i} has {len(row)} columns, expected {ncols}")
+        return _py2m(rows)
+
+    def _identity(args: list) -> object:
+        n = _require_int(args[0], "linalg.identity")
+        if n <= 0:
+            raise IE("linalg.identity: size must be positive")
+        return _py2m([[1.0 if i == j else 0.0 for j in range(n)] for i in range(n)])
+
+    def _mrows(args: list) -> object:
+        return IV(len(_m2py(args[0])))
+
+    def _mcols(args: list) -> object:
+        m = _m2py(args[0])
+        return IV(len(m[0]) if m else 0)
+
+    def _mget(args: list) -> object:
+        m = _m2py(args[0])
+        i = _require_int(args[1], "linalg.mget")
+        j = _require_int(args[2], "linalg.mget")
+        if i < 0 or i >= len(m):
+            raise IE(f"linalg.mget: row index {i} out of bounds")
+        if j < 0 or j >= len(m[i]):
+            raise IE(f"linalg.mget: col index {j} out of bounds")
+        return _int_or_float(m[i][j])
+
+    def _mrow(args: list) -> object:
+        m = _m2py(args[0])
+        i = _require_int(args[1], "linalg.mrow")
+        if i < 0 or i >= len(m):
+            raise IE(f"linalg.mrow: row index {i} out of bounds")
+        return _py2v(m[i])
+
+    def _mcol(args: list) -> object:
+        m = _m2py(args[0])
+        j = _require_int(args[1], "linalg.mcol")
+        if not m or j < 0 or j >= len(m[0]):
+            raise IE(f"linalg.mcol: col index {j} out of bounds")
+        return _py2v([m[i][j] for i in range(len(m))])
+
+    def _madd(args: list) -> object:
+        a, b = _m2py(args[0]), _m2py(args[1])
+        _check_same_shape(a, b, "madd")
+        return _py2m([[a[i][j] + b[i][j] for j in range(len(a[i]))] for i in range(len(a))])
+
+    def _msub(args: list) -> object:
+        a, b = _m2py(args[0]), _m2py(args[1])
+        _check_same_shape(a, b, "msub")
+        return _py2m([[a[i][j] - b[i][j] for j in range(len(a[i]))] for i in range(len(a))])
+
+    def _mscale(args: list) -> object:
+        m = _m2py(args[0])
+        s = _to_float(args[1])
+        return _py2m([[v * s for v in row] for row in m])
+
+    def _mmul(args: list) -> object:
+        a, b = _m2py(args[0]), _m2py(args[1])
+        ra, ca = len(a), len(a[0]) if a else 0
+        rb, cb = len(b), len(b[0]) if b else 0
+        if ca != rb:
+            raise IE(f"linalg.mmul: incompatible shapes ({ra}×{ca} · {rb}×{cb})")
+        result = [[sum(a[i][k] * b[k][j] for k in range(ca)) for j in range(cb)] for i in range(ra)]
+        return _py2m(result)
+
+    def _mvmul(args: list) -> object:
+        """Matrix × column-vector."""
+        m = _m2py(args[0])
+        v = _v2py(args[1])
+        cols = len(m[0]) if m else 0
+        if len(v) != cols:
+            raise IE(f"linalg.mvmul: matrix has {cols} cols but vector has {len(v)} components")
+        return _py2v([sum(m[i][k] * v[k] for k in range(cols)) for i in range(len(m))])
+
+    def _mtranspose(args: list) -> object:
+        m = _m2py(args[0])
+        if not m:
+            return _py2m([])
+        rows, cols = len(m), len(m[0])
+        return _py2m([[m[r][c] for r in range(rows)] for c in range(cols)])
+
+    def _mdet(args: list) -> object:
+        m = _m2py(args[0])
+        _require_square(m, "mdet")
+        return _int_or_float(_det_py(m))
+
+    def _minv(args: list) -> object:
+        m = _m2py(args[0])
+        _require_square(m, "minv")
+        return _py2m(_inv_py(m))
+
+    exports: dict[str, object] = {
+        # Vectors
+        "vec": BF("vec", _vec, arity=-1),
+        "vdim": BF("vdim", _vdim, arity=1),
+        "vadd": BF("vadd", _vadd, arity=2),
+        "vsub": BF("vsub", _vsub, arity=2),
+        "vmul": BF("vmul", _vmul, arity=2),
+        "vscale": BF("vscale", _vscale, arity=2),
+        "vdot": BF("vdot", _vdot, arity=2),
+        "vcross": BF("vcross", _vcross, arity=2),
+        "vlen": BF("vlen", _vlen, arity=1),
+        "vlen_sq": BF("vlen_sq", _vlen_sq, arity=1),
+        "vnorm": BF("vnorm", _vnorm, arity=1),
+        "vneg": BF("vneg", _vneg, arity=1),
+        "vlerp": BF("vlerp", _vlerp, arity=3),
+        # Matrices
+        "mat": BF("mat", _mat, arity=-1),
+        "identity": BF("identity", _identity, arity=1),
+        "mrows": BF("mrows", _mrows, arity=1),
+        "mcols": BF("mcols", _mcols, arity=1),
+        "mget": BF("mget", _mget, arity=3),
+        "mrow": BF("mrow", _mrow, arity=2),
+        "mcol": BF("mcol", _mcol, arity=2),
+        "madd": BF("madd", _madd, arity=2),
+        "msub": BF("msub", _msub, arity=2),
+        "mscale": BF("mscale", _mscale, arity=2),
+        "mmul": BF("mmul", _mmul, arity=2),
+        "mvmul": BF("mvmul", _mvmul, arity=2),
+        "mtranspose": BF("mtranspose", _mtranspose, arity=1),
+        "mdet": BF("mdet", _mdet, arity=1),
+        "minv": BF("minv", _minv, arity=1),
+    }
+    return MV("linalg", exports)
+
+
+# ---------------------------------------------------------------------------
 # Registry
 # ---------------------------------------------------------------------------
 
@@ -390,6 +700,7 @@ NATIVE_MODULES: dict[str, Callable[[], object]] = {
     "math": _build_math_module,
     "str": _build_str_module,
     "std": _build_std_module,
+    "linalg": _build_linalg_module,
 }
 
 # ---------------------------------------------------------------------------
@@ -487,7 +798,50 @@ def _build_native_symbols() -> dict[str, dict[str, object]]:
         "input": _sym("input", ret_str),
     }
 
-    return {"math": math_syms, "str": str_syms, "std": std_syms}  # type: ignore[return-value]
+    ret_vec = FunctionType(param_types=(UNKNOWN_TYPE,), return_type=ListType(UNKNOWN_TYPE))
+    ret_mat = FunctionType(
+        param_types=(UNKNOWN_TYPE,), return_type=ListType(ListType(UNKNOWN_TYPE))
+    )
+
+    linalg_syms = {
+        # Vectors
+        "vec": _sym("vec", ret_vec),
+        "vdim": _sym("vdim", ret_int),
+        "vadd": _sym("vadd", ret_vec),
+        "vsub": _sym("vsub", ret_vec),
+        "vmul": _sym("vmul", ret_vec),
+        "vscale": _sym("vscale", ret_vec),
+        "vdot": _sym("vdot", ret_unk),
+        "vcross": _sym("vcross", ret_vec),
+        "vlen": _sym("vlen", ret_float),
+        "vlen_sq": _sym("vlen_sq", ret_unk),
+        "vnorm": _sym("vnorm", ret_vec),
+        "vneg": _sym("vneg", ret_vec),
+        "vlerp": _sym("vlerp", ret_vec),
+        # Matrices
+        "mat": _sym("mat", ret_mat),
+        "identity": _sym("identity", ret_mat),
+        "mrows": _sym("mrows", ret_int),
+        "mcols": _sym("mcols", ret_int),
+        "mget": _sym("mget", ret_unk),
+        "mrow": _sym("mrow", ret_vec),
+        "mcol": _sym("mcol", ret_vec),
+        "madd": _sym("madd", ret_mat),
+        "msub": _sym("msub", ret_mat),
+        "mscale": _sym("mscale", ret_mat),
+        "mmul": _sym("mmul", ret_mat),
+        "mvmul": _sym("mvmul", ret_vec),
+        "mtranspose": _sym("mtranspose", ret_mat),
+        "mdet": _sym("mdet", ret_unk),
+        "minv": _sym("minv", ret_mat),
+    }
+
+    return {  # type: ignore[return-value]
+        "math": math_syms,
+        "str": str_syms,
+        "std": std_syms,
+        "linalg": linalg_syms,
+    }
 
 
 # Populated on first import of this module.
