@@ -28,8 +28,8 @@
 - [x] manifest-configured module search roots
 - [x] manifest package identity for current-package imports
 - [x] semantic validation for local destructuring bindings
-- [ ] ownership / borrow checking prototype (basic mutability checking done)
-- [ ] trait resolution prototype
+- [x] ownership / borrow checking prototype (move semantics, borrow rules, use-after-move enforcement)
+- [x] trait resolution prototype (impl validation, call-site method resolution, Self type)
 - [ ] effect tracking prototype
 
 ## Phase 4: interpreter
