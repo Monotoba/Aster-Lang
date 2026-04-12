@@ -54,7 +54,18 @@ class Formatter:
     # ------------------------------------------------------------------
     # Declarations
 
+    def _emit_leading_comments(self, node: ast.Node) -> None:
+        """Emit any leading comments attached to *node*."""
+        for comment in node.leading_comments:
+            self._emit(comment)
+
+    def _apply_trailing_comment(self, node: ast.Node) -> None:
+        """Append a trailing comment to the last emitted line, if any."""
+        if node.trailing_comment and self._lines:
+            self._lines[-1] = self._lines[-1] + "  " + node.trailing_comment
+
     def _format_decl(self, decl: ast.Decl) -> None:
+        self._emit_leading_comments(decl)
         if isinstance(decl, ast.FunctionDecl):
             self._format_function_decl(decl)
         elif isinstance(decl, ast.LetDecl):
@@ -69,6 +80,7 @@ class Formatter:
             self._format_impl_decl(decl)
         else:
             self._emit(f"# (unknown decl: {type(decl).__name__})")
+        self._apply_trailing_comment(decl)
 
     def _format_function_decl(self, decl: ast.FunctionDecl) -> None:
         pub = "pub " if decl.is_public else ""
@@ -151,6 +163,11 @@ class Formatter:
     # Statements
 
     def _format_stmt(self, stmt: ast.Stmt) -> None:
+        self._emit_leading_comments(stmt)
+        self._format_stmt_inner(stmt)
+        self._apply_trailing_comment(stmt)
+
+    def _format_stmt_inner(self, stmt: ast.Stmt) -> None:
         if isinstance(stmt, ast.LetStmt):
             mut = "mut " if stmt.is_mutable else ""
             ann = f": {self._format_type(stmt.type_annotation)}" if stmt.type_annotation else ""
@@ -195,6 +212,7 @@ class Formatter:
         self._emit(f"match {self._format_expr(stmt.subject)}:")
         self._indent()
         for arm in stmt.arms:
+            self._emit_leading_comments(arm)
             pat = self._format_pattern(arm.pattern)
             # Single inline ExprStmt arm → keep on one line
             if len(arm.body) == 1 and isinstance(arm.body[0], ast.ExprStmt):
@@ -206,6 +224,7 @@ class Formatter:
                 for s in arm.body:
                     self._format_stmt(s)
                 self._dedent()
+            self._apply_trailing_comment(arm)
         self._dedent()
 
     def _format_pattern(self, pattern: ast.Pattern) -> str:

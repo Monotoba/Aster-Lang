@@ -141,6 +141,7 @@ class LexerState:
     indent_stack: list[int]
     pending_tokens: list[Token]
     at_line_start: bool
+    comments: list[tuple[int, int, str]]
 
 
 class Lexer:
@@ -154,6 +155,7 @@ class Lexer:
         self.indent_stack: list[int] = [0]  # Stack of indentation levels
         self.pending_tokens: list[Token] = []  # Tokens to emit before next token
         self.at_line_start = True  # Track if we're at the start of a line
+        self.comments: list[tuple[int, int, str]] = []  # (line, col, text) for each comment
 
     def current_location(self) -> SourceLocation:
         """Get the current source location."""
@@ -184,10 +186,14 @@ class Lexer:
             self.advance()
 
     def skip_comment(self) -> None:
-        """Skip a comment to end of line."""
+        """Skip a comment to end of line, capturing its text."""
         if self.peek() == "#":
+            start_line = self.line
+            start_col = self.column
+            text: list[str] = []
             while self.peek() and self.peek() != "\n":
-                self.advance()
+                text.append(self.advance())
+            self.comments.append((start_line, start_col, "".join(text)))
 
     def read_string(self) -> str:
         """Read a string literal with escape sequences."""
@@ -313,6 +319,11 @@ class Lexer:
 
         ch = self.peek()
 
+        # Inline comment: capture and recurse to the next real token
+        if ch == "#":
+            self.skip_comment()
+            return self.next_token()
+
         # Newline
         if ch == "\n":
             self.advance()
@@ -433,6 +444,7 @@ class Lexer:
             indent_stack=self.indent_stack.copy(),
             pending_tokens=self.pending_tokens.copy(),
             at_line_start=self.at_line_start,
+            comments=self.comments.copy(),
         )
 
     def restore(self, state: LexerState) -> None:
@@ -443,6 +455,7 @@ class Lexer:
         self.indent_stack = state.indent_stack.copy()
         self.pending_tokens = state.pending_tokens.copy()
         self.at_line_start = state.at_line_start
+        self.comments = state.comments.copy()
 
 
 def tokenize(source: str) -> list[Token]:

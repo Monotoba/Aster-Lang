@@ -482,3 +482,65 @@ def test_format_record_destructuring_binding_statement() -> None:
     src = "fn f():\n    {x,y} := point\n"
     result = fmt(src)
     assert "    {x, y} := point" in result
+
+
+# ------------------------------------------------------------------
+# Comment preservation
+
+
+def test_format_leading_comment_before_function() -> None:
+    """Leading comment above a function declaration is preserved."""
+    src = "# top-level comment\nfn foo():\n    return\n"
+    result = fmt(src)
+    assert result.startswith("# top-level comment\nfn foo():")
+
+
+def test_format_trailing_comment_on_statement() -> None:
+    """Inline trailing comment on a statement line is preserved."""
+    src = "fn foo():\n    x := 1  # inline\n"
+    result = fmt(src)
+    assert "x := 1  # inline" in result
+
+
+def test_format_leading_comment_before_statement() -> None:
+    """A comment on its own line before a statement becomes a leading comment."""
+    src = "fn foo():\n    # before\n    x := 1\n"
+    result = fmt(src)
+    assert "    # before\n    x := 1" in result
+
+
+def test_format_multiple_leading_comments() -> None:
+    """Multiple consecutive comment lines all become leading comments."""
+    src = "# line 1\n# line 2\nfn foo():\n    return\n"
+    result = fmt(src)
+    assert "# line 1\n# line 2\nfn foo():" in result
+
+
+def test_format_comments_idempotent() -> None:
+    """format(format(src)) == format(src) when comments are present."""
+    src = (
+        "# Compute sum\n"
+        "fn sum_to(n: Int) -> Int:\n"
+        "    mut total := 0  # accumulator\n"
+        "    # loop\n"
+        "    while total < n:\n"
+        "        total <- total + 1\n"
+        "    return total\n"
+    )
+    once = fmt(src)
+    twice = fmt(once)
+    assert once == twice
+
+
+def test_format_comment_between_declarations() -> None:
+    """A comment between two top-level declarations attaches to the second."""
+    src = "fn a():\n    return\n\n# separator\nfn b():\n    return\n"
+    result = fmt(src)
+    assert "# separator\nfn b():" in result
+
+
+def test_format_trailing_comment_on_decl() -> None:
+    """Inline trailing comment on a top-level binding is preserved."""
+    src = "x := 42  # the answer\n"
+    result = fmt(src)
+    assert "x := 42  # the answer" in result

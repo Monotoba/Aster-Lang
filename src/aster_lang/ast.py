@@ -9,7 +9,11 @@ from dataclasses import dataclass, field
 class Node:
     """Base class for all AST nodes."""
 
-    pass
+    # Source line span: (start_line, end_line), 1-based.  Set by the parser.
+    span: tuple[int, int] | None = field(default=None, kw_only=True)
+    # Comments attached during the comment-attachment pass.
+    leading_comments: list[str] = field(default_factory=list, kw_only=True)
+    trailing_comment: str | None = field(default=None, kw_only=True)
 
 
 @dataclass(slots=True)

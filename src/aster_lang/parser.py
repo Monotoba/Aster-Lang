@@ -82,20 +82,22 @@ class Parser:
 
     def parse_top_level_item(self) -> ast.Decl:
         """Parse a top-level declaration."""
+        start_line = self.current.start.line
         is_public = self.match(TokenKind.PUB)
 
+        node: ast.Decl
         if self.check(TokenKind.FN):
-            return self.parse_function_decl(is_public)
+            node = self.parse_function_decl(is_public)
         elif self.check(TokenKind.TRAIT):
-            return self.parse_trait_decl(is_public)
+            node = self.parse_trait_decl(is_public)
         elif self.check(TokenKind.IMPL):
             if is_public:
                 raise ParseError("impl blocks cannot be declared pub", self.current)
-            return self.parse_impl_decl()
+            node = self.parse_impl_decl()
         elif self.check(TokenKind.TYPEALIAS):
-            return self.parse_type_alias_decl(is_public)
+            node = self.parse_type_alias_decl(is_public)
         elif self.check(TokenKind.USE):
-            return self.parse_import_decl()
+            node = self.parse_import_decl()
         elif self.check(TokenKind.MUT, TokenKind.IDENTIFIER):
             # Top-level binding declaration
             is_mutable = self.match(TokenKind.MUT)
@@ -112,7 +114,7 @@ class Parser:
             initializer = self.parse_expression()
             self.skip_newlines()
 
-            return ast.LetDecl(
+            node = ast.LetDecl(
                 name=name,
                 type_annotation=type_annotation,
                 initializer=initializer,
@@ -121,6 +123,10 @@ class Parser:
             )
         else:
             raise ParseError(f"Expected declaration, got {self.current.kind.name}", self.current)
+
+        end_line = self.previous.start.line if self.previous else start_line
+        node.span = (start_line, end_line)
+        return node
 
     def parse_function_decl(self, is_public: bool = False) -> ast.FunctionDecl:
         """Parse function declaration: fn name(params) -> Type: body"""
@@ -403,6 +409,14 @@ class Parser:
 
     def parse_statement(self) -> ast.Stmt:
         """Parse a statement."""
+        start_line = self.current.start.line
+        stmt = self._parse_statement_inner()
+        end_line = self.previous.start.line if self.previous else start_line
+        stmt.span = (start_line, end_line)
+        return stmt
+
+    def _parse_statement_inner(self) -> ast.Stmt:
+        """Parse a statement (inner implementation without span tracking)."""
         # Binding statement: mut? name: Type := expr
         if self.check(
             TokenKind.MUT,
@@ -571,17 +585,22 @@ class Parser:
 
     def parse_match_arm(self) -> ast.MatchArm:
         """Parse a single match arm: pattern: (expr | block)"""
+        start_line = self.current.start.line
         pattern = self.parse_pattern()
         self.expect(TokenKind.COLON)
 
         # Block arm: pattern: NEWLINE INDENT stmts DEDENT
         if self.check(TokenKind.NEWLINE, TokenKind.INDENT):
             body = self.parse_block()
-            return ast.MatchArm(pattern=pattern, body=body)
+            arm = ast.MatchArm(pattern=pattern, body=body)
+        else:
+            # Inline arm: pattern: stmt NEWLINE
+            stmt = self.parse_statement()
+            arm = ast.MatchArm(pattern=pattern, body=[stmt])
 
-        # Inline arm: pattern: stmt NEWLINE
-        stmt = self.parse_statement()
-        return ast.MatchArm(pattern=pattern, body=[stmt])
+        end_line = self.previous.start.line if self.previous else start_line
+        arm.span = (start_line, end_line)
+        return arm
 
     def parse_pattern(self) -> ast.Pattern:
         """Parse a match pattern."""
@@ -996,10 +1015,82 @@ class Parser:
         return 0
 
 
+def _collect_attachable_nodes(
+    nodes: list[ast.Decl | ast.Stmt | ast.MatchArm],
+    result: list[ast.Node],
+) -> None:
+    """Recursively collect all Decl, Stmt, and MatchArm nodes with spans."""
+    for node in nodes:
+        if node.span is not None:
+            result.append(node)
+        # Recurse into block-structured nodes
+        if isinstance(node, ast.FunctionDecl):
+            _collect_attachable_nodes(node.body, result)  # type: ignore[arg-type]
+        elif isinstance(node, ast.IfStmt):
+            _collect_attachable_nodes(node.then_block, result)  # type: ignore[arg-type]
+            if node.else_block:
+                _collect_attachable_nodes(node.else_block, result)  # type: ignore[arg-type]
+        elif isinstance(node, ast.WhileStmt | ast.ForStmt):
+            _collect_attachable_nodes(node.body, result)  # type: ignore[arg-type]
+        elif isinstance(node, ast.MatchStmt):
+            _collect_attachable_nodes(node.arms, result)  # type: ignore[arg-type]
+        elif isinstance(node, ast.MatchArm):
+            _collect_attachable_nodes(node.body, result)  # type: ignore[arg-type]
+        elif isinstance(node, ast.TraitDecl):
+            pass  # no child stmts
+        elif isinstance(node, ast.ImplDecl):
+            for m in node.members:
+                _collect_attachable_nodes(m.body, result)  # type: ignore[arg-type]
+
+
+def attach_comments(module: ast.Module, comments: list[tuple[int, int, str]]) -> None:
+    """Attach lexer-captured comments to the nearest AST nodes in *module*.
+
+    Rules:
+    - A comment whose column is > 0 AND on the same line as a node's start_line
+      is a trailing comment of that node (inline comment after code).
+    - A comment on its own line (col == 0, or no node starts on that line) becomes
+      a leading comment of the next node that starts after the comment's line.
+    - Comments with no following node are discarded (top-of-file or dangling).
+    """
+    if not comments:
+        return
+
+    # Collect all spannable nodes and sort by start line
+    all_nodes: list[ast.Node] = []
+    _collect_attachable_nodes(module.declarations, all_nodes)  # type: ignore[arg-type]
+    all_nodes.sort(key=lambda n: n.span[0])  # type: ignore[index]
+
+    # Build a mapping: start_line → node for trailing-comment lookup
+    start_line_map: dict[int, ast.Node] = {}
+    for node in all_nodes:
+        line = node.span[0]  # type: ignore[index]
+        if line not in start_line_map:
+            start_line_map[line] = node
+
+    for comment_line, comment_col, comment_text in comments:
+        # Trailing: same line as a node's start and the comment starts after col 0
+        if comment_col > 0 and comment_line in start_line_map:
+            node = start_line_map[comment_line]
+            node.trailing_comment = comment_text
+            continue
+
+        # Leading: find the first node whose start_line > comment_line
+        target: ast.Node | None = None
+        for node in all_nodes:
+            if node.span[0] > comment_line:  # type: ignore[index]
+                target = node
+                break
+        if target is not None:
+            target.leading_comments.append(comment_text)
+
+
 def parse_module(source: str) -> ast.Module:
     """Parse source code into an AST Module."""
     parser = Parser(source)
-    return parser.parse_module()
+    module = parser.parse_module()
+    attach_comments(module, parser.lexer.comments)
+    return module
 
 
 def parse_repl_input(source: str) -> list[ast.Decl | ast.Stmt]:

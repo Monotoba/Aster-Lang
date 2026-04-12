@@ -47,7 +47,7 @@
 - [x] stable formatting of declarations
 - [x] stable formatting of expressions
 - [x] stable formatting of destructuring bindings
-- [ ] comments preservation
+- [x] comments preservation
 - [x] idempotence tests
 
 ## Phase 6: compiler
