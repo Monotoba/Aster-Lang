@@ -634,6 +634,8 @@ class _Compiler:
             if isinstance(expr, ast.IndexExpr):
                 compile_expr(expr.obj)
                 compile_expr(expr.index)
+                if isinstance(expr.index, ast.BoolLiteral):
+                    raise VMError("Index reference requires Int or String index")
                 emit(Op.INDEX)
                 return
             if isinstance(expr, ast.LambdaExpr):

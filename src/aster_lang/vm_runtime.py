@@ -118,6 +118,8 @@ class _IndexCell(_RefCell):
             if idx not in obj:
                 raise VMError(f"Missing record field '{idx}'")
             return obj[idx]
+        if not isinstance(idx, int | str):
+            raise VMError("Index reference requires Int or String index")
         raise VMError("Unsupported index reference")
 
     @value.setter

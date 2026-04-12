@@ -385,6 +385,12 @@ def test_vm_missing_record_field_message() -> None:
         run_source_vm(src)
 
 
+def test_vm_index_reference_requires_int_or_string() -> None:
+    src = "fn main():\n    xs := [1, 2]\n    print(xs[true])\n"
+    with pytest.raises(VMError, match="Index reference requires Int or String index"):
+        run_source_vm(src)
+
+
 def test_vm_supports_nested_member_and_index_assignment() -> None:
     src = (
         "fn main():\n"
