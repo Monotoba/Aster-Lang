@@ -144,6 +144,7 @@ Next steps (choose based on goals):
 - Added parent package-root module resolution for CLI, interpreter, and semantic analysis
 - Added local tuple/list/record destructuring bindings across parser, formatter, semantics, interpreter, and transpiler
 - Compiler transpiler now emits record destructuring bindings via temp extraction and field checks
+- Documented ownership lowering strategy in compiler design notes
 - Added `aster.toml`-driven module search roots shared by runtime and semantic analysis
 - Added `package.name` support for current-package import prefixes
 - Full suite currently passes with 685 tests

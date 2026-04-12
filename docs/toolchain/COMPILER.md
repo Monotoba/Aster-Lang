@@ -34,3 +34,44 @@ Aster has:
 - effect tracking aspirations
 
 A staged compiler will make the language easier to validate and extend.
+
+## Ownership lowering strategy
+
+Goal: make ownership/borrow semantics explicit in MIR so backends can enforce or optimize
+without re-deriving intent from surface syntax.
+
+### Inputs
+- Typed HIR expressions and statements.
+- Ownership-aware types (`*own T`, `*shared T`, `*weak T`, `*raw T`, `&T`, `&mut T`).
+- Semantic ownership/borrow diagnostics already emitted in `aster check`/`build`.
+
+### MIR additions (planned)
+- `MMove(target, value)` for move-only transfers (bindings, arguments, returns).
+- `MBorrow(target, kind, temp)` where kind is `shared`/`mut`.
+- `MEndBorrow(temp)` at scope exits (or structured regions).
+- `MDrop(value)` for scope-end drops of owned values.
+
+### Lowering rules (sketch)
+- Bindings:
+  - `let x := expr` where `expr` is `*own T` emits `MMove(x, expr)`.
+  - Non-move types stay as `MLet`.
+- Calls:
+  - Passing a move-only value emits `MMove(temp, arg)` then uses `temp`.
+  - Implicit borrow arguments (`T` passed to `&T`) emit `MBorrow` in the call site.
+- Borrow expressions:
+  - `&x` / `&mut x` emit `MBorrow` and produce a ref temp used by the expression.
+  - Borrow lifetime is scoped to the smallest enclosing statement block.
+- Returns:
+  - Returning an owned value emits `MMove` into the return slot.
+  - Returning references emits no move but emits borrow checks at the call boundary.
+
+### Scope management
+- Each statement block introduces a borrow region.
+- On region exit, emit `MEndBorrow` for active borrows and `MDrop` for owned locals.
+- This mirrors the current semantic borrow scope stack (prototype) and keeps runtime
+  enforcement optional for the VM backend while enabling future native lowering.
+
+### Notes
+- The first implementation can be metadata-only (emit nodes but keep VM ignoring them).
+- This keeps the VM surface stable while enabling a future pass to enforce
+  drops/moves or to generate reference counting for `*shared` values.
