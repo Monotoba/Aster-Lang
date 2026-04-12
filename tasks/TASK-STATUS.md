@@ -117,6 +117,7 @@ Ownership and references, now including expression-level `&x` / `&mut x` borrowi
 - backend registry tests cover available-backend listing in errors
 - native backend feasibility status clarified (scoped, spike not started)
 - placeholder C backend now emits a stub `.c` file
+- native backend notes updated with C stub output detail
 - VM artifact format option documented in user guides
 - backend registry tests added for adapter scaffolding
 - backend registry validates artifact formats

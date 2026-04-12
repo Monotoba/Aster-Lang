@@ -37,3 +37,8 @@ Start with C for the feasibility spike, then revisit LLVM/Wasm after the IR inte
 ## Feasibility study status
 
 Status: scoped and documented; implementation spike not started.
+
+## Prototype output
+
+The placeholder `c` backend now emits a stub `.c` file to the build directory so
+the artifact pipeline can be exercised before real codegen.

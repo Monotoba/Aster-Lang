@@ -172,6 +172,7 @@ Next steps (choose based on goals):
 - Backend registry reports unknown backend names with available list
 - Added backend registry test to verify available-backend listing in errors
 - C backend placeholder now emits a stub `.c` output for visibility
+- Documented the C stub output in native backend notes
 - Clarified native backend feasibility status (scoped; spike not started)
 - Added caching/incremental compilation notes doc
 - Added caching next-actions checklist
