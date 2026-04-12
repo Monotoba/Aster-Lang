@@ -3,6 +3,11 @@
 ## Repository status
 Phases 2–5 are largely complete. The language can parse, format, analyze, execute, and interact via the REPL, with file-based module imports, manifest-configured module roots and dependency mapping, package naming, parent package-root lookup, `pub`-aware exports for functions/bindings/type aliases, local destructuring bindings, binding or-patterns, structural match arm compilation, qualified type names in annotations, and an AST pretty-printer.
 
+## Next focus (short)
+- Decide the comment-preserving formatter strategy (CST/trivia model) and begin implementation.
+- Continue VM parity work (mutability enforcement, destructuring bindings, remaining runtime gaps).
+- Keep JSON VM artifacts for now; revisit compression/binary encoding later (check back before changing formats).
+
 ## What exists
 - project layout and setup scripts
 - Python package skeleton with CLI (`run`, `fmt`, `check`, `build`, `ast`, `repl`, `version`)
