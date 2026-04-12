@@ -119,6 +119,7 @@ Ownership and references, now including expression-level `&x` / `&mut x` borrowi
 - placeholder C backend now emits a stub `.c` file
 - native backend notes updated with C stub output detail
 - user-facing docs mention the C stub output
+- backend adapter follow-ups added to NEXT-STEPS
 - VM artifact format option documented in user guides
 - backend registry tests added for adapter scaffolding
 - backend registry validates artifact formats

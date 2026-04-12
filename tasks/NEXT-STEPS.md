@@ -22,6 +22,10 @@ Caching/incremental notes:
 - Define cache location and invalidation strategy
 - Decide whether to reuse VM artifacts or introduce a dedicated cache format
 
+Backend adapter follow-ups:
+- Decide how to expose backend registry via CLI/help
+- Add a shared build result summary across adapters
+
 Native backend feasibility (near-term checklist):
 - Decide on single TU vs per-module C emission
 - Define minimal `AsterValue` tag set for the spike
