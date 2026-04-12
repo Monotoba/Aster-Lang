@@ -1394,6 +1394,7 @@ def test_generic_function_type_params_resolve_as_type_variables() -> None:
     assert fn_sym.type == FunctionType(
         param_types=(TypeVarType("T"),),
         return_type=TypeVarType("T"),
+        type_params={"T": ()},
     )
 
 
@@ -1911,3 +1912,42 @@ fn test[T: A + B](x: T):
     analyzer.analyze(module)
     assert analyzer.has_errors()
     assert any("Ambiguous method 'foo'" in e.message for e in analyzer.errors)
+
+
+def test_generic_call_checks_trait_bounds_on_inferred_type() -> None:
+    source = """
+trait Show:
+    fn show(self) -> String
+
+fn print_it[T: Show](x: T):
+    x.show()
+
+fn main():
+    print_it(42) # Int does not impl Show in this snippet
+"""
+    module = parse_module(source)
+    analyzer = SemanticAnalyzer()
+    analyzer.analyze(module)
+    assert analyzer.has_errors()
+    assert any("does not implement trait" in e.message for e in analyzer.errors)
+
+
+def test_generic_call_checks_trait_bounds_on_satisfied_impl_passes() -> None:
+    source = """
+trait Show:
+    fn show(self) -> String
+
+impl Show for Int:
+    fn show(self) -> String:
+        return "42"
+
+fn print_it[T: Show](x: T):
+    x.show()
+
+fn main():
+    print_it(42) # Int DOES impl Show here
+"""
+    module = parse_module(source)
+    analyzer = SemanticAnalyzer()
+    analyzer.analyze(module)
+    assert not analyzer.has_errors()

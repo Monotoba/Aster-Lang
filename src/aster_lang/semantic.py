@@ -135,11 +135,19 @@ class FunctionType(Type):
 
     param_types: tuple[Type, ...]
     return_type: Type
+    # Generic type parameters and their trait bounds: name -> (Bound1, Bound2, ...)
+    type_params: dict[str, tuple[str, ...]]
 
-    def __init__(self, param_types: tuple[Type, ...], return_type: Type) -> None:
+    def __init__(
+        self,
+        param_types: tuple[Type, ...],
+        return_type: Type,
+        type_params: dict[str, tuple[str, ...]] | None = None,
+    ) -> None:
         object.__setattr__(self, "kind", TypeKind.FUNCTION)
         object.__setattr__(self, "param_types", param_types)
         object.__setattr__(self, "return_type", return_type)
+        object.__setattr__(self, "type_params", type_params or {})
 
     def __str__(self) -> str:
         params = ", ".join(str(t) for t in self.param_types)
@@ -1022,7 +1030,8 @@ class SemanticAnalyzer:
             self._exit_scope()
 
         # Create function symbol
-        func_type = FunctionType(tuple(param_types), return_type)
+        type_params = self.decl_type_params.get(id(decl))
+        func_type = FunctionType(tuple(param_types), return_type, type_params=type_params)
         func_symbol = Symbol(
             name=decl.name,
             kind=SymbolKind.FUNCTION,
@@ -2629,6 +2638,26 @@ class SemanticAnalyzer:
                             f"Argument {i+1} type mismatch: expected {inst_param}, got {arg_t}",
                             expr,
                         )
+
+            # Validate trait bounds on inferred type parameters
+            for tp_name, bounds in func_type.type_params.items():
+                if tp_name in subs:
+                    inferred_t = subs[tp_name]
+                    for bound_ref in bounds:
+                        # Check if inferred_t implements bound_ref
+                        found = False
+                        for (target_t, impl_trait_ref), _methods in self._impls.items():
+                            if impl_trait_ref == bound_ref and self.types_compatible(
+                                inferred_t, target_t
+                            ):
+                                found = True
+                                break
+                        if not found:
+                            self.error(
+                                f"Type '{inferred_t}' does not implement trait '{bound_ref}' "
+                                f"required by type parameter '{tp_name}'",
+                                expr,
+                            )
 
             if self.ownership_mode != OwnershipMode.OFF:
                 mut_borrows: set[str] = set()
