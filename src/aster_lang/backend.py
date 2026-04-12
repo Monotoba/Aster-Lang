@@ -58,3 +58,11 @@ class BackendRegistry:
 
     def names(self) -> tuple[str, ...]:
         return tuple(sorted(self._adapters))
+
+    def validate_format(self, adapter: BackendAdapter, artifact_format: str | None) -> None:
+        if artifact_format is None:
+            return
+        if artifact_format not in adapter.supported_formats:
+            raise ValueError(
+                f"Backend '{adapter.name}' does not support artifact format '{artifact_format}'"
+            )

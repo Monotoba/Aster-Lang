@@ -3,6 +3,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path
 
+import pytest
+
 from aster_lang.backend import BackendArtifact, BackendBuildOptions, BackendRegistry
 
 
@@ -43,3 +45,15 @@ def test_backend_build_options_defaults() -> None:
     assert options.clean is False
     assert options.resolver_config is None
     assert options.artifact_format is None
+
+
+def test_backend_registry_validates_formats() -> None:
+    registry = BackendRegistry()
+    adapter = _DummyAdapter(name="dummy", supported_formats=("json", "binary"))
+    registry.register(adapter)
+
+    registry.validate_format(adapter, "json")
+    registry.validate_format(adapter, None)
+
+    with pytest.raises(ValueError, match="does not support artifact format"):
+        registry.validate_format(adapter, "xml")

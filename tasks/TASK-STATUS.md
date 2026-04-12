@@ -105,6 +105,7 @@ Ownership and references, now including expression-level `&x` / `&mut x` borrowi
 - native backend feasibility study (C-first spike plan and IR mapping sketch)
 - VM artifact format option documented in user guides
 - backend registry tests added for adapter scaffolding
+- backend registry validates artifact formats
 
 ## Blocked
 - none

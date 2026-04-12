@@ -401,6 +401,11 @@ def main(argv: list[str] | None = None) -> int:
             resolver_config=build_resolver_config,
             artifact_format=args.vm_artifact_format if args.backend == "vm" else None,
         )
+        try:
+            registry.validate_format(adapter, build_options.artifact_format)
+        except ValueError as exc:
+            print(str(exc))
+            return 1
         backend_artifact = adapter.build(build_options)
         if backend_artifact.errors:
             print(f"Build failed: {'; '.join(backend_artifact.errors)}")
