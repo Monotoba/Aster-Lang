@@ -410,12 +410,8 @@ def test_vm_index_error_message() -> None:
 
 def test_vm_rejects_unsupported_control_flow() -> None:
     src = "fn main():\n    mut t := (1, 2)\n    t[0] <- 0\n"
-    try:
+    with pytest.raises(VMError, match="Unsupported index reference assignment"):
         run_source_vm(src)
-    except VMError as exc:
-        assert "index assignment" in str(exc) or "Unsupported" in str(exc)
-    else:
-        raise AssertionError("expected VMError")
 
 
 def test_cli_vm_command(tmp_path: Path) -> None:

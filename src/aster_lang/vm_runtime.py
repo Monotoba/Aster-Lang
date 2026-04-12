@@ -711,7 +711,7 @@ class VM:
                     new_rec[idx] = value
                     target_cell_index.value = new_rec
                     continue
-                raise VMError("Unsupported index assignment in VM backend")
+                raise VMError("Unsupported index reference assignment")
             if ins.op == Op.SET_MEMBER:
                 assert isinstance(ins.arg, tuple) and len(ins.arg) == 3
                 key_k, ref_kind, ref = ins.arg
