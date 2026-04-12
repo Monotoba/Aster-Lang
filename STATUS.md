@@ -175,6 +175,7 @@ Next steps (choose based on goals):
 - Documented the C stub output in native backend notes
 - Documented C stub output in user-facing docs
 - Added backend adapter follow-ups to NEXT-STEPS
+- Added `aster backends` follow-up to NEXT-STEPS
 - Clarified native backend feasibility status (scoped; spike not started)
 - Added caching/incremental compilation notes doc
 - Added caching next-actions checklist
