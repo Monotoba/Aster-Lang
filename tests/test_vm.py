@@ -380,6 +380,12 @@ def test_vm_index_assignment_requires_int_or_string() -> None:
         run_source_vm(src)
 
 
+def test_vm_index_assignment_unsupported_base() -> None:
+    src = "fn main():\n    mut t := (1, 2)\n    t[0] <- 9\n"
+    with pytest.raises(VMError, match="Unsupported index reference assignment"):
+        run_source_vm(src)
+
+
 def test_vm_record_string_indexing() -> None:
     src = 'fn main():\n    r := {x: 1}\n    print(r["x"])\n'
     assert run_source_vm(src) == "1"
