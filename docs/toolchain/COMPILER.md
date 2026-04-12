@@ -103,6 +103,20 @@ IR mapping notes:
 - Use an `AsterValue` tagged union for dynamic values; specialize later.
 - Emit ownership hooks as no-ops initially; keep call sites intact.
 
+### Runtime stub sketch (C)
+
+Core types:
+- `AsterValue` tagged union for Int/Bool/Nil/String.
+- `AsterString { uint8_t* data; size_t len; }` for UTF-8 bytes.
+
+Helpers:
+- `aster_print(AsterValue)` for basic output.
+- `aster_add_int`, `aster_eq_int`, etc., for typed ops.
+
+Memory:
+- Use `malloc/free` in the spike with explicit ownership notes.
+- Strings owned by the producer; no ref-counting yet.
+
 ## Ownership lowering strategy
 
 Goal: make ownership/borrow semantics explicit in MIR so backends can enforce or optimize

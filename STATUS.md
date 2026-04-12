@@ -158,6 +158,7 @@ Next steps (choose based on goals):
 - Scoped a native backend feasibility study in compiler notes
 - Proposed C as the initial native backend feasibility target
 - Added a concrete C feasibility spike plan and initial IR mapping notes
+- Added a C runtime stub sketch for the native backend feasibility spike
 - Added `aster.toml`-driven module search roots shared by runtime and semantic analysis
 - Added `package.name` support for current-package import prefixes
 - Full suite currently passes with 692 tests
