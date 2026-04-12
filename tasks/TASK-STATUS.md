@@ -115,6 +115,7 @@ Ownership and references, now including expression-level `&x` / `&mut x` borrowi
 - backend registry validation tests cover None format
 - backend registry now errors with available backends on unknown names
 - backend registry tests cover available-backend listing in errors
+- native backend feasibility status clarified (scoped, spike not started)
 - VM artifact format option documented in user guides
 - backend registry tests added for adapter scaffolding
 - backend registry validates artifact formats

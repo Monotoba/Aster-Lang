@@ -171,6 +171,7 @@ Next steps (choose based on goals):
 - Added backend registry test for None-format validation
 - Backend registry reports unknown backend names with available list
 - Added backend registry test to verify available-backend listing in errors
+- Clarified native backend feasibility status (scoped; spike not started)
 - Added caching/incremental compilation notes doc
 - Added caching next-actions checklist
 - Added `aster.toml`-driven module search roots shared by runtime and semantic analysis

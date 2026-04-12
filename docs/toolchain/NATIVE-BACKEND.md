@@ -31,3 +31,8 @@ Start with C for the feasibility spike, then revisit LLVM/Wasm after the IR inte
 - Decide whether the spike should emit one C file per module or a single merged TU.
 - Define the minimal `AsterValue` tag set for the spike (Int/Bool/Nil/String).
 - Prototype a `cc` build step in the adapter harness once IR emission exists.
+- Decide whether to emit debug-friendly C with source mapping comments.
+
+## Feasibility study status
+
+Status: scoped and documented; implementation spike not started.
