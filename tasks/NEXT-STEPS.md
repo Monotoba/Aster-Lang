@@ -1,35 +1,38 @@
 # NEXT STEPS
 
 Phase 3 is complete. Phase 4 (interpreter) is complete. Phase 5 (formatter) is complete.
-Phase 6 (compiler) is in progress.
+Phase 6 (compiler) is nearly complete — one item remains.
 
-Near-term focus:
-- Keep JSON VM artifacts for now; revisit compression/binary encoding later (check back before changing formats).
+## Phase 6 remaining
 
-Open questions / deferred decisions:
+- **caching and incremental compilation** — the only open Phase 6 BACKLOG item.
+
+Caching/incremental notes (see also `docs/toolchain/CACHING.md`):
+- Pick cache directory (`.aster_cache/` in project root vs global)
+- Define a cache key schema (source hash + compiler flags + toolchain version)
+- Add a minimal `--cache` flag to `aster build` (off by default)
+- Decide whether cache entries embed backend adapter version identifiers
+- Decide whether to reuse JSON/binary VM artifacts as the cached form or add a separate internal cache format
+
+## Phase 7 (tooling) — next major phase
+
+- language server plan
+- package manager plan
+- doc generator plan
+- test runner plan
+- benchmark harness
+
+## Open questions / deferred decisions
+
 1. Decide whether nested/mixed structural or-patterns inside tuple or list elements need compiler test coverage.
 2. Decide whether non-trailing or multiple rest patterns belong in the language.
-3. Effect tracking design extension: currently a prototype (named effects declared with `effect`, propagated via `!name` annotations). Possible next steps: handler syntax, algebraic continuations, or async effects.
-4. Backend: keep JSON VM artifacts for now; revisit compression/binary encoding later (check back with the user before changing formats).
+3. Effect tracking design extension: currently a prototype (`effect Name`, `!name` annotations). Possible next steps: handler syntax, algebraic continuations, or async effects.
+4. Native backend C spike — feasibility scoped and documented; implementation (AsterValue runtime, codegen, `cc` harness) not yet started.
 
-Phase 6 remaining:
-- define HIR
-- define MIR / typed IR
-- native backend feasibility study
-- caching and incremental compilation
+## Native backend C spike (deferred, post-caching)
 
-Caching/incremental notes:
-- Define cache location and invalidation strategy
-- Decide whether to reuse VM artifacts or introduce a dedicated cache format
-- Define a cache key schema and a minimal `--cache` flag surface
-- Decide whether cache entries include backend adapter version identifiers
-
-Backend adapter follow-ups:
-- Decide how to expose backend registry via CLI/help (partially addressed by `aster backends`)
-- Add a shared build result summary across adapters
-
-Native backend feasibility (near-term checklist):
-- Decide on single TU vs per-module C emission
-- Define minimal `AsterValue` tag set for the spike
-- Prototype a `cc` build/run harness once IR emission exists
+Next steps when ready:
+- Emit one C translation unit per module (decided: single TU for spike)
+- Define minimal `AsterValue` tag set (Int/Bool/Nil/String)
+- Prototype a `cc` build/run harness in the C adapter
 - Decide whether to emit debug-friendly C with source mapping comments
