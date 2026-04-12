@@ -643,3 +643,64 @@ def test_vm_comparison_requires_integers_gt() -> None:
 def test_vm_comparison_requires_integers_ge() -> None:
     msg = _vm_error('fn main():\n    x := 1 >= "a"\n')
     assert msg == "Comparison requires integers"
+
+
+# ------------------------------------------------------------------
+# Module member access on non-module values
+
+
+def test_vm_member_on_list_gives_cannot_access() -> None:
+    src = "fn main():\n    xs := [1, 2]\n    print(xs.length)\n"
+    with pytest.raises(VMError, match="Cannot access member of list"):
+        run_source_vm(src)
+
+
+def test_vm_member_on_tuple_gives_cannot_access() -> None:
+    src = "fn main():\n    t := (1, 2)\n    print(t.first)\n"
+    with pytest.raises(VMError, match="Cannot access member of tuple"):
+        run_source_vm(src)
+
+
+def test_vm_member_on_bool_gives_cannot_access() -> None:
+    src = "fn main():\n    b := true\n    print(b.value)\n"
+    with pytest.raises(VMError, match="Cannot access member of bool"):
+        run_source_vm(src)
+
+
+def test_vm_member_on_str_gives_cannot_access() -> None:
+    src = 'fn main():\n    s := "hello"\n    print(s.length)\n'
+    with pytest.raises(VMError, match="Cannot access member of str"):
+        run_source_vm(src)
+
+
+def test_vm_module_missing_export_via_named_import(tmp_path: Path) -> None:
+    # `use helpers: answer` imports a function value into a local binding.
+    # Accessing a member on it should hit "Cannot access member of str"
+    # (fn ids are stored as strings in the VM).
+    (tmp_path / "helpers.aster").write_text(
+        "pub fn answer() -> Int:\n    return 42\n",
+        encoding="utf-8",
+    )
+    program = tmp_path / "main.aster"
+    program.write_text(
+        "use helpers: answer\n" "fn main():\n" "    print(answer.nope)\n",
+        encoding="utf-8",
+    )
+    with pytest.raises(VMError, match="Cannot access member of str"):
+        run_path_vm(program)
+
+
+def test_vm_module_access_on_non_module_binding(tmp_path: Path) -> None:
+    # A module-namespace import (no colon) binds a _ModuleValue.
+    # Accessing a non-existent export gives the "has no export" error.
+    (tmp_path / "helpers.aster").write_text(
+        "pub fn answer() -> Int:\n    return 42\n",
+        encoding="utf-8",
+    )
+    program = tmp_path / "main.aster"
+    program.write_text(
+        "use helpers\n" "fn main():\n" "    print(helpers.missing)\n",
+        encoding="utf-8",
+    )
+    with pytest.raises(VMError, match="Module 'helpers' has no export 'missing'"):
+        run_path_vm(program)
