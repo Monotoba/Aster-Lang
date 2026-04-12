@@ -103,6 +103,7 @@ Ownership and references, now including expression-level `&x` / `&mut x` borrowi
 ## In progress
 - standard backend interface layer (adapters wired into build flow)
 - native backend feasibility study (C-first spike plan and IR mapping sketch)
+- VM artifact format option documented in user guides
 
 ## Blocked
 - none

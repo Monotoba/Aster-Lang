@@ -148,6 +148,7 @@ Next steps (choose based on goals):
 - Documented the planned backend interface layer for multi-backend support
 - Added a backend adapter scaffold (`BackendAdapter`, `BackendArtifact`, registry)
 - Wired default backend adapters into the CLI build path
+- Documented `--vm-artifact-format` in user-facing guides
 - Backend interface layer marked in progress in next-steps tracking
 - Added optional compressed binary VM artifacts (`--vm-artifact-format binary`)
 - Scoped a native backend feasibility study in compiler notes
