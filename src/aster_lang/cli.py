@@ -4,7 +4,8 @@ import argparse
 from pathlib import Path
 
 from aster_lang.ast_printer import dump
-from aster_lang.builder import build_project, build_project_vm
+from aster_lang.backend import BackendBuildOptions
+from aster_lang.backend_adapters import get_default_backend_registry
 from aster_lang.compiler import compile_source
 from aster_lang.formatter import format_source
 from aster_lang.hir import dump_hir
@@ -367,8 +368,8 @@ def main(argv: list[str] | None = None) -> int:
         try:
             module = parse_module(source)
         except Exception:
-            artifact = compile_source(source)
-            print(artifact.summary())
+            compile_artifact = compile_source(source)
+            print(compile_artifact.summary())
             return 1
 
         analyzer = SemanticAnalyzer(
@@ -388,30 +389,23 @@ def main(argv: list[str] | None = None) -> int:
                 print(err)
             return 1
 
-        if args.backend == "vm":
-            build = build_project_vm(
-                entry_path=args.path,
-                dep_overrides=build_dep_overrides,
-                extra_roots=build_extra_roots,
-                out_dir=args.out_dir,
-                clean=args.clean,
-                resolver_config=build_resolver_config,
-                artifact_format=args.vm_artifact_format,
-            )
-        else:
-            build = build_project(
-                entry_path=args.path,
-                entry_module=module,
-                dep_overrides=build_dep_overrides,
-                extra_roots=build_extra_roots,
-                out_dir=args.out_dir,
-                clean=args.clean,
-                resolver_config=build_resolver_config,
-            )
-        if build.errors:
-            print(f"Build failed: {'; '.join(build.errors)}")
+        registry = get_default_backend_registry()
+        adapter = registry.get(args.backend)
+        build_options = BackendBuildOptions(
+            entry_path=args.path,
+            entry_module=module if args.backend == "python" else None,
+            dep_overrides=build_dep_overrides,
+            extra_roots=build_extra_roots,
+            out_dir=args.out_dir,
+            clean=args.clean,
+            resolver_config=build_resolver_config,
+            artifact_format=args.vm_artifact_format if args.backend == "vm" else None,
+        )
+        backend_artifact = adapter.build(build_options)
+        if backend_artifact.errors:
+            print(f"Build failed: {'; '.join(backend_artifact.errors)}")
             return 1
-        print(f"Built {args.path} → {build.entry_py}")
+        print(f"Built {args.path} → {backend_artifact.entry_path}")
         return 0
 
     if args.command == "lock":

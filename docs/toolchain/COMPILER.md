@@ -57,7 +57,8 @@ front-end stable.
 
 Scaffold in code:
 - `src/aster_lang/backend.py` defines `BackendAdapter`, `BackendArtifact`, and a registry.
-- `BackendAdapter` declares `supported_formats` and accepts an optional `artifact_format`.
+- `BackendBuildOptions` carries common build inputs (paths, deps, artifact format).
+- `src/aster_lang/backend_adapters.py` wires default `python` and `vm` adapters.
 
 ## Native backend feasibility study
 

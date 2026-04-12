@@ -6,6 +6,9 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Protocol
 
+from aster_lang import ast
+from aster_lang.module_resolution import ModuleSearchConfig
+
 
 @dataclass(slots=True)
 class BackendArtifact:
@@ -15,6 +18,19 @@ class BackendArtifact:
     outputs: list[Path]
     metadata: dict[str, object] = field(default_factory=dict)
     format: str | None = None
+    errors: list[str] = field(default_factory=list)
+
+
+@dataclass(slots=True)
+class BackendBuildOptions:
+    entry_path: Path
+    entry_module: ast.Module | None = None
+    dep_overrides: dict[str, Path] | None = None
+    extra_roots: tuple[Path, ...] = ()
+    out_dir: Path | None = None
+    clean: bool = False
+    resolver_config: ModuleSearchConfig | None = None
+    artifact_format: str | None = None
 
 
 class BackendAdapter(Protocol):
@@ -23,7 +39,7 @@ class BackendAdapter(Protocol):
     name: str
     supported_formats: tuple[str, ...]
 
-    def build(self, *, entry_path: Path, artifact_format: str | None = None) -> BackendArtifact:
+    def build(self, options: BackendBuildOptions) -> BackendArtifact:
         """Build a backend artifact for the given entry file."""
         raise NotImplementedError
 

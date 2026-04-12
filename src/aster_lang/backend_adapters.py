@@ -1,0 +1,72 @@
+"""Concrete backend adapters."""
+
+from __future__ import annotations
+
+from dataclasses import dataclass
+
+from aster_lang.backend import BackendArtifact, BackendBuildOptions, BackendRegistry
+from aster_lang.builder import build_project, build_project_vm
+
+
+@dataclass
+class PythonBackendAdapter:
+    name: str = "python"
+    supported_formats: tuple[str, ...] = ("python",)
+
+    def build(self, options: BackendBuildOptions) -> BackendArtifact:
+        if options.entry_module is None:
+            return BackendArtifact(
+                entry_path=options.entry_path,
+                outputs=[],
+                errors=["Python backend requires a parsed entry module"],
+            )
+        result = build_project(
+            entry_path=options.entry_path,
+            entry_module=options.entry_module,
+            dep_overrides=options.dep_overrides,
+            extra_roots=options.extra_roots,
+            out_dir=options.out_dir,
+            clean=options.clean,
+            resolver_config=options.resolver_config,
+        )
+        outputs = [result.entry_py]
+        return BackendArtifact(
+            entry_path=result.entry_py,
+            outputs=outputs,
+            metadata={"out_dir": result.out_dir},
+            format="python",
+            errors=list(result.errors),
+        )
+
+
+@dataclass
+class VMBackendAdapter:
+    name: str = "vm"
+    supported_formats: tuple[str, ...] = ("json", "binary")
+
+    def build(self, options: BackendBuildOptions) -> BackendArtifact:
+        artifact_format = options.artifact_format or "json"
+        result = build_project_vm(
+            entry_path=options.entry_path,
+            dep_overrides=options.dep_overrides,
+            extra_roots=options.extra_roots,
+            out_dir=options.out_dir,
+            clean=options.clean,
+            resolver_config=options.resolver_config,
+            artifact_format=artifact_format,
+        )
+        outputs = [result.entry_py]
+        return BackendArtifact(
+            entry_path=result.entry_py,
+            outputs=outputs,
+            metadata={"out_dir": result.out_dir},
+            format=artifact_format,
+            errors=list(result.errors),
+        )
+
+
+def get_default_backend_registry() -> BackendRegistry:
+    registry = BackendRegistry()
+    registry.register(PythonBackendAdapter())
+    registry.register(VMBackendAdapter())
+    return registry
