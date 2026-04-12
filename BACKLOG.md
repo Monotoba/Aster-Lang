@@ -56,7 +56,8 @@
 - [ ] ownership lowering strategy
 - [ ] compile record destructuring bindings
 - [x] experimental bytecode VM backend (subset)
-- [ ] expand VM backend coverage (remaining runtime parity gaps, artifact compression/binary polish, and backend integration) now that it is an optional backend for `aster run/build`
+- [x] expand VM backend coverage (runtime parity test gap closed; artifact compression/binary polish deferred)
+- [ ] VM artifact compression/binary encoding (deferred — keep JSON for now)
 - [ ] native backend feasibility study
 - [ ] caching and incremental compilation
 
