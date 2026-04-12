@@ -430,3 +430,14 @@ def format_source(source: str) -> str:
     """Parse and reformat Aster source code into canonical form."""
     module = parse_module(source)
     return Formatter().format_module(module)
+
+
+def format_type_expr(type_expr: ast.TypeExpr | None) -> str:
+    """Format a single type expression node as a string.
+
+    Delegates to the Formatter's internal type renderer.  Returns an empty
+    string for ``None`` (absent annotation).
+    """
+    if type_expr is None:
+        return ""
+    return Formatter()._format_type(type_expr)  # noqa: SLF001

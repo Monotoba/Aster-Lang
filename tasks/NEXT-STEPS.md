@@ -11,13 +11,17 @@ Caching and incremental compilation is done:
 - `--cache` flag on `aster build` (off by default); prints "Cached …" on hit
 - Python and VM adapters wired; C adapter left for when C backend matures
 
-## Phase 7 (tooling) — next major phase
+## Phase 7 (tooling) — in progress
 
-- language server plan
+**Done:**
+- `aster test` — test runner with `test_*.aster` discovery, `fn test_*()` execution, `assert()` built-in
+- `aster doc` — doc generator reading `##` comments from `pub` declarations, emitting Markdown
+- Error index (`docs/ERROR-INDEX.md`) — 55 error IDs with causes, examples, and fixes
+
+**Remaining:**
+- language server plan (hold until IDE work begins)
 - package manager plan
-- doc generator plan
-- test runner plan
-- benchmark harness
+- benchmark harness (`aster bench`)
 
 ## Open questions / deferred decisions
 

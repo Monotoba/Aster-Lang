@@ -8,6 +8,7 @@ from aster_lang.backend import BackendBuildOptions
 from aster_lang.backend_adapters import get_default_backend_registry
 from aster_lang.cache import CacheManager
 from aster_lang.compiler import compile_source
+from aster_lang.doc_gen import generate_docs
 from aster_lang.formatter import format_source
 from aster_lang.hir import dump_hir
 from aster_lang.interpreter import interpret_source
@@ -22,6 +23,7 @@ from aster_lang.module_resolution import ModuleSearchConfig, discover_module_sea
 from aster_lang.parser import parse_module
 from aster_lang.repl import run_repl
 from aster_lang.semantic import OwnershipMode, SemanticAnalyzer
+from aster_lang.test_runner import format_suite_result, run_tests
 from aster_lang.vm import VMError, run_path_vm
 
 
@@ -200,6 +202,38 @@ def build_parser() -> argparse.ArgumentParser:
         help="override or declare a dependency path (repeatable)",
     )
     lock_p.add_argument(
+        "--search-root",
+        action="append",
+        metavar="PATH",
+        default=[],
+        help="prepend an extra module search root (repeatable)",
+    )
+
+    doc_p = sub.add_parser("doc", help="generate Markdown docs from ## doc comments")
+    doc_p.add_argument("path", type=Path, help="Aster source file to document")
+    doc_p.add_argument(
+        "--out-dir",
+        type=Path,
+        default=None,
+        help="output directory for generated .md files (default: ./__aster_docs__)",
+    )
+
+    test_p = sub.add_parser("test", help="run Aster test files (fn test_*)")
+    test_p.add_argument(
+        "path",
+        type=Path,
+        nargs="?",
+        default=Path("."),
+        help="file or directory to search for tests (default: current directory)",
+    )
+    test_p.add_argument(
+        "--dep",
+        action="append",
+        metavar="NAME=PATH",
+        default=[],
+        help="override or declare a dependency path (repeatable)",
+    )
+    test_p.add_argument(
         "--search-root",
         action="append",
         metavar="PATH",
@@ -479,6 +513,26 @@ def main(argv: list[str] | None = None) -> int:
         write_lockfile(lockfile_path, lock)
         print(f"Wrote lockfile: {lockfile_path}")
         return 0
+
+    if args.command == "doc":
+        out_path = generate_docs(args.path, out_dir=args.out_dir)
+        print(f"Docs written to {out_path}")
+        return 0
+
+    if args.command == "test":
+        try:
+            dep_overrides = _parse_dep_overrides(args.dep)
+        except ValueError as exc:
+            print(str(exc))
+            return 1
+        extra_roots = _parse_extra_roots(args.search_root)
+        suite = run_tests(
+            args.path,
+            dep_overrides=dep_overrides,
+            extra_roots=extra_roots,
+        )
+        print(format_suite_result(suite))
+        return 0 if suite.failed == 0 else 1
 
     if args.command == "backends":
         registry = get_default_backend_registry()

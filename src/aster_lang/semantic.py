@@ -479,6 +479,14 @@ class SymbolTable:
                 type=FunctionType(param_types=(UNKNOWN_TYPE,), return_type=QWORD_TYPE),
             )
         )
+        # assert(condition) / assert(condition, message) — used in test files.
+        self.global_scope.define(
+            Symbol(
+                name="assert",
+                kind=SymbolKind.FUNCTION,
+                type=FunctionType(param_types=(UNKNOWN_TYPE,), return_type=NIL_TYPE),
+            )
+        )
 
     def enter_scope(self, name: str = "<block>") -> None:
         """Enter a new nested scope."""
@@ -2693,7 +2701,7 @@ class SemanticAnalyzer:
             # Builtins: arity/type rules are intentionally loose for now.
             # This keeps semantic analysis usable while the stdlib type model evolves.
             variadic = {"print", "max", "min"}
-            poly_arity = {"range"}  # 1 or 2 args
+            poly_arity = {"range", "assert"}  # 1 or 2 args
             if expr.func.name in variadic:
                 for arg in expr.args:
                     self.infer_expr_type(arg)

@@ -31,7 +31,7 @@ Phases 2–5 are largely complete. The language can parse, format, analyze, exec
 - **VM build artifacts**: `aster build --backend vm` emits a runnable launcher plus a serialized, versioned, integrity-checked `*.asterbc.json` bytecode program and minimal bundled VM runtime; the loader currently supports schema version `1`, with optional HMAC signing via `ASTER_VM_SIGNING_KEY`
 - **String operations**: `+` concatenation, `len()`, `str()`, `int()` built-ins
 - **Fixed-width unsigned integers**: `Nibble`/`Byte`/`Word`/`DWord`/`QWord` plus cast builtins (`nibble/byte/word/dword/qword`) and bitwise ops (`& | ^ ~ << >>`)
-- **742 passing tests** covering parser, semantics, interpreter, formatter, CLI, compiler, REPL, AST printer, typed HIR, the experimental bytecode VM backend, and the caching layer
+- **789 passing tests** covering parser, semantics, interpreter, formatter, CLI, compiler, REPL, AST printer, typed HIR, the experimental bytecode VM backend, the caching layer, test runner, and doc generator
 - beginner-friendly tutorials and runnable example programs under `tutorials/` (20 tutorials; explicitly avoiding ownership/borrow enforcement by default)
 - progressively more complex multi-file example programs under `examples/programs/`
 - language and toolchain docs
@@ -42,6 +42,9 @@ Phases 2–5 are largely complete. The language can parse, format, analyze, exec
 - **Build output controls**: `aster build --out-dir DIR` and `--clean`
 - **Lockfile support**: `aster lock` writes `aster.lock`; `aster check/build --lockfile` use a pinned module resolution config
 - **Incremental build cache**: `aster build --cache` stores compiled artifacts in `.aster_cache/`; repeated builds with identical source and flags are served from cache (Python and VM backends)
+- **Test runner**: `aster test [path]` discovers `test_*.aster` files, runs every `fn test_*()`, reports pass/fail; `assert(cond)` and `assert(cond, message)` built-ins available in test files
+- **Doc generator**: `aster doc <file>` extracts `##` doc comments from `pub` declarations and emits a Markdown file; `--out-dir` controls output location
+- **Error index**: `docs/ERROR-INDEX.md` catalogs 55 named errors (PAR/SEM/INT/VM/MOD/LCK/CLI) with causes, examples, and fixes
 
 ## Lexer Features
 - TokenKind enum with all language tokens (keywords, operators, literals)

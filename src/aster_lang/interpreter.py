@@ -540,6 +540,50 @@ class Interpreter:
         self.global_env.define("dword", _cast_bits(32))
         self.global_env.define("qword", _cast_bits(64))
 
+        def builtin_assert(args: list[Value]) -> Value:
+            if len(args) not in (1, 2):
+                raise InterpreterError(f"assert() takes 1 or 2 arguments, got {len(args)}")
+            cond = args[0]
+            if isinstance(cond, BoolValue):
+                ok = cond.value
+            elif isinstance(cond, IntValue):
+                ok = cond.value != 0
+            elif isinstance(cond, NilValue):
+                ok = False
+            else:
+                ok = True  # non-nil, non-bool values are truthy
+            if not ok:
+                msg = "assertion failed"
+                if len(args) == 2:
+                    msg = f"assertion failed: {args[1]}"
+                raise InterpreterError(msg)
+            return NIL
+
+        self.global_env.define("assert", BuiltinFunction("assert", builtin_assert, arity=-1))
+
+    def call_named_function(self, name: str) -> Value:
+        """Call a top-level no-argument function by name.
+
+        Raises InterpreterError if the name is not defined, is not a callable
+        zero-arity function, or if the function body raises at runtime.
+        """
+        func = self.current_env.get(name)
+        if not isinstance(func, FunctionValue):
+            raise InterpreterError(f"'{name}' is not a function")
+        if len(func.params) != 0:
+            raise InterpreterError(f"'{name}' must take no arguments to be called this way")
+        func_env = func.closure.create_child()
+        saved_env = self.current_env
+        self.current_env = func_env
+        try:
+            for stmt in func.body:
+                self.execute_statement(stmt)
+            return NIL
+        except ReturnException as ret:
+            return ret.value
+        finally:
+            self.current_env = saved_env
+
     def interpret(self, module: ast.Module, *, auto_call_main: bool = True) -> None:
         """Interpret a module."""
         for decl in module.declarations:

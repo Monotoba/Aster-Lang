@@ -33,6 +33,7 @@ class TokenKind(Enum):
     OR = auto()
     SELF = auto()
     EFFECT = auto()
+    EXTERN = auto()
 
     # Operators
     ASSIGN = auto()  # <-
@@ -111,6 +112,7 @@ KEYWORDS = {
     "or": TokenKind.OR,
     "Self": TokenKind.SELF,
     "effect": TokenKind.EFFECT,
+    "extern": TokenKind.EXTERN,
 }
 
 

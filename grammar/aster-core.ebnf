@@ -187,3 +187,9 @@ INDENT ::= "INDENT"
 DEDENT ::= "DEDENT"
 
 EOF ::= "EOF"
+ TopLevelItem ::= ( Visibility? ( FunctionDecl | EffectDecl | TypeAliasDecl | ImportDecl | ExternDecl | LetDecl ) ) NEWLINE*
+ EffectDecl ::= "effect" Identifier
+ 
+ ExternDecl ::= "extern" StringLiteral ":" NEWLINE INDENT ExternFn+ DEDENT
+ 
+ ExternFn ::= "fn" Identifier ParamList ReturnType? ( "from" StringLiteral )? NEWLINE*

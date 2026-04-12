@@ -69,8 +69,9 @@
 ## Phase 7: tooling
 - [ ] language server plan
 - [ ] package manager plan
-- [ ] doc generator plan
-- [ ] test runner plan
+- [x] doc generator (`aster doc`) — extracts `##` doc comments from pub declarations, emits Markdown
+- [x] test runner (`aster test`) — discovers `test_*.aster`, runs `fn test_*()`, reports pass/fail
+- [x] error index — `docs/ERROR-INDEX.md`, 55 error IDs across all pipeline components
 - [ ] benchmark harness
 
 ## Phase 8: ecosystem

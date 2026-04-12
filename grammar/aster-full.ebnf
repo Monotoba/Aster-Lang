@@ -5,15 +5,18 @@ ModulePrologue ::= ModuleDecl NEWLINE+
 TopLevelItem ::= TopLevelDecl NEWLINE*
 
 TopLevelDecl ::= Visibility? (
-    FunctionDecl
-  | TypeAliasDecl
-  | TypeDecl
-  | TraitDecl
-  | ImplDecl
-  | ImportDecl
-  | ConstDecl
-  | LetDecl
-)
+   FunctionDecl
+ | TypeAliasDecl
+ | TypeDecl
+ | TraitDecl
+ | ImplDecl
+ | ImportDecl
+ | ConstDecl
+ | LetDecl
+ | ExternDecl
+ | ConstDecl
+ | LetDecl
+ )
 
 Visibility ::= "pub"
 
@@ -401,3 +404,8 @@ INDENT ::= "INDENT"
 DEDENT ::= "DEDENT"
 
 EOF ::= "EOF"
+ TraitDecl ::= "trait" Identifier TypeParams? ":" NEWLINE INDENT TraitMember+ DEDENT
+ 
+ ExternDecl ::= "extern" StringLiteral ":" NEWLINE INDENT ExternFn+ DEDENT
+ 
+ ExternFn ::= "fn" Identifier ParamList ReturnType? ( "from" StringLiteral )? NEWLINE*
