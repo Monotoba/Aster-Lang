@@ -20,6 +20,7 @@ __all__ = [
     "compile_to_bytecode",
     "compile_path_to_bytecode",
     "run_source_vm",
+    "run_source_vm_unchecked",
     "run_path_vm",
 ]
 
@@ -34,12 +35,12 @@ class _Compiler:
         self._module_fn_param_borrows: dict[str, dict[str, list[bool | None]]] = {}
 
     def _const(self, value: object) -> int:
-        # Simple linear dedup is fine at this stage.
-        try:
-            return self._consts.index(value)
-        except ValueError:
-            self._consts.append(value)
-            return len(self._consts) - 1
+        # Type-aware dedup: True/False must not alias 1/0 (bool is subclass of int).
+        for i, existing in enumerate(self._consts):
+            if type(existing) is type(value) and existing == value:
+                return i
+        self._consts.append(value)
+        return len(self._consts) - 1
 
     def compile_project(
         self,
@@ -1376,6 +1377,14 @@ def compile_path_to_bytecode(
 
 def run_source_vm(source: str) -> str:
     program = compile_to_bytecode(source)
+    vm = VM(program)
+    vm.run_entry()
+    return "\n".join(vm.output)
+
+
+def run_source_vm_unchecked(source: str) -> str:
+    """Compile and run without semantic analysis.  For testing VM runtime errors only."""
+    program = _Compiler().compile_single_source(source)
     vm = VM(program)
     vm.run_entry()
     return "\n".join(vm.output)

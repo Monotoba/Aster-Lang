@@ -515,7 +515,7 @@ class VM:
             if ins.op == Op.NEG:
                 a = frame.stack.pop()
                 if type(a) is not int:
-                    raise VMError("Unary '-' only supported for Int in VM backend")
+                    raise VMError("Negation requires integer")
                 frame.stack.append(-a)
                 continue
             if ins.op == Op.NOT:
@@ -525,7 +525,7 @@ class VM:
             if ins.op == Op.BIT_NOT:
                 a = frame.stack.pop()
                 if type(a) is not int:
-                    raise VMError("Unary '~' only supported for Int in VM backend")
+                    raise VMError("Bitwise not requires integer")
                 frame.stack.append(~a)
                 continue
 
@@ -564,7 +564,7 @@ class VM:
                         self._call_closure(callee, args, module_label=frame.module_label)
                     )
                     continue
-                raise VMError("Can only call function ids (strings) or closures in VM backend")
+                raise VMError(f"Cannot call value of type {type(callee).__name__}")
 
             if ins.op == Op.RETURN:
                 return frame.stack.pop()
@@ -650,7 +650,7 @@ class VM:
                     raise VMError("HAS_KEY key constant must be a string")
                 obj = frame.stack.pop()
                 if not isinstance(obj, dict):
-                    raise VMError("HAS_KEY only supported on records in VM backend")
+                    raise VMError("HAS_KEY requires a record")
                 frame.stack.append(key_obj in obj)
                 continue
             if ins.op == Op.SLICE_FROM:
@@ -659,7 +659,7 @@ class VM:
                 if isinstance(obj, list | tuple):
                     frame.stack.append(obj[ins.arg :])
                     continue
-                raise VMError("Slice only supported on list/tuple in VM backend")
+                raise VMError("Slice requires a list or tuple")
             if ins.op == Op.LOAD_GLOBAL:
                 assert isinstance(ins.arg, int)
                 name_obj = consts[ins.arg]
@@ -820,46 +820,48 @@ class VM:
                 return a + b
             if type(a) is str and type(b) is str:
                 return a + b
-            raise VMError("Operator + only supports Int+Int or String+String in VM backend")
+            if type(a) is str:
+                raise VMError("String + requires a string on the right")
+            raise VMError("Arithmetic requires integers (or strings for +)")
         if op == Op.SUB:
             if type(a) is not int or type(b) is not int:
-                raise VMError("Operator - only supports Int-Int in VM backend")
+                raise VMError("Arithmetic requires integers (or strings for +)")
             return a - b
         if op == Op.MUL:
             if type(a) is not int or type(b) is not int:
-                raise VMError("Operator * only supports Int*Int in VM backend")
+                raise VMError("Arithmetic requires integers (or strings for +)")
             return a * b
         if op == Op.DIV:
             if type(a) is not int or type(b) is not int:
-                raise VMError("Operator / only supports Int/Int in VM backend")
+                raise VMError("Arithmetic requires integers (or strings for +)")
             if b == 0:
                 raise VMError("Division by zero")
             return a // b
         if op == Op.MOD:
             if type(a) is not int or type(b) is not int:
-                raise VMError("Operator % only supports Int%Int in VM backend")
+                raise VMError("Arithmetic requires integers (or strings for +)")
             if b == 0:
                 raise VMError("Modulo by zero")
             return a % b
         if op == Op.BIT_AND:
             if type(a) is not int or type(b) is not int:
-                raise VMError("Operator & only supports Int&Int in VM backend")
+                raise VMError("Bitwise operators require integers")
             return a & b
         if op == Op.BIT_OR:
             if type(a) is not int or type(b) is not int:
-                raise VMError("Operator | only supports Int|Int in VM backend")
+                raise VMError("Bitwise operators require integers")
             return a | b
         if op == Op.BIT_XOR:
             if type(a) is not int or type(b) is not int:
-                raise VMError("Operator ^ only supports Int^Int in VM backend")
+                raise VMError("Bitwise operators require integers")
             return a ^ b
         if op == Op.SHL:
             if type(a) is not int or type(b) is not int:
-                raise VMError("Operator << only supports Int<<Int in VM backend")
+                raise VMError("Bitwise operators require integers")
             return a << b
         if op == Op.SHR:
             if type(a) is not int or type(b) is not int:
-                raise VMError("Operator >> only supports Int>>Int in VM backend")
+                raise VMError("Bitwise operators require integers")
             return a >> b
         if op == Op.EQ:
             return self._values_equal(a, b)
@@ -867,19 +869,19 @@ class VM:
             return not self._values_equal(a, b)
         if op == Op.LT:
             if type(a) is not int or type(b) is not int:
-                raise VMError("Operator < only supports Int<Int in VM backend")
+                raise VMError("Comparison requires integers")
             return a < b
         if op == Op.LE:
             if type(a) is not int or type(b) is not int:
-                raise VMError("Operator <= only supports Int<=Int in VM backend")
+                raise VMError("Comparison requires integers")
             return a <= b
         if op == Op.GT:
             if type(a) is not int or type(b) is not int:
-                raise VMError("Operator > only supports Int>Int in VM backend")
+                raise VMError("Comparison requires integers")
             return a > b
         if op == Op.GE:
             if type(a) is not int or type(b) is not int:
-                raise VMError("Operator >= only supports Int>=Int in VM backend")
+                raise VMError("Comparison requires integers")
             return a >= b
         raise VMError(f"Unsupported binop {op}")
 

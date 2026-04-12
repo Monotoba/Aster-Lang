@@ -5,7 +5,7 @@ from pathlib import Path
 import pytest
 
 from aster_lang.cli import main
-from aster_lang.vm import VMError, run_path_vm, run_source_vm
+from aster_lang.vm import VMError, run_path_vm, run_source_vm, run_source_vm_unchecked
 
 
 def test_vm_runs_hello_world() -> None:
@@ -552,3 +552,94 @@ def test_vm_immutable_binding_rejects_reassign() -> None:
 def test_vm_mutable_binding_allows_reassign() -> None:
     src = "fn main():\n    mut x := 1\n    x <- 42\n    print(x)\n"
     assert run_source_vm(src) == "42"
+
+
+# ------------------------------------------------------------------
+# Operator error wording parity with interpreter
+
+
+def _vm_error(src: str) -> str:
+    """Run without semantic analysis to reach VM runtime error paths."""
+    with pytest.raises(VMError) as exc_info:
+        run_source_vm_unchecked(src)
+    return str(exc_info.value)
+
+
+def test_vm_negation_requires_integer() -> None:
+    msg = _vm_error('fn main():\n    x := -"hello"\n')
+    assert msg == "Negation requires integer"
+
+
+def test_vm_bitwise_not_requires_integer() -> None:
+    msg = _vm_error("fn main():\n    x := ~true\n")
+    assert msg == "Bitwise not requires integer"
+
+
+def test_vm_arithmetic_requires_integers_sub() -> None:
+    msg = _vm_error('fn main():\n    x := 1 - "a"\n')
+    assert msg == "Arithmetic requires integers (or strings for +)"
+
+
+def test_vm_arithmetic_requires_integers_mul() -> None:
+    msg = _vm_error('fn main():\n    x := 2 * "a"\n')
+    assert msg == "Arithmetic requires integers (or strings for +)"
+
+
+def test_vm_arithmetic_requires_integers_div() -> None:
+    msg = _vm_error('fn main():\n    x := 4 / "a"\n')
+    assert msg == "Arithmetic requires integers (or strings for +)"
+
+
+def test_vm_arithmetic_requires_integers_mod() -> None:
+    msg = _vm_error('fn main():\n    x := 4 % "a"\n')
+    assert msg == "Arithmetic requires integers (or strings for +)"
+
+
+def test_vm_string_plus_nonstring_right() -> None:
+    msg = _vm_error('fn main():\n    x := "a" + 1\n')
+    assert msg == "String + requires a string on the right"
+
+
+def test_vm_bitwise_operators_require_integers_and() -> None:
+    msg = _vm_error("fn main():\n    x := true & 1\n")
+    assert msg == "Bitwise operators require integers"
+
+
+def test_vm_bitwise_operators_require_integers_or() -> None:
+    msg = _vm_error("fn main():\n    x := true | 1\n")
+    assert msg == "Bitwise operators require integers"
+
+
+def test_vm_bitwise_operators_require_integers_xor() -> None:
+    msg = _vm_error("fn main():\n    x := true ^ 1\n")
+    assert msg == "Bitwise operators require integers"
+
+
+def test_vm_bitwise_operators_require_integers_shl() -> None:
+    msg = _vm_error("fn main():\n    x := 1 << true\n")
+    assert msg == "Bitwise operators require integers"
+
+
+def test_vm_bitwise_operators_require_integers_shr() -> None:
+    msg = _vm_error("fn main():\n    x := 1 >> true\n")
+    assert msg == "Bitwise operators require integers"
+
+
+def test_vm_comparison_requires_integers_lt() -> None:
+    msg = _vm_error('fn main():\n    x := 1 < "a"\n')
+    assert msg == "Comparison requires integers"
+
+
+def test_vm_comparison_requires_integers_le() -> None:
+    msg = _vm_error('fn main():\n    x := 1 <= "a"\n')
+    assert msg == "Comparison requires integers"
+
+
+def test_vm_comparison_requires_integers_gt() -> None:
+    msg = _vm_error('fn main():\n    x := 1 > "a"\n')
+    assert msg == "Comparison requires integers"
+
+
+def test_vm_comparison_requires_integers_ge() -> None:
+    msg = _vm_error('fn main():\n    x := 1 >= "a"\n')
+    assert msg == "Comparison requires integers"
