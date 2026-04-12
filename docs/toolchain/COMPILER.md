@@ -81,6 +81,23 @@ Start with a C backend for the feasibility spike:
 
 LLVM/Wasm remains a follow-on target once the IR interface stabilizes.
 
+### Feasibility spike plan
+
+Deliverables:
+- A tiny C runtime stub (malloc + basic string/list/record helpers).
+- A codegen adapter that emits one C translation unit per Aster module.
+- A build harness that compiles with system `cc` and runs `main()`.
+
+Minimal program coverage:
+- integer arithmetic and comparison
+- `if/else` and `while`
+- function calls with simple parameters/returns
+
+IR mapping notes:
+- Map standard IR locals to C locals; closures can be deferred in the spike.
+- Use an `AsterValue` tagged union for dynamic values; specialize later.
+- Emit ownership hooks as no-ops initially; keep call sites intact.
+
 ## Ownership lowering strategy
 
 Goal: make ownership/borrow semantics explicit in MIR so backends can enforce or optimize

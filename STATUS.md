@@ -149,6 +149,7 @@ Next steps (choose based on goals):
 - Added optional compressed binary VM artifacts (`--vm-artifact-format binary`)
 - Scoped a native backend feasibility study in compiler notes
 - Proposed C as the initial native backend feasibility target
+- Added a concrete C feasibility spike plan and initial IR mapping notes
 - Added `aster.toml`-driven module search roots shared by runtime and semantic analysis
 - Added `package.name` support for current-package import prefixes
 - Full suite currently passes with 688 tests
