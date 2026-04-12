@@ -976,7 +976,7 @@ class _Compiler:
                     compile_expr(stmt.value)
                     emit(Op.STORE_DEREF)
                     return
-                raise VMError("Unsupported assignment target in VM backend")
+                raise VMError("Unsupported assignment target")
             if isinstance(stmt, ast.ReturnStmt):
                 if stmt.value is None:
                     emit(Op.CONST, self._const(None))

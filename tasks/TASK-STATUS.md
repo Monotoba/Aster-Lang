@@ -91,6 +91,7 @@ Ownership and references, now including expression-level `&x` / `&mut x` borrowi
 - VM index assignment now validates index type like interpreter (`Index reference requires Int or String index`)
 - VM index assignment base errors now match interpreter wording (`Unsupported index reference assignment`)
 - fixed-width numeric comparison parity now covered in interpreter and VM tests
+- VM unsupported assignment target wording now matches interpreter
 - `aster check/build --types loose|strict` added to optionally reject unknown-typed arithmetic/bitwise uses in strict mode
 - added a beginner tutorial track: 20 tutorials plus 6 progressively more complex runnable programs under `tutorials/` and `tutorials/programs/`
 
