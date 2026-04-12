@@ -4,7 +4,7 @@ import argparse
 from pathlib import Path
 
 from aster_lang.ast_printer import dump
-from aster_lang.builder import build_project
+from aster_lang.builder import build_project, build_project_vm
 from aster_lang.compiler import compile_source
 from aster_lang.formatter import format_source
 from aster_lang.hir import dump_hir
@@ -19,7 +19,7 @@ from aster_lang.lockfile import (
 from aster_lang.module_resolution import ModuleSearchConfig, discover_module_search_config
 from aster_lang.parser import parse_module
 from aster_lang.repl import run_repl
-from aster_lang.semantic import SemanticAnalyzer
+from aster_lang.semantic import OwnershipMode, SemanticAnalyzer
 from aster_lang.vm import VMError, run_path_vm
 
 
@@ -43,6 +43,12 @@ def build_parser() -> argparse.ArgumentParser:
 
     run_p = sub.add_parser("run", help="interpret Aster source")
     run_p.add_argument("path", type=Path)
+    run_p.add_argument(
+        "--backend",
+        choices=["interpreter", "vm"],
+        default="interpreter",
+        help="execution backend (default: interpreter)",
+    )
     run_p.add_argument(
         "--dep",
         action="append",
@@ -100,9 +106,27 @@ def build_parser() -> argparse.ArgumentParser:
         default=None,
         help="use an explicit lockfile for module resolution (disables --dep/--search-root)",
     )
+    check_p.add_argument(
+        "--ownership",
+        choices=["off", "warn", "deny"],
+        default="off",
+        help="ownership/borrow surface diagnostics mode (default: off)",
+    )
+    check_p.add_argument(
+        "--types",
+        choices=["loose", "strict"],
+        default="loose",
+        help="type checking strictness (default: loose)",
+    )
 
     build_p = sub.add_parser("build", help="compile Aster source")
     build_p.add_argument("path", type=Path)
+    build_p.add_argument(
+        "--backend",
+        choices=["python", "vm"],
+        default="python",
+        help="build backend (default: python)",
+    )
     build_p.add_argument(
         "--dep",
         action="append",
@@ -133,6 +157,18 @@ def build_parser() -> argparse.ArgumentParser:
         "--clean",
         action="store_true",
         help="delete the output directory before building",
+    )
+    build_p.add_argument(
+        "--ownership",
+        choices=["off", "warn", "deny"],
+        default="off",
+        help="ownership/borrow surface diagnostics mode (default: off)",
+    )
+    build_p.add_argument(
+        "--types",
+        choices=["loose", "strict"],
+        default="loose",
+        help="type checking strictness (default: loose)",
     )
 
     ast_p = sub.add_parser("ast", help="print parse tree of Aster source")
@@ -181,6 +217,20 @@ def main(argv: list[str] | None = None) -> int:
             print(str(exc))
             return 1
         extra_roots = _parse_extra_roots(args.search_root)
+
+        if args.backend == "vm":
+            try:
+                out = run_path_vm(
+                    args.path,
+                    dep_overrides=dep_overrides,
+                    extra_roots=extra_roots,
+                )
+            except VMError as exc:
+                print(str(exc))
+                return 1
+            if out:
+                print(out)
+            return 0
 
         source = args.path.read_text(encoding="utf-8")
         result = interpret_source(
@@ -276,6 +326,8 @@ def main(argv: list[str] | None = None) -> int:
             extra_roots=check_extra_roots,
             resolver_config=check_resolver_config,
             allow_external_imports=True,
+            strict_types=(args.types == "strict"),
+            ownership_mode=OwnershipMode(args.ownership),
         )
         ok = analyzer.analyze(module)
         for warn in analyzer.warnings:
@@ -319,6 +371,8 @@ def main(argv: list[str] | None = None) -> int:
             extra_roots=build_extra_roots,
             resolver_config=build_resolver_config,
             allow_external_imports=True,
+            strict_types=(args.types == "strict"),
+            ownership_mode=OwnershipMode(args.ownership),
         )
         ok = analyzer.analyze(module)
         for warn in analyzer.warnings:
@@ -328,15 +382,25 @@ def main(argv: list[str] | None = None) -> int:
                 print(err)
             return 1
 
-        build = build_project(
-            entry_path=args.path,
-            entry_module=module,
-            dep_overrides=build_dep_overrides,
-            extra_roots=build_extra_roots,
-            out_dir=args.out_dir,
-            clean=args.clean,
-            resolver_config=build_resolver_config,
-        )
+        if args.backend == "vm":
+            build = build_project_vm(
+                entry_path=args.path,
+                dep_overrides=build_dep_overrides,
+                extra_roots=build_extra_roots,
+                out_dir=args.out_dir,
+                clean=args.clean,
+                resolver_config=build_resolver_config,
+            )
+        else:
+            build = build_project(
+                entry_path=args.path,
+                entry_module=module,
+                dep_overrides=build_dep_overrides,
+                extra_roots=build_extra_roots,
+                out_dir=args.out_dir,
+                clean=args.clean,
+                resolver_config=build_resolver_config,
+            )
         if build.errors:
             print(f"Build failed: {'; '.join(build.errors)}")
             return 1

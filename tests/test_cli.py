@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import json
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -28,6 +30,21 @@ def test_run_command_loads_sibling_module(tmp_path: Path, capsys: CapsysFixture)
     )
 
     assert main(["run", str(program)]) == 0
+    assert capsys.readouterr().out.strip() == "42"
+
+
+def test_run_command_supports_vm_backend(tmp_path: Path, capsys: CapsysFixture) -> None:
+    (tmp_path / "helpers.aster").write_text(
+        "pub fn answer() -> Int:\n" "    return 42\n",
+        encoding="utf-8",
+    )
+    program = tmp_path / "main.aster"
+    program.write_text(
+        "use helpers\n" "fn main():\n" "    print(helpers.answer())\n",
+        encoding="utf-8",
+    )
+
+    assert main(["run", str(program), "--backend", "vm"]) == 0
     assert capsys.readouterr().out.strip() == "42"
 
 
@@ -200,6 +217,25 @@ def test_run_dep_flag_resolves_module(tmp_path: Path, capsys: CapsysFixture) -> 
     assert capsys.readouterr().out.strip() == "21"
 
 
+def test_run_dep_flag_resolves_module_with_vm_backend(
+    tmp_path: Path, capsys: CapsysFixture
+) -> None:
+    dep_dir = tmp_path / "external" / "math"
+    dep_dir.mkdir(parents=True)
+    (dep_dir / "utils.aster").write_text(
+        "pub fn triple(n: Int) -> Int:\n" "    return n + n + n\n",
+        encoding="utf-8",
+    )
+    program = tmp_path / "main.aster"
+    program.write_text(
+        "use math.utils\n" "fn main():\n" "    print(utils.triple(7))\n",
+        encoding="utf-8",
+    )
+
+    assert main(["run", str(program), "--backend", "vm", "--dep", f"math={dep_dir}"]) == 0
+    assert capsys.readouterr().out.strip() == "21"
+
+
 def test_run_dep_flag_overrides_manifest_entry(tmp_path: Path, capsys: CapsysFixture) -> None:
     # Manifest declares math pointing at old_math; CLI overrides it to new_math.
     old_dir = tmp_path / "old_math"
@@ -334,7 +370,7 @@ def test_check_command_prints_ownership_warnings(tmp_path: Path, capsys: CapsysF
         encoding="utf-8",
     )
 
-    assert main(["check", str(program)]) == 0
+    assert main(["check", str(program), "--ownership", "warn"]) == 0
     out = capsys.readouterr().out
     assert "Borrow types" in out
     assert "Raw pointers" in out
@@ -391,6 +427,96 @@ def test_build_command_resolves_declared_dependency(tmp_path: Path, capsys: Caps
     result = subprocess.run(
         [sys.executable, str(entry_py)],
         cwd=out_dir,
+        capture_output=True,
+        text=True,
+        timeout=10,
+    )
+    assert result.returncode == 0, result.stderr
+    assert result.stdout.strip() == "42"
+
+
+def test_build_command_supports_vm_backend(tmp_path: Path, capsys: CapsysFixture) -> None:
+    dep_dir = tmp_path / "vendor" / "math"
+    dep_dir.mkdir(parents=True)
+    (dep_dir / "utils.aster").write_text(
+        "pub fn double(n: Int) -> Int:\n" "    return n + n\n",
+        encoding="utf-8",
+    )
+    (tmp_path / "aster.toml").write_text(
+        "[dependencies]\n" 'math = { path = "vendor/math" }\n',
+        encoding="utf-8",
+    )
+    program = tmp_path / "main.aster"
+    program.write_text(
+        "use math.utils\n" "fn main():\n" "    print(utils.double(21))\n",
+        encoding="utf-8",
+    )
+
+    assert main(["build", str(program), "--backend", "vm"]) == 0
+    _ = capsys.readouterr()
+    out_dir = program.parent / "__aster_build__"
+    entry_py = out_dir / "main.py"
+    assert entry_py.exists()
+    program_json = out_dir / "main.asterbc.json"
+    assert program_json.exists()
+    artifact_data = json.loads(program_json.read_text(encoding="utf-8"))
+    assert artifact_data["kind"] == "program"
+    assert artifact_data["format"] == "asterbc"
+    assert artifact_data["version"] == 1
+    assert artifact_data["integrity"]["algorithm"] == "sha256"
+    assert (out_dir / "aster_lang" / "vm_runtime.py").exists()
+    assert not (out_dir / "aster_lang" / "parser.py").exists()
+    launcher = entry_py.read_text(encoding="utf-8")
+    assert "json.loads" in launcher
+    assert "PROGRAM = BCProgram(" not in launcher
+
+    result = subprocess.run(
+        [sys.executable, str(entry_py)],
+        cwd=out_dir,
+        capture_output=True,
+        text=True,
+        timeout=10,
+    )
+    assert result.returncode == 0, result.stderr
+    assert result.stdout.strip() == "42"
+
+
+def test_build_command_supports_vm_signing_key(
+    tmp_path: Path, capsys: CapsysFixture, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    dep_dir = tmp_path / "vendor" / "math"
+    dep_dir.mkdir(parents=True)
+    (dep_dir / "utils.aster").write_text(
+        "pub fn double(n: Int) -> Int:\n" "    return n + n\n",
+        encoding="utf-8",
+    )
+    (tmp_path / "aster.toml").write_text(
+        "[dependencies]\n" 'math = { path = "vendor/math" }\n',
+        encoding="utf-8",
+    )
+    program = tmp_path / "main.aster"
+    program.write_text(
+        "use math.utils\n" "fn main():\n" "    print(utils.double(21))\n",
+        encoding="utf-8",
+    )
+
+    monkeypatch.setenv("ASTER_VM_SIGNING_KEY", "test-key")
+    assert main(["build", str(program), "--backend", "vm"]) == 0
+    _ = capsys.readouterr()
+    out_dir = program.parent / "__aster_build__"
+    entry_py = out_dir / "main.py"
+    assert entry_py.exists()
+    program_json = out_dir / "main.asterbc.json"
+    assert program_json.exists()
+    artifact_data = json.loads(program_json.read_text(encoding="utf-8"))
+    assert artifact_data["signature"]["algorithm"] == "hmac-sha256"
+
+    env = dict(os.environ)
+    env["ASTER_VM_SIGNING_KEY"] = "test-key"
+    result = subprocess.run(
+        [sys.executable, str(entry_py)],
+        cwd=out_dir,
+        env=env,
         capture_output=True,
         text=True,
         timeout=10,

@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
+
 from aster_lang.cli import main
 from aster_lang.vm import VMError, run_path_vm, run_source_vm
 
@@ -27,6 +29,95 @@ def test_vm_runs_lambda_expression_call() -> None:
     assert run_source_vm(src) == "42"
 
 
+def test_vm_runs_min_max() -> None:
+    src = "fn main():\n" "    print(max(3, 7))\n" "    print(min(3, 7))\n"
+    assert run_source_vm(src) == "7\n3"
+
+
+def test_vm_print_rejects_multiple_args() -> None:
+    src = "fn main():\n" "    print(1, 2)\n"
+    with pytest.raises(VMError, match="Built-in print expects 1 argument"):
+        run_source_vm(src)
+
+
+def test_vm_int_conversions() -> None:
+    src = "fn main():\n" "    print(int(true))\n" "    print(int(false))\n" '    print(int("99"))\n'
+    assert run_source_vm(src) == "1\n0\n99"
+
+
+def test_vm_int_rejects_invalid_string() -> None:
+    src = 'fn main():\n    print(int("nope"))\n'
+    with pytest.raises(VMError, match="Cannot convert 'nope' to Int"):
+        run_source_vm(src)
+
+
+def test_vm_len_accepts_string() -> None:
+    src = 'fn main():\n    print(len("hello"))\n'
+    assert run_source_vm(src) == "5"
+
+
+def test_vm_len_record() -> None:
+    src = "fn main():\n    r := {x: 1, y: 2}\n    print(len(r))\n"
+    assert run_source_vm(src) == "2"
+
+
+def test_vm_str_formats_values() -> None:
+    src = "fn main():\n" "    print(str(true))\n" "    print(str(nil))\n" "    print(str({x: 2}))\n"
+    assert run_source_vm(src) == "true\nnil\n{x: 2}"
+
+
+def test_vm_len_rejects_int() -> None:
+    src = "fn main():\n    print(len(1))\n"
+    with pytest.raises(VMError, match="len\\(\\) not supported for IntValue"):
+        run_source_vm(src)
+
+
+def test_vm_ascii_bytes_output() -> None:
+    src = 'fn main():\n    print(ascii_bytes("hi"))\n'
+    assert run_source_vm(src) == "[104, 105]"
+
+
+def test_vm_ascii_bytes_rejects_non_ascii() -> None:
+    src = 'fn main():\n    print(ascii_bytes("café"))\n'
+    with pytest.raises(VMError, match="ascii_bytes\\(\\) only supports ASCII"):
+        run_source_vm(src)
+
+
+def test_vm_unicode_bytes_output() -> None:
+    src = 'fn main():\n    print(unicode_bytes("café"))\n'
+    assert run_source_vm(src) == "[99, 97, 102, 195, 169]"
+
+
+def test_vm_unicode_bytes_rejects_non_string() -> None:
+    src = "fn main():\n    print(unicode_bytes(1))\n"
+    with pytest.raises(VMError, match="unicode_bytes\\(\\) expects String"):
+        run_source_vm(src)
+
+
+def test_vm_fixed_width_equals_int() -> None:
+    src = "fn main():\n    print(byte(255) == 255)\n"
+    assert run_source_vm(src) == "true"
+
+
+def test_vm_deep_equality_collections() -> None:
+    src = (
+        "fn main():\n"
+        "    print([1, 2] == [1, 2])\n"
+        "    print([1, 2] == [1, 3])\n"
+        "    print((1, 2) == (1, 2))\n"
+        "    print({x: 1, y: 2} == {y: 2, x: 1})\n"
+        "    print({x: 1} == {x: 2})\n"
+        "    print([{x: 1}] == [{x: 1}])\n"
+    )
+    assert run_source_vm(src) == "true\nfalse\ntrue\ntrue\nfalse\ntrue"
+
+
+def test_vm_range_rejects_bool() -> None:
+    src = "fn main():\n    print(range(false))\n"
+    with pytest.raises(VMError, match="range\\(\\) requires integers"):
+        run_source_vm(src)
+
+
 def test_vm_runs_lambda_closure_captures_by_reference() -> None:
     src = (
         "fn main():\n"
@@ -36,6 +127,76 @@ def test_vm_runs_lambda_closure_captures_by_reference() -> None:
         "    print(f(2))\n"
     )
     assert run_source_vm(src) == "12"
+
+
+def test_vm_mut_borrow_parameter_can_mutate_caller() -> None:
+    src = (
+        "fn inc(x: &mut Int):\n"
+        "    x <- x + 1\n"
+        "fn main():\n"
+        "    mut a := 1\n"
+        "    inc(a)\n"
+        "    print(a)\n"
+    )
+    assert run_source_vm(src) == "2"
+
+
+def test_vm_mut_borrow_can_target_record_member() -> None:
+    src = (
+        "fn inc(x: &mut Int):\n"
+        "    x <- x + 1\n"
+        "fn main():\n"
+        "    mut r := {x: 1}\n"
+        "    inc(&mut r.x)\n"
+        "    print(r.x)\n"
+    )
+    assert run_source_vm(src) == "2"
+
+
+def test_vm_mut_borrow_can_target_list_index() -> None:
+    src = (
+        "fn inc(x: &mut Int):\n"
+        "    x <- x + 1\n"
+        "fn main():\n"
+        "    mut xs := [1, 2]\n"
+        "    inc(&mut xs[0])\n"
+        "    print(xs[0])\n"
+    )
+    assert run_source_vm(src) == "2"
+
+
+def test_vm_mut_borrow_can_target_nested_member_chain() -> None:
+    src = (
+        "fn inc(x: &mut Int):\n"
+        "    x <- x + 1\n"
+        "fn main():\n"
+        "    mut r := {inner: {x: 1}}\n"
+        "    inc(&mut r.inner.x)\n"
+        "    print(r.inner.x)\n"
+    )
+    assert run_source_vm(src) == "2"
+
+
+def test_vm_mut_borrow_can_target_nested_index_chain() -> None:
+    src = (
+        "fn inc(x: &mut Int):\n"
+        "    x <- x + 1\n"
+        "fn main():\n"
+        "    mut r := {items: [1, 2]}\n"
+        "    inc(&mut r.items[0])\n"
+        "    print(r.items[0])\n"
+    )
+    assert run_source_vm(src) == "2"
+
+
+def test_vm_mut_borrow_can_target_computed_record_member() -> None:
+    src = "fn main():\n" "    p := &mut {x: 1}.x\n" "    p <- 7\n" "    print(*p)\n"
+    assert run_source_vm(src) == "7"
+
+
+def test_vm_mut_borrow_can_target_computed_list_index() -> None:
+    src = "fn main():\n" "    p := &mut [1, 2][0]\n" "    p <- 9\n" "    print(*p)\n"
+    assert run_source_vm(src) == "9"
 
 
 def test_vm_runs_if_else() -> None:
@@ -187,6 +348,23 @@ def test_vm_supports_index_and_member_assignment() -> None:
         "    print(r.x)\n"
     )
     assert run_source_vm(src) == "9\n7"
+
+
+def test_vm_supports_nested_member_and_index_assignment() -> None:
+    src = (
+        "fn main():\n"
+        "    mut r := {inner: {x: 1}, items: [1, 2]}\n"
+        "    r.inner.x <- 7\n"
+        "    r.items[0] <- 9\n"
+        "    print(r.inner.x)\n"
+        "    print(r.items[0])\n"
+    )
+    assert run_source_vm(src) == "7\n9"
+
+
+def test_vm_supports_computed_member_and_index_assignment() -> None:
+    src = "fn main():\n" "    {x: 1}.x <- 7\n" "    [1, 2][0] <- 9\n" '    print("ok")\n'
+    assert run_source_vm(src) == "ok"
 
 
 def test_vm_rejects_unsupported_control_flow() -> None:

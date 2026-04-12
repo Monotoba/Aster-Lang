@@ -4,10 +4,10 @@ This project currently provides a language and toolchain design package plus a s
 
 ## Intended future tools
 
-- `aster run file.aster` — interpret a program
-- `aster check file.aster` — parse and type-check
+- `aster run file.aster` — run a program (`--backend interpreter|vm`)
+- `aster check file.aster` — parse and type-check (`--ownership off|warn|deny`)
 - `aster fmt file.aster` — format source
-- `aster build file.aster` — compile
+- `aster build file.aster` — build artifacts (`--backend python|vm`, `--ownership off|warn|deny`)
 - `aster repl` — interactive shell
 - `aster rr grammar/aster-full.ebnf` — grammar workflow helper
 
