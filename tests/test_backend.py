@@ -57,3 +57,11 @@ def test_backend_registry_validates_formats() -> None:
 
     with pytest.raises(ValueError, match="does not support artifact format"):
         registry.validate_format(adapter, "xml")
+
+
+def test_backend_registry_validates_none_format() -> None:
+    registry = BackendRegistry()
+    adapter = _DummyAdapter(name="dummy", supported_formats=("json",))
+    registry.register(adapter)
+
+    registry.validate_format(adapter, None)
