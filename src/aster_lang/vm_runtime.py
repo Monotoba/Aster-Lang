@@ -84,7 +84,7 @@ class _MemberCell(_RefCell):
     def value(self, new_value: object) -> None:
         obj = self._base.value
         if not isinstance(obj, dict):
-            raise VMError("Member reference requires a record")
+            raise VMError(f"Cannot access member of {type(obj).__name__}")
         new_obj = dict(obj)
         new_obj[self._member] = new_value
         self._base.value = new_obj
@@ -749,7 +749,7 @@ class VM:
                     target_cell_member = gcell
                 obj = target_cell_member.value
                 if not isinstance(obj, dict):
-                    raise VMError("Member assignment only supported on records in VM backend")
+                    raise VMError(f"Cannot access member of {type(obj).__name__}")
                 new_rec = dict(obj)
                 new_rec[key_obj] = value
                 target_cell_member.value = new_rec
