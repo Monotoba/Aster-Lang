@@ -63,3 +63,4 @@ These functions are available globally — no `use` statement required.
 | [time](time.md) | Timestamps and timing |
 | [linalg](linalg.md) | Vectors and matrices |
 | [socket](socket.md) | Network sockets |
+| [net](net.md) | High-level networking |

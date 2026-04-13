@@ -1,0 +1,55 @@
+# stdlib/net.aster — higher-level networking utilities
+#
+# This module provides a more idiomatic Aster API for networking,
+# built on top of the raw `socket` native module.
+
+use socket
+
+# ---------------------------------------------------------------------------
+# TCP Client
+# ---------------------------------------------------------------------------
+
+# dial(addr, port) -> TcpClient
+# Connect to a remote TCP server.
+pub fn dial(addr: String, port: Int) -> List:
+    sock := socket.create(socket.AF_INET, socket.SOCK_STREAM)
+    socket.connect(sock, addr, port)
+    return [sock, addr, port]
+
+# send(client, data) -> Int
+# Send data to the remote server.
+pub fn send(client: List, data: String) -> Int:
+    return socket.send(client[0], data)
+
+# recv(client, bufsize) -> String
+# Receive data from the remote server.
+pub fn recv(client: List, bufsize: Int) -> String:
+    return socket.recv(client[0], bufsize)
+
+# close(client) -> Nil
+# Close the client connection.
+pub fn close(client: List):
+    socket.close(client[0])
+
+# ---------------------------------------------------------------------------
+# TCP Server
+# ---------------------------------------------------------------------------
+
+# listen(addr, port) -> TcpServer
+# Start a TCP server on the given address and port.
+pub fn listen(addr: String, port: Int) -> List:
+    sock := socket.create(socket.AF_INET, socket.SOCK_STREAM)
+    socket.bind(sock, addr, port)
+    socket.listen(sock, 128)
+    return [sock, addr, port]
+
+# accept(server) -> TcpClient
+# Accept a new connection from a client.
+pub fn accept(server: List) -> List:
+    res := socket.accept(server[0])
+    return [res.conn, res.addr, res.port]
+
+# stop(server) -> Nil
+# Stop the server and close its listening socket.
+pub fn stop(server: List):
+    socket.close(server[0])
