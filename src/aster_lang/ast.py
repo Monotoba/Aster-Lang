@@ -534,6 +534,21 @@ class PointerTypeExpr(TypeExpr):
 
 
 @dataclass(slots=True)
+class RecordTypeField(Node):
+    """Record type field: name: Type"""
+
+    name: str
+    type_expr: TypeExpr
+
+
+@dataclass(slots=True)
+class RecordTypeExpr(TypeExpr):
+    """Record type: {name: Type, ...}"""
+
+    fields: list[RecordTypeField]
+
+
+@dataclass(slots=True)
 class SelfType(TypeExpr):
     """Self type: Self (inside traits/impls)"""
 

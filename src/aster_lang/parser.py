@@ -418,6 +418,22 @@ class Parser:
         if self.match(TokenKind.SELF):
             return ast.SelfType()
 
+        # Record type: {field1: Type1, field2: Type2}
+        if self.match(TokenKind.LBRACE):
+            fields = []
+            if not self.check(TokenKind.RBRACE):
+                while True:
+                    name_token = self.expect(TokenKind.IDENTIFIER)
+                    self.expect(TokenKind.COLON)
+                    field_type = self.parse_type_expr()
+                    fields.append(ast.RecordTypeField(name=name_token.text, type_expr=field_type))
+                    if not self.match(TokenKind.COMMA):
+                        break
+                    if self.check(TokenKind.RBRACE):  # Trailing comma
+                        break
+            self.expect(TokenKind.RBRACE)
+            return ast.RecordTypeExpr(fields=fields)
+
         # Simple type: Name or Name[T1, T2]
         name = self.parse_qualified_name()
 

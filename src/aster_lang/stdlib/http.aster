@@ -11,15 +11,16 @@ use list
 # Types
 # ---------------------------------------------------------------------------
 
-# Response is a Record: {status: Int, headers: List[List[String]], body: String}
-# Request is a Record: {method: String, path: String, headers: List[List[String]], body: String}
+pub typealias Response = { status: Int, body: String }
+
+pub typealias Request = { method: String, path: String, body: String }
 
 # ---------------------------------------------------------------------------
 # Client
 # ---------------------------------------------------------------------------
 
 # get(url) -> Response
-pub fn get(url: String):
+pub fn get(url: String) -> Response:
     info := _parse_url(url)
     host := info[0]
     port := info[1]
@@ -52,7 +53,7 @@ pub fn get(url: String):
 
 # listen(port, handler)
 # handler is a function (Request) -> Response
-pub fn listen(port: Int, handler):
+pub fn listen(port: Int, handler: Fn(Request) -> Response):
     server := net.listen("0.0.0.0", port)
     print("HTTP server listening on port " + str(port) + "...")
 
@@ -108,7 +109,7 @@ fn _parse_url(url: String):
     
     return [host, port, path]
 
-fn _parse_response(raw: String):
+fn _parse_response(raw: String) -> Response:
     # Find end of status line
     line_end := strl.find(raw, "\r\n")
     status_line := strl.slice(raw, 0, line_end)
@@ -127,7 +128,7 @@ fn _parse_response(raw: String):
     
     return { status: status, body: body }
 
-fn _parse_request(raw: String):
+fn _parse_request(raw: String) -> Request:
     line_end := strl.find(raw, "\r\n")
     req_line := strl.slice(raw, 0, line_end)
     parts := strl.split(req_line, " ")

@@ -203,6 +203,21 @@ class TupleType(Type):
 
 
 @dataclass(frozen=True)
+class RecordType(Type):
+    """Record type: {name: Type, ...}"""
+
+    fields: dict[str, Type]
+
+    def __init__(self, fields: dict[str, Type]) -> None:
+        object.__setattr__(self, "kind", TypeKind.RECORD)
+        object.__setattr__(self, "fields", fields)
+
+    def __str__(self) -> str:
+        fields = ", ".join(f"{k}: {v}" for k, v in self.fields.items())
+        return f"{{{fields}}}"
+
+
+@dataclass(frozen=True)
 class BorrowType(Type):
     """Borrowed reference type: &T or &mut T"""
 
@@ -2454,8 +2469,12 @@ class SemanticAnalyzer:
                 self._exit_scope()
             return remember(FunctionType(tuple(param_types), ret_t))
         elif isinstance(expr, ast.MemberExpr):
-            # TODO: Implement member type inference
-            self.infer_expr_type(expr.obj)
+            obj_t = self.infer_expr_type(expr.obj)
+            if isinstance(obj_t, RecordType):
+                if expr.member in obj_t.fields:
+                    return remember(obj_t.fields[expr.member])
+                self.error(f"Record has no field '{expr.member}'", expr)
+                return remember(ERROR_TYPE)
             return remember(UNKNOWN_TYPE)
         elif isinstance(expr, ast.IndexExpr):
             # TODO: Implement index type inference
@@ -2501,9 +2520,10 @@ class SemanticAnalyzer:
                             ),
                             f.value,
                         )
+            fields = {}
             for f in expr.fields:
-                self.infer_expr_type(f.value)
-            return remember(UNKNOWN_TYPE)
+                fields[f.name] = self.infer_expr_type(f.value)
+            return remember(RecordType(fields))
         elif isinstance(expr, ast.ParenExpr):
             return remember(self.infer_expr_type(expr.expr))
         else:
@@ -2797,7 +2817,7 @@ class SemanticAnalyzer:
                         self.error(f"{expr.func.name}() expects String", expr)
                     else:
                         self.error(
-                            f"Argument {i+1} type mismatch: expected {inst_param}, got {arg_t}",
+                            f"Argument {i + 1} type mismatch: expected {inst_param}, got {arg_t}",
                             expr,
                         )
 
@@ -2950,7 +2970,7 @@ class SemanticAnalyzer:
                 inst_param = self._substitute_typevars(param_t, subs2)
                 if not self.types_compatible(arg_t, inst_param):
                     self.error(
-                        f"Argument {i+1} type mismatch: expected {inst_param}, got {arg_t}",
+                        f"Argument {i + 1} type mismatch: expected {inst_param}, got {arg_t}",
                         expr,
                     )
 
@@ -2961,6 +2981,10 @@ class SemanticAnalyzer:
 
     def resolve_type_expr(self, type_expr: ast.TypeExpr) -> Type:
         """Resolve a type expression to a Type."""
+        if isinstance(type_expr, ast.RecordTypeExpr):
+            fields = {f.name: self.resolve_type_expr(f.type_expr) for f in type_expr.fields}
+            return RecordType(fields)
+
         if isinstance(type_expr, ast.SimpleType):
             parts = type_expr.name.parts
             if len(parts) == 1:
@@ -3129,6 +3153,15 @@ class SemanticAnalyzer:
             return True
         if isinstance(actual, BitsType) and isinstance(expected, BitsType):
             return actual.bits <= expected.bits
+
+        # Record compatibility: structural subtyping (actual must have all fields of expected)
+        if isinstance(actual, RecordType) and isinstance(expected, RecordType):
+            for name, expected_t in expected.fields.items():
+                if name not in actual.fields:
+                    return False
+                if not self.types_compatible(actual.fields[name], expected_t):
+                    return False
+            return True
 
         # Exact match
         return actual == expected

@@ -9,47 +9,63 @@ use socket
 # TCP Client
 # ---------------------------------------------------------------------------
 
+pub typealias TcpClient = { sock: Int, addr: String, port: Int }
+
 # dial(addr, port) -> TcpClient
 # Connect to a remote TCP server.
-pub fn dial(addr: String, port: Int) -> List:
+pub fn dial(addr: String, port: Int) -> TcpClient:
     sock := socket.create(socket.AF_INET, socket.SOCK_STREAM)
     socket.connect(sock, addr, port)
-    return [sock, addr, port]
+    return {
+        sock: sock,
+        addr: addr,
+        port: port
+    }
 
 # send(client, data) -> Int
 # Send data to the remote server.
-pub fn send(client: List, data: String) -> Int:
-    return socket.send(client[0], data)
+pub fn send(client: TcpClient, data: String) -> Int:
+    return socket.send(client.sock, data)
 
 # recv(client, bufsize) -> String
 # Receive data from the remote server.
-pub fn recv(client: List, bufsize: Int) -> String:
-    return socket.recv(client[0], bufsize)
+pub fn recv(client: TcpClient, bufsize: Int) -> String:
+    return socket.recv(client.sock, bufsize)
 
 # close(client) -> Nil
 # Close the client connection.
-pub fn close(client: List):
-    socket.close(client[0])
+pub fn close(client: TcpClient):
+    socket.close(client.sock)
 
 # ---------------------------------------------------------------------------
 # TCP Server
 # ---------------------------------------------------------------------------
 
+pub typealias TcpServer = { sock: Int, addr: String, port: Int }
+
 # listen(addr, port) -> TcpServer
 # Start a TCP server on the given address and port.
-pub fn listen(addr: String, port: Int) -> List:
+pub fn listen(addr: String, port: Int) -> TcpServer:
     sock := socket.create(socket.AF_INET, socket.SOCK_STREAM)
     socket.bind(sock, addr, port)
     socket.listen(sock, 128)
-    return [sock, addr, port]
+    return {
+        sock: sock,
+        addr: addr,
+        port: port
+    }
 
 # accept(server) -> TcpClient
 # Accept a new connection from a client.
-pub fn accept(server: List) -> List:
-    res := socket.accept(server[0])
-    return [res.conn, res.addr, res.port]
+pub fn accept(server: TcpServer) -> TcpClient:
+    res := socket.accept(server.sock)
+    return {
+        sock: res.conn,
+        addr: res.addr,
+        port: res.port
+    }
 
 # stop(server) -> Nil
 # Stop the server and close its listening socket.
-pub fn stop(server: List):
-    socket.close(server[0])
+pub fn stop(server: TcpServer):
+    socket.close(server.sock)
