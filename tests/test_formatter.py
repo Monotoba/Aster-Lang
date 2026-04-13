@@ -65,8 +65,7 @@ def test_format_generic_function_type_params_and_bounds() -> None:
 
 def test_format_ownership_and_fn_types() -> None:
     src = (
-        "fn f(a: &Int, b: &mut String, c: *own Node, d: Fn(Int) -> Int) -> *raw Byte:\n"
-        "    return a"
+        "fn f(a: &Int, b: &mut String, c: *own Node, d: Fn(Int) -> Int) -> *raw Byte:\n    return a"
     )
     assert fmt(src) == (
         "fn f(a: &Int, b: &mut String, c: *own Node, d: Fn(Int) -> Int) -> *raw Byte:\n"
@@ -106,10 +105,8 @@ def test_format_trait_decl() -> None:
 
 
 def test_format_impl_decl() -> None:
-    src = "impl Show for Int:\n" "    fn show(self) -> String:\n" '        return "Int"\n'
-    assert fmt(src) == (
-        "impl Show for Int:\n" "    fn show(self) -> String:\n" '        return "Int"\n'
-    )
+    src = 'impl Show for Int:\n    fn show(self) -> String:\n        return "Int"\n'
+    assert fmt(src) == ('impl Show for Int:\n    fn show(self) -> String:\n        return "Int"\n')
 
 
 # ------------------------------------------------------------------
@@ -299,13 +296,7 @@ def test_idempotent_sum_to() -> None:
 
 
 def test_idempotent_if_else() -> None:
-    src = (
-        "fn abs(n: Int) -> Int:\n"
-        "    if n < 0:\n"
-        "        return -n\n"
-        "    else:\n"
-        "        return n\n"
-    )
+    src = "fn abs(n: Int) -> Int:\n    if n < 0:\n        return -n\n    else:\n        return n\n"
     once = format_source(src)
     twice = format_source(once)
     assert once == twice
@@ -344,7 +335,7 @@ def test_round_trip_sum_to() -> None:
 
 def test_format_match_inline_expr_arms() -> None:
     """Inline expression-statement arms stay on one line."""
-    src = "fn f():\n" "    match x:\n" "        0: x\n" "        _: y\n"
+    src = "fn f():\n    match x:\n        0: x\n        _: y\n"
     result = fmt(src)
     assert "match x:" in result
     assert "    0: x" in result
@@ -353,7 +344,7 @@ def test_format_match_inline_expr_arms() -> None:
 
 def test_format_match_return_arms_use_block() -> None:
     """Return-statement arms are formatted as indented blocks."""
-    src = "fn f():\n" "    match x:\n" "        0: return 0\n" "        _: return 1\n"
+    src = "fn f():\n    match x:\n        0: return 0\n        _: return 1\n"
     result = fmt(src)
     assert "match x:" in result
     assert "    0:" in result
@@ -394,10 +385,7 @@ def test_format_match_idempotent() -> None:
 
 def test_format_match_tuple_pattern() -> None:
     src = (
-        "fn classify(pair: Pair):\n"
-        "    match pair:\n"
-        "        (0,x): return x\n"
-        "        _: return 0\n"
+        "fn classify(pair: Pair):\n    match pair:\n        (0,x): return x\n        _: return 0\n"
     )
     result = fmt(src)
     assert "match pair:" in result
@@ -406,12 +394,7 @@ def test_format_match_tuple_pattern() -> None:
 
 
 def test_format_match_list_pattern() -> None:
-    src = (
-        "fn classify(items):\n"
-        "    match items:\n"
-        "        [0,x]: return x\n"
-        "        _: return 0\n"
-    )
+    src = "fn classify(items):\n    match items:\n        [0,x]: return x\n        _: return 0\n"
     result = fmt(src)
     assert "match items:" in result
     assert "    [0, x]:" in result
@@ -419,12 +402,7 @@ def test_format_match_list_pattern() -> None:
 
 
 def test_format_match_record_pattern() -> None:
-    src = (
-        "fn classify(point):\n"
-        "    match point:\n"
-        "        {x:0,y}: return y\n"
-        "        _: return 0\n"
-    )
+    src = "fn classify(point):\n    match point:\n        {x:0,y}: return y\n        _: return 0\n"
     result = fmt(src)
     assert "match point:" in result
     assert "    {x: 0, y}:" in result
@@ -432,12 +410,7 @@ def test_format_match_record_pattern() -> None:
 
 
 def test_format_match_or_pattern() -> None:
-    src = (
-        "fn classify(value):\n"
-        "    match value:\n"
-        "        0|1: return 1\n"
-        "        _: return 0\n"
-    )
+    src = "fn classify(value):\n    match value:\n        0|1: return 1\n        _: return 0\n"
     result = fmt(src)
     assert "match value:" in result
     assert "    0 | 1:" in result

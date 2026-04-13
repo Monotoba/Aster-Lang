@@ -220,9 +220,7 @@ class TestStrModule:
 
     def test_join(self) -> None:
         src = (
-            "use str\nfn main():\n"
-            '    result := str.join("-", ["x", "y", "z"])\n'
-            "    print(result)\n"
+            'use str\nfn main():\n    result := str.join("-", ["x", "y", "z"])\n    print(result)\n'
         )
         assert run(src) == ["x-y-z"]
 

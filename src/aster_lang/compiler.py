@@ -389,7 +389,7 @@ class Transpiler:
             inner = ", ".join(self._binding_target(element) for element in pattern.elements)
             return f"[{inner}]"
         raise ValueError(
-            f"Compiler does not support destructuring binding pattern " f"{type(pattern).__name__}"
+            f"Compiler does not support destructuring binding pattern {type(pattern).__name__}"
         )
 
     # ------------------------------------------------------------------

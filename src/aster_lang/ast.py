@@ -463,6 +463,21 @@ class StringLiteral(Expr):
 
 
 @dataclass(slots=True)
+class InterpolatedPart(Node):
+    """A part of an interpolated string: either a string chunk or an expression."""
+
+    value: str | Expr
+    is_expression: bool = False
+
+
+@dataclass(slots=True)
+class InterpolatedString(Expr):
+    """Interpolated string: f"hello {name}" """
+
+    parts: list[InterpolatedPart]
+
+
+@dataclass(slots=True)
 class BoolLiteral(Expr):
     """Boolean literal: true or false"""
 

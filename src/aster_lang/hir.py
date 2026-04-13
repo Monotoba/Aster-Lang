@@ -22,7 +22,7 @@ from dataclasses import dataclass, field
 
 from aster_lang import ast
 from aster_lang.formatter import Formatter
-from aster_lang.semantic import UNKNOWN_TYPE, SemanticAnalyzer, Type
+from aster_lang.semantic import STRING_TYPE, UNKNOWN_TYPE, SemanticAnalyzer, Type
 
 # ---------------------------------------------------------------------------
 # HIR expression nodes
@@ -579,6 +579,31 @@ class _Lowerer:
             return HLit(value=expr.value, ty=ty)
         if isinstance(expr, ast.StringLiteral):
             return HLit(value=expr.value, ty=ty)
+        if isinstance(expr, ast.InterpolatedString):
+            # Lower into a sequence of binary + operations.
+            # f"a {b} c" -> ("a" + str(b)) + "c"
+            result: HExpr | None = None
+            for part in expr.parts:
+                part_expr: HExpr
+                if part.is_expression:
+                    inner = self._lower_expr(part.value)  # type: ignore[arg-type]
+                    if inner.ty == STRING_TYPE:
+                        part_expr = inner
+                    else:
+                        # Wrap in str() call
+                        part_expr = HCall(
+                            func=HName(name="str", ty=UNKNOWN_TYPE),
+                            args=(inner,),
+                            ty=STRING_TYPE,
+                        )
+                else:
+                    part_expr = HLit(value=str(part.value), ty=STRING_TYPE)
+
+                if result is None:
+                    result = part_expr
+                else:
+                    result = HBinOp(op="+", left=result, right=part_expr, ty=STRING_TYPE)
+            return result or HLit(value="", ty=STRING_TYPE)
         if isinstance(expr, ast.BoolLiteral):
             return HLit(value=expr.value, ty=ty)
         if isinstance(expr, ast.NilLiteral):

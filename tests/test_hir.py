@@ -27,7 +27,7 @@ def _lower(src: str) -> HModule:
 
 
 def test_dump_hir_includes_expression_types() -> None:
-    module = parse_module("fn add(a: Int, b: Int) -> Int:\n" "    return a + b\n")
+    module = parse_module("fn add(a: Int, b: Int) -> Int:\n    return a + b\n")
     analyzer = SemanticAnalyzer()
     assert analyzer.analyze(module)
     text = dump_hir(module, analyzer)
@@ -183,12 +183,7 @@ def test_lambda_no_free_vars_when_closed() -> None:
 
 
 def test_match_stmt_preserved() -> None:
-    src = (
-        "fn describe(n: Int) -> Int:\n"
-        "    match n:\n"
-        "        0: return 0\n"
-        "        _: return 1\n"
-    )
+    src = "fn describe(n: Int) -> Int:\n    match n:\n        0: return 0\n        _: return 1\n"
     hmod = _lower(src)
     fn = hmod.decls[0]
     assert isinstance(fn, HFunction)

@@ -697,12 +697,12 @@ result := add(1, "hello")
 def test_named_import_defines_function_symbol(tmp_path: Path) -> None:
     """Named imports should define imported functions with their declared types."""
     (tmp_path / "helpers.aster").write_text(
-        "pub fn add(a: Int, b: Int) -> Int:\n" "    return a + b\n",
+        "pub fn add(a: Int, b: Int) -> Int:\n    return a + b\n",
         encoding="utf-8",
     )
 
     module = parse_module(
-        "use helpers: add\n" "result := add(1, 2)\n",
+        "use helpers: add\nresult := add(1, 2)\n",
     )
     analyzer = SemanticAnalyzer(base_dir=tmp_path)
     analyzer.analyze(module)
@@ -718,7 +718,7 @@ def test_named_import_defines_function_symbol(tmp_path: Path) -> None:
 def test_missing_named_import_reports_error(tmp_path: Path) -> None:
     """Missing imported names should produce a semantic error."""
     (tmp_path / "helpers.aster").write_text(
-        "pub fn add(a: Int, b: Int) -> Int:\n" "    return a + b\n",
+        "pub fn add(a: Int, b: Int) -> Int:\n    return a + b\n",
         encoding="utf-8",
     )
 
@@ -755,7 +755,7 @@ def test_import_resolves_parent_package_root(tmp_path: Path) -> None:
     lib_dir = tmp_path / "lib"
     lib_dir.mkdir()
     (lib_dir / "helpers.aster").write_text(
-        "pub fn answer() -> Int:\n" "    return 42\n",
+        "pub fn answer() -> Int:\n    return 42\n",
         encoding="utf-8",
     )
     app_dir = tmp_path / "app"
@@ -774,13 +774,13 @@ def test_import_resolves_parent_package_root(tmp_path: Path) -> None:
 
 def test_import_resolves_manifest_module_root(tmp_path: Path) -> None:
     (tmp_path / "aster.toml").write_text(
-        "[modules]\n" 'search_roots = ["src"]\n',
+        '[modules]\nsearch_roots = ["src"]\n',
         encoding="utf-8",
     )
     src_dir = tmp_path / "src"
     src_dir.mkdir()
     (src_dir / "helpers.aster").write_text(
-        "pub fn answer() -> Int:\n" "    return 42\n",
+        "pub fn answer() -> Int:\n    return 42\n",
         encoding="utf-8",
     )
     app_dir = tmp_path / "app"
@@ -799,13 +799,13 @@ def test_import_resolves_manifest_module_root(tmp_path: Path) -> None:
 
 def test_import_resolves_current_package_name_prefix(tmp_path: Path) -> None:
     (tmp_path / "aster.toml").write_text(
-        "[package]\n" 'name = "app"\n' "[modules]\n" 'search_roots = ["src"]\n',
+        '[package]\nname = "app"\n[modules]\nsearch_roots = ["src"]\n',
         encoding="utf-8",
     )
     src_dir = tmp_path / "src"
     src_dir.mkdir()
     (src_dir / "helpers.aster").write_text(
-        "pub fn answer() -> Int:\n" "    return 42\n",
+        "pub fn answer() -> Int:\n    return 42\n",
         encoding="utf-8",
     )
     app_dir = tmp_path / "app"
@@ -824,7 +824,7 @@ def test_import_resolves_current_package_name_prefix(tmp_path: Path) -> None:
 
 def test_invalid_manifest_package_name_reports_error(tmp_path: Path) -> None:
     (tmp_path / "aster.toml").write_text(
-        "[package]\n" "name = 42\n",
+        "[package]\nname = 42\n",
         encoding="utf-8",
     )
 
@@ -838,7 +838,7 @@ def test_invalid_manifest_package_name_reports_error(tmp_path: Path) -> None:
 
 def test_import_private_name_reports_error(tmp_path: Path) -> None:
     (tmp_path / "helpers.aster").write_text(
-        "fn hidden() -> Int:\n" "    return 7\n" "pub fn shown() -> Int:\n" "    return 42\n",
+        "fn hidden() -> Int:\n    return 7\npub fn shown() -> Int:\n    return 42\n",
         encoding="utf-8",
     )
 
@@ -1258,11 +1258,11 @@ def test_import_from_declared_dependency(tmp_path: Path) -> None:
     dep_dir = tmp_path / "vendor" / "math"
     dep_dir.mkdir(parents=True)
     (dep_dir / "utils.aster").write_text(
-        "pub fn double(n: Int) -> Int:\n" "    return n + n\n",
+        "pub fn double(n: Int) -> Int:\n    return n + n\n",
         encoding="utf-8",
     )
     (tmp_path / "aster.toml").write_text(
-        "[dependencies]\n" 'math = { path = "vendor/math" }\n',
+        '[dependencies]\nmath = { path = "vendor/math" }\n',
         encoding="utf-8",
     )
 
@@ -1279,13 +1279,13 @@ def test_import_from_dependency_with_dotdot_path(tmp_path: Path) -> None:
     sibling = tmp_path / "sibling"
     sibling.mkdir()
     (sibling / "helpers.aster").write_text(
-        "pub fn greet() -> String:\n" '    return "hi"\n',
+        'pub fn greet() -> String:\n    return "hi"\n',
         encoding="utf-8",
     )
     project = tmp_path / "project"
     project.mkdir()
     (project / "aster.toml").write_text(
-        "[dependencies]\n" 'sibling = { path = "../sibling" }\n',
+        '[dependencies]\nsibling = { path = "../sibling" }\n',
         encoding="utf-8",
     )
 
@@ -1298,7 +1298,7 @@ def test_import_from_dependency_with_dotdot_path(tmp_path: Path) -> None:
 
 def test_import_from_dependency_missing_path_reports_error(tmp_path: Path) -> None:
     (tmp_path / "aster.toml").write_text(
-        "[dependencies]\n" 'ghost = { path = "does_not_exist" }\n',
+        '[dependencies]\nghost = { path = "does_not_exist" }\n',
         encoding="utf-8",
     )
 
@@ -1312,7 +1312,7 @@ def test_import_from_dependency_missing_path_reports_error(tmp_path: Path) -> No
 
 def test_dependency_entry_missing_path_key_reports_error(tmp_path: Path) -> None:
     (tmp_path / "aster.toml").write_text(
-        "[dependencies]\n" 'bad = { version = "1.0" }\n',
+        '[dependencies]\nbad = { version = "1.0" }\n',
         encoding="utf-8",
     )
 
@@ -1326,7 +1326,7 @@ def test_dependency_entry_missing_path_key_reports_error(tmp_path: Path) -> None
 
 def test_dependency_path_not_string_reports_error(tmp_path: Path) -> None:
     (tmp_path / "aster.toml").write_text(
-        "[dependencies]\n" "bad = { path = 99 }\n",
+        "[dependencies]\nbad = { path = 99 }\n",
         encoding="utf-8",
     )
 
@@ -1365,7 +1365,7 @@ def test_type_alias_defined_in_scope() -> None:
 
 
 def test_type_alias_type_params_resolve_as_type_variables() -> None:
-    source = "typealias Id[T] = T\n" "fn use_id(x: Id[Int]) -> Id[Int]:\n" "    return x\n"
+    source = "typealias Id[T] = T\nfn use_id(x: Id[Int]) -> Id[Int]:\n    return x\n"
     module = parse_module(source)
     analyzer = SemanticAnalyzer()
     analyzer.analyze(module)
@@ -1399,12 +1399,7 @@ def test_generic_function_type_params_resolve_as_type_variables() -> None:
 
 
 def test_generic_trait_bounds_validate_against_known_traits() -> None:
-    source = (
-        "trait Show:\n"
-        "    fn show(self) -> String\n"
-        "fn f[T: Show](x: T) -> Int:\n"
-        "    return 0\n"
-    )
+    source = "trait Show:\n    fn show(self) -> String\nfn f[T: Show](x: T) -> Int:\n    return 0\n"
     module = parse_module(source)
     analyzer = SemanticAnalyzer()
     analyzer.analyze(module)
@@ -1422,10 +1417,10 @@ def test_generic_trait_bounds_unknown_trait_reports_error() -> None:
 
 def test_generic_trait_bounds_imported_named_trait_is_valid(tmp_path: Path) -> None:
     (tmp_path / "traits.aster").write_text(
-        "pub trait Show:\n" "    fn show(self) -> String\n",
+        "pub trait Show:\n    fn show(self) -> String\n",
         encoding="utf-8",
     )
-    source = "use traits: Show\n" "fn f[T: Show](x: T) -> Int:\n" "    return 0\n"
+    source = "use traits: Show\nfn f[T: Show](x: T) -> Int:\n    return 0\n"
     module = parse_module(source)
     analyzer = SemanticAnalyzer(base_dir=tmp_path)
     analyzer.analyze(module)
@@ -1434,10 +1429,10 @@ def test_generic_trait_bounds_imported_named_trait_is_valid(tmp_path: Path) -> N
 
 def test_generic_trait_bounds_imported_namespace_trait_is_valid(tmp_path: Path) -> None:
     (tmp_path / "traits.aster").write_text(
-        "pub trait Show:\n" "    fn show(self) -> String\n",
+        "pub trait Show:\n    fn show(self) -> String\n",
         encoding="utf-8",
     )
-    source = "use traits\n" "fn f[T: traits.Show](x: T) -> Int:\n" "    return 0\n"
+    source = "use traits\nfn f[T: traits.Show](x: T) -> Int:\n    return 0\n"
     module = parse_module(source)
     analyzer = SemanticAnalyzer(base_dir=tmp_path)
     analyzer.analyze(module)
@@ -1464,9 +1459,7 @@ def test_generic_type_param_bounds_are_recorded() -> None:
 
 
 def test_generic_function_call_instantiates_type_vars() -> None:
-    source = (
-        "fn id[T](x: T) -> T:\n" "    return x\n" "fn main():\n" "    y := id(1)\n" "    print(y)\n"
-    )
+    source = "fn id[T](x: T) -> T:\n    return x\nfn main():\n    y := id(1)\n    print(y)\n"
     module = parse_module(source)
     analyzer = SemanticAnalyzer()
     analyzer.analyze(module)
@@ -1480,7 +1473,7 @@ def test_generic_function_call_instantiates_type_vars() -> None:
 
 
 def test_generic_type_alias_instantiates_type_vars() -> None:
-    source = "typealias Id[T] = T\n" "fn f(x: Id[Int]) -> Id[Int]:\n" "    return x\n"
+    source = "typealias Id[T] = T\nfn f(x: Id[Int]) -> Id[Int]:\n    return x\n"
     module = parse_module(source)
     analyzer = SemanticAnalyzer()
     analyzer.analyze(module)
@@ -1506,7 +1499,7 @@ def test_trait_decl_registers_trait_symbol() -> None:
 
 
 def test_impl_for_unknown_trait_reports_error() -> None:
-    source = "impl Missing for Int:\n" "    fn show(self) -> String:\n" '        return "x"\n'
+    source = 'impl Missing for Int:\n    fn show(self) -> String:\n        return "x"\n'
     module = parse_module(source)
     analyzer = SemanticAnalyzer()
     analyzer.analyze(module)
@@ -1516,14 +1509,11 @@ def test_impl_for_unknown_trait_reports_error() -> None:
 
 def test_impl_for_qualified_imported_trait_is_valid(tmp_path: Path) -> None:
     (tmp_path / "traits.aster").write_text(
-        "pub trait Show:\n" "    fn show(self) -> String\n",
+        "pub trait Show:\n    fn show(self) -> String\n",
         encoding="utf-8",
     )
     source = (
-        "use traits\n"
-        "impl traits.Show for Int:\n"
-        "    fn show(self) -> String:\n"
-        '        return "x"\n'
+        'use traits\nimpl traits.Show for Int:\n    fn show(self) -> String:\n        return "x"\n'
     )
     module = parse_module(source)
     analyzer = SemanticAnalyzer(base_dir=tmp_path)
@@ -1547,7 +1537,7 @@ def test_impl_missing_required_method_reports_error() -> None:
 
 
 def test_type_alias_duplicate_reports_error() -> None:
-    source = "typealias Foo = Int\n" "typealias Foo = String\n"
+    source = "typealias Foo = Int\ntypealias Foo = String\n"
     module = parse_module(source)
     analyzer = SemanticAnalyzer()
     analyzer.analyze(module)
@@ -1594,7 +1584,7 @@ def test_imported_type_alias_usable_in_annotation(tmp_path: Path) -> None:
         "pub typealias Score = Int\n",
         encoding="utf-8",
     )
-    source = "use types: Score\n" "fn double_score(s: Score) -> Score:\n" "    return s + s\n"
+    source = "use types: Score\nfn double_score(s: Score) -> Score:\n    return s + s\n"
     module = parse_module(source)
     analyzer = SemanticAnalyzer(base_dir=tmp_path)
     analyzer.analyze(module)
@@ -1613,7 +1603,7 @@ def test_qualified_type_from_namespace_import(tmp_path: Path) -> None:
         "pub typealias Score = Int\n",
         encoding="utf-8",
     )
-    source = "use types\n" "fn rank(s: types.Score) -> types.Score:\n" "    return s + 1\n"
+    source = "use types\nfn rank(s: types.Score) -> types.Score:\n    return s + 1\n"
     module = parse_module(source)
     analyzer = SemanticAnalyzer(base_dir=tmp_path)
     analyzer.analyze(module)
@@ -1632,7 +1622,7 @@ def test_qualified_type_from_aliased_namespace_import(tmp_path: Path) -> None:
         "pub typealias Score = Int\n",
         encoding="utf-8",
     )
-    source = "use types as t\n" "fn rank(s: t.Score) -> t.Score:\n" "    return s\n"
+    source = "use types as t\nfn rank(s: t.Score) -> t.Score:\n    return s\n"
     module = parse_module(source)
     analyzer = SemanticAnalyzer(base_dir=tmp_path)
     analyzer.analyze(module)
@@ -1654,7 +1644,7 @@ def test_qualified_type_nonalias_member_resolves_to_unknown(tmp_path: Path) -> N
         "pub fn answer() -> Int:\n    return 42\n",
         encoding="utf-8",
     )
-    source = "use helpers\n" "fn f(x: helpers.answer) -> Int:\n" "    return x\n"
+    source = "use helpers\nfn f(x: helpers.answer) -> Int:\n    return x\n"
     module = parse_module(source)
     analyzer = SemanticAnalyzer(base_dir=tmp_path)
     analyzer.analyze(module)
@@ -2016,7 +2006,7 @@ def test_effect_duplicate_decl_reports_error() -> None:
 
 
 def test_function_with_declared_effect_passes() -> None:
-    source = "effect io\n" "fn print_line(s: String) !io:\n" "    x := 1\n"
+    source = "effect io\nfn print_line(s: String) !io:\n    x := 1\n"
     module = parse_module(source)
     analyzer = SemanticAnalyzer()
     analyzer.analyze(module)
@@ -2034,7 +2024,7 @@ def test_function_with_undeclared_effect_reports_error() -> None:
 
 def test_effect_propagates_to_caller_passes() -> None:
     """Caller that declares the same effect can call an effectful function."""
-    source = "effect io\n" "fn write() !io:\n" "    x := 1\n" "fn caller() !io:\n" "    write()\n"
+    source = "effect io\nfn write() !io:\n    x := 1\nfn caller() !io:\n    write()\n"
     module = parse_module(source)
     analyzer = SemanticAnalyzer()
     analyzer.analyze(module)
@@ -2043,7 +2033,7 @@ def test_effect_propagates_to_caller_passes() -> None:
 
 def test_effect_propagation_missing_on_caller_reports_error() -> None:
     """Caller without the effect cannot call an effectful function."""
-    source = "effect io\n" "fn write() !io:\n" "    x := 1\n" "fn caller():\n" "    write()\n"
+    source = "effect io\nfn write() !io:\n    x := 1\nfn caller():\n    write()\n"
     module = parse_module(source)
     analyzer = SemanticAnalyzer()
     analyzer.analyze(module)
@@ -2053,7 +2043,7 @@ def test_effect_propagation_missing_on_caller_reports_error() -> None:
 
 def test_effect_not_enforced_at_top_level() -> None:
     """Top-level (non-function) calls to effectful functions are unconstrained."""
-    source = "effect io\n" "fn write() !io:\n" "    x := 1\n" "result := 0\n"
+    source = "effect io\nfn write() !io:\n    x := 1\nresult := 0\n"
     module = parse_module(source)
     analyzer = SemanticAnalyzer()
     analyzer.analyze(module)
@@ -2062,12 +2052,7 @@ def test_effect_not_enforced_at_top_level() -> None:
 
 def test_multiple_effects_all_required() -> None:
     source = (
-        "effect io\n"
-        "effect net\n"
-        "fn fetch() !io !net:\n"
-        "    x := 1\n"
-        "fn caller() !io:\n"
-        "    fetch()\n"
+        "effect io\neffect net\nfn fetch() !io !net:\n    x := 1\nfn caller() !io:\n    fetch()\n"
     )
     module = parse_module(source)
     analyzer = SemanticAnalyzer()
@@ -2100,7 +2085,7 @@ def test_pub_effect_decl_is_parsed() -> None:
 
 
 def test_effect_on_function_type_carries_effects() -> None:
-    source = "effect io\n" "fn write() !io:\n" "    x := 1\n"
+    source = "effect io\nfn write() !io:\n    x := 1\n"
     module = parse_module(source)
     analyzer = SemanticAnalyzer()
     analyzer.analyze(module)

@@ -1195,6 +1195,17 @@ class Interpreter:
         elif isinstance(expr, ast.StringLiteral):
             return StringValue(expr.value)
 
+        elif isinstance(expr, ast.InterpolatedString):
+            result = []
+            for part in expr.parts:
+                if part.is_expression:
+                    val = self.evaluate_expr(part.value)  # type: ignore[arg-type]
+                    # Convert value to string (delegates to __str__)
+                    result.append(str(val))
+                else:
+                    result.append(str(part.value))
+            return StringValue("".join(result))
+
         elif isinstance(expr, ast.BoolLiteral):
             return BoolValue(expr.value)
 

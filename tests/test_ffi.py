@@ -177,24 +177,14 @@ libm_only: pytest.MarkDecorator = pytest.mark.skipif(
 class TestFFIInterpreter:
     @libm_only  # type: ignore[misc]
     def test_cos_zero(self) -> None:
-        src = (
-            'extern "libm":\n'
-            "    fn cos(x: Float) -> Float\n"
-            "fn main():\n"
-            "    print(cos(0))\n"
-        )
+        src = 'extern "libm":\n    fn cos(x: Float) -> Float\nfn main():\n    print(cos(0))\n'
         result = interpret_source(src)
         assert result.error is None
         assert float(result.output) == pytest.approx(1.0)
 
     @libm_only  # type: ignore[misc]
     def test_sqrt_four(self) -> None:
-        src = (
-            'extern "libm":\n'
-            "    fn sqrt(x: Float) -> Float\n"
-            "fn main():\n"
-            "    print(sqrt(4))\n"
-        )
+        src = 'extern "libm":\n    fn sqrt(x: Float) -> Float\nfn main():\n    print(sqrt(4))\n'
         result = interpret_source(src)
         assert result.error is None
         assert float(result.output) == pytest.approx(2.0)
@@ -212,12 +202,7 @@ class TestFFIInterpreter:
         assert float(result.output) == pytest.approx(1024.0)
 
     def test_bad_library_raises(self) -> None:
-        src = (
-            'extern "__no_such_library_xyz__":\n'
-            "    fn foo() -> Int\n"
-            "fn main():\n"
-            "    foo()\n"
-        )
+        src = 'extern "__no_such_library_xyz__":\n    fn foo() -> Int\nfn main():\n    foo()\n'
         m = parse_module(src)
         interp = Interpreter()
         with pytest.raises(InterpreterError, match="FFI"):
@@ -225,7 +210,7 @@ class TestFFIInterpreter:
 
     @libm_only  # type: ignore[misc]
     def test_pub_extern_importable(self, tmp_path: Path) -> None:
-        lib_src = 'pub extern "libm":\n' "    fn cos(x: Float) -> Float\n"
+        lib_src = 'pub extern "libm":\n    fn cos(x: Float) -> Float\n'
         (tmp_path / "mylib.aster").write_text(lib_src)
 
         main_src = "use mylib: cos\nfn main():\n    print(cos(0))\n"

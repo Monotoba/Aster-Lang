@@ -447,6 +447,61 @@ class Parser:
 
         return ast.SimpleType(name=name, type_args=type_args)
 
+    def parse_fstring(self, content: str) -> ast.Expr:
+        """Parse f-string content into InterpolatedString parts."""
+        parts: list[ast.InterpolatedPart] = []
+        i = 0
+        while i < len(content):
+            if content[i] == "{" and (i + 1 < len(content) and content[i + 1] != "{"):
+                # Expression start
+                i += 1
+                expr_start = i
+                # Find matching }
+                brace_count = 1
+                while i < len(content) and brace_count > 0:
+                    if content[i] == "{":
+                        brace_count += 1
+                    elif content[i] == "}":
+                        brace_count -= 1
+                    i += 1
+
+                if brace_count > 0:
+                    raise ParseError("Unterminated expression in f-string", self.current)
+
+                expr_text = content[expr_start : i - 1]
+                # Parse expr_text using a fresh parser
+                expr_parser = Parser(expr_text)
+                # Ensure we have tokens
+                if expr_parser.check(TokenKind.EOF):
+                    raise ParseError("Empty expression in f-string", self.current)
+
+                expr = expr_parser.parse_expression()
+                parts.append(ast.InterpolatedPart(value=expr, is_expression=True))
+            elif content[i] == "{" and (i + 1 < len(content) and content[i + 1] == "{"):
+                # Escaped {
+                parts.append(ast.InterpolatedPart(value="{", is_expression=False))
+                i += 2
+            elif content[i] == "}" and (i + 1 < len(content) and content[i + 1] == "}"):
+                # Escaped }
+                parts.append(ast.InterpolatedPart(value="}", is_expression=False))
+                i += 2
+            elif content[i] == "}":
+                raise ParseError("Single '}' encountered in f-string", self.current)
+            else:
+                # Static chunk
+                chunk_start = i
+                while i < len(content) and content[i] not in ("{", "}"):
+                    i += 1
+                parts.append(
+                    ast.InterpolatedPart(value=content[chunk_start:i], is_expression=False)
+                )
+
+        # Optimize: if no expressions, return a StringLiteral
+        if not any(p.is_expression for p in parts):
+            return ast.StringLiteral(value="".join(p.value for p in parts))  # type: ignore[misc]
+
+        return ast.InterpolatedString(parts=parts)
+
     def parse_qualified_name(self) -> ast.QualifiedName:
         """Parse a qualified name: a.b.c"""
         parts = []
@@ -940,6 +995,15 @@ class Parser:
 
         if self.match(TokenKind.STRING):
             assert self.previous is not None
+            return ast.StringLiteral(value=self.previous.text)
+
+        if self.match(TokenKind.FSTRING):
+            assert self.previous is not None
+            return self.parse_fstring(self.previous.text)
+
+        if self.match(TokenKind.DSTRING):
+            assert self.previous is not None
+            # D-string is treated as raw string literal for now
             return ast.StringLiteral(value=self.previous.text)
 
         if self.match(TokenKind.TRUE):

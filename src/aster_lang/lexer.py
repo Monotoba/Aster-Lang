@@ -73,6 +73,8 @@ class TokenKind(Enum):
     # Literals
     INTEGER = auto()
     STRING = auto()
+    FSTRING = auto()
+    DSTRING = auto()
     IDENTIFIER = auto()
 
     # Indentation
@@ -202,12 +204,12 @@ class Lexer:
                 text.append(self.advance())
             self.comments.append((start_line, start_col, "".join(text)))
 
-    def read_string(self) -> str:
-        """Read a string literal with escape sequences."""
+    def read_string(self, raw: bool = False) -> str:
+        """Read a string literal with escape sequences (unless raw=True)."""
         result = []
         self.advance()  # Skip opening quote
         while self.peek() and self.peek() != '"':
-            if self.peek() == "\\":
+            if not raw and self.peek() == "\\":
                 self.advance()
                 next_ch = self.advance()
                 if next_ch == "n":
@@ -336,10 +338,18 @@ class Lexer:
             self.advance()
             return Token(TokenKind.NEWLINE, "\n", start, self.current_location())
 
-        # String literal
+        # String literal (standard, f-string, or d-string)
         if ch == '"':
             text = self.read_string()
             return Token(TokenKind.STRING, text, start, self.current_location())
+        if ch == "f" and self.peek(1) == '"':
+            self.advance()  # skip 'f'
+            text = self.read_string(raw=True)  # read as raw to preserve { }
+            return Token(TokenKind.FSTRING, text, start, self.current_location())
+        if ch == "d" and self.peek(1) == '"':
+            self.advance()  # skip 'd'
+            text = self.read_string(raw=True)  # read as raw
+            return Token(TokenKind.DSTRING, text, start, self.current_location())
 
         # Number
         if ch.isdigit():

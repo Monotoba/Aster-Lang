@@ -77,7 +77,7 @@ def test_lower_lifts_lambdas() -> None:
 def test_no_hmatch_in_output() -> None:
     from aster_lang.hir import HMatch
 
-    src = "fn f(n: Int) -> Int:\n" "    match n:\n" "        0: return 0\n" "        _: return 1\n"
+    src = "fn f(n: Int) -> Int:\n    match n:\n        0: return 0\n        _: return 1\n"
     mmod = _lower(src)
     fn = mmod.decls[0]
     assert isinstance(fn, MFunction)
@@ -133,7 +133,7 @@ def test_match_wildcard_arm_is_unconditional() -> None:
 
 
 def test_match_literal_arm_becomes_mif() -> None:
-    src = "fn f(n: Int) -> Int:\n" "    match n:\n" "        0: return 0\n" "        _: return 1\n"
+    src = "fn f(n: Int) -> Int:\n    match n:\n        0: return 0\n        _: return 1\n"
     mmod = _lower(src)
     fn = mmod.decls[0]
     assert isinstance(fn, MFunction)
@@ -154,7 +154,7 @@ def test_match_binding_arm_emits_let() -> None:
 
 
 def test_match_tuple_pattern_desugared() -> None:
-    src = "fn f():\n" "    match pair:\n" "        (a, b): return a\n"
+    src = "fn f():\n    match pair:\n        (a, b): return a\n"
     mmod = _lower(src)
     fn = mmod.decls[0]
     assert isinstance(fn, MFunction)
@@ -164,12 +164,7 @@ def test_match_tuple_pattern_desugared() -> None:
 
 
 def test_match_or_pattern_desugared() -> None:
-    src = (
-        "fn f(n: Int) -> Int:\n"
-        "    match n:\n"
-        "        0 | 1: return 0\n"
-        "        _: return 1\n"
-    )
+    src = "fn f(n: Int) -> Int:\n    match n:\n        0 | 1: return 0\n        _: return 1\n"
     mmod = _lower(src)
     fn = mmod.decls[0]
     assert isinstance(fn, MFunction)
@@ -224,7 +219,7 @@ def test_dump_mir_shows_function() -> None:
 
 
 def test_dump_mir_no_match_keyword() -> None:
-    src = "fn f(n: Int) -> Int:\n" "    match n:\n" "        0: return 0\n" "        _: return 1\n"
+    src = "fn f(n: Int) -> Int:\n    match n:\n        0: return 0\n        _: return 1\n"
     text = dump_mir(_lower(src))
     # match is desugared — no 'match' keyword should appear
     assert "match" not in text

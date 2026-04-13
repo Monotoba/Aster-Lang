@@ -1,0 +1,19 @@
+fn main():
+    name := "Aster"
+    version := 0.1
+    
+    # Basic f-string
+    print(f"Hello, {name}!")
+    
+    # Multiple variables
+    print(f"{name} version {version}")
+    
+    # Complex expression (if supported by parser in f-string)
+    print(f"1 + 1 = {1 + 1}")
+    
+    # Escaped braces
+    print(f"Escaped {{curly}} braces: {name}")
+
+    # D-string (raw for now)
+    # Note: In our lexer d"..." is raw, so \n is literally \ and n.
+    print(d"Raw string with \n backslash")

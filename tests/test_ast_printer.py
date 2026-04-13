@@ -83,11 +83,7 @@ def test_return_stmt_has_child() -> None:
 
 def test_while_stmt_rendered() -> None:
     lines = _lines(
-        "fn f() -> Int:\n"
-        "    mut i := 0\n"
-        "    while i < 10:\n"
-        "        i <- i + 1\n"
-        "    return i\n"
+        "fn f() -> Int:\n    mut i := 0\n    while i < 10:\n        i <- i + 1\n    return i\n"
     )
     assert _has(lines, "WhileStmt")
     assert _has(lines, "BinaryExpr", "'<'")
@@ -95,11 +91,7 @@ def test_while_stmt_rendered() -> None:
 
 def test_if_stmt_rendered() -> None:
     lines = _lines(
-        "fn f(n: Int) -> Int:\n"
-        "    if n > 0:\n"
-        "        return n\n"
-        "    else:\n"
-        "        return 0\n"
+        "fn f(n: Int) -> Int:\n    if n > 0:\n        return n\n    else:\n        return 0\n"
     )
     assert _has(lines, "IfStmt")
 

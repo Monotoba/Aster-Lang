@@ -28,12 +28,12 @@ def test_backends_command_lists_backends(capsys: CapsysFixture) -> None:
 
 def test_run_command_loads_sibling_module(tmp_path: Path, capsys: CapsysFixture) -> None:
     (tmp_path / "helpers.aster").write_text(
-        "pub fn answer() -> Int:\n" "    return 42\n",
+        "pub fn answer() -> Int:\n    return 42\n",
         encoding="utf-8",
     )
     program = tmp_path / "main.aster"
     program.write_text(
-        "use helpers\n" "fn main():\n" "    print(helpers.answer())\n",
+        "use helpers\nfn main():\n    print(helpers.answer())\n",
         encoding="utf-8",
     )
 
@@ -43,12 +43,12 @@ def test_run_command_loads_sibling_module(tmp_path: Path, capsys: CapsysFixture)
 
 def test_run_command_supports_vm_backend(tmp_path: Path, capsys: CapsysFixture) -> None:
     (tmp_path / "helpers.aster").write_text(
-        "pub fn answer() -> Int:\n" "    return 42\n",
+        "pub fn answer() -> Int:\n    return 42\n",
         encoding="utf-8",
     )
     program = tmp_path / "main.aster"
     program.write_text(
-        "use helpers\n" "fn main():\n" "    print(helpers.answer())\n",
+        "use helpers\nfn main():\n    print(helpers.answer())\n",
         encoding="utf-8",
     )
 
@@ -76,7 +76,7 @@ def test_repl_command_returns_zero(capsys: CapsysFixture, monkeypatch: pytest.Mo
 def test_run_command_reports_missing_module(tmp_path: Path, capsys: CapsysFixture) -> None:
     program = tmp_path / "main.aster"
     program.write_text(
-        "use missing\n" "fn main():\n" '    print("nope")\n',
+        'use missing\nfn main():\n    print("nope")\n',
         encoding="utf-8",
     )
 
@@ -90,7 +90,7 @@ def test_run_command_reports_cyclic_import(tmp_path: Path, capsys: CapsysFixture
     (tmp_path / "b.aster").write_text("use a\nfn value() -> Int:\n    return 2\n", encoding="utf-8")
     program = tmp_path / "main.aster"
     program.write_text(
-        "use a\n" "fn main():\n" "    print(a.value())\n",
+        "use a\nfn main():\n    print(a.value())\n",
         encoding="utf-8",
     )
 
@@ -103,14 +103,14 @@ def test_run_command_resolves_parent_package_root(tmp_path: Path, capsys: Capsys
     lib_dir = tmp_path / "lib"
     lib_dir.mkdir()
     (lib_dir / "helpers.aster").write_text(
-        "pub fn answer() -> Int:\n" "    return 42\n",
+        "pub fn answer() -> Int:\n    return 42\n",
         encoding="utf-8",
     )
     app_dir = tmp_path / "app"
     app_dir.mkdir()
     program = app_dir / "main.aster"
     program.write_text(
-        "use lib.helpers\n" "fn main():\n" "    print(helpers.answer())\n",
+        "use lib.helpers\nfn main():\n    print(helpers.answer())\n",
         encoding="utf-8",
     )
 
@@ -120,20 +120,20 @@ def test_run_command_resolves_parent_package_root(tmp_path: Path, capsys: Capsys
 
 def test_run_command_resolves_manifest_module_root(tmp_path: Path, capsys: CapsysFixture) -> None:
     (tmp_path / "aster.toml").write_text(
-        "[modules]\n" 'search_roots = ["src"]\n',
+        '[modules]\nsearch_roots = ["src"]\n',
         encoding="utf-8",
     )
     src_dir = tmp_path / "src"
     src_dir.mkdir()
     (src_dir / "helpers.aster").write_text(
-        "pub fn answer() -> Int:\n" "    return 42\n",
+        "pub fn answer() -> Int:\n    return 42\n",
         encoding="utf-8",
     )
     app_dir = tmp_path / "app"
     app_dir.mkdir()
     program = app_dir / "main.aster"
     program.write_text(
-        "use helpers\n" "fn main():\n" "    print(helpers.answer())\n",
+        "use helpers\nfn main():\n    print(helpers.answer())\n",
         encoding="utf-8",
     )
 
@@ -145,20 +145,20 @@ def test_run_command_resolves_current_package_name_prefix(
     tmp_path: Path, capsys: CapsysFixture
 ) -> None:
     (tmp_path / "aster.toml").write_text(
-        "[package]\n" 'name = "app"\n' "[modules]\n" 'search_roots = ["src"]\n',
+        '[package]\nname = "app"\n[modules]\nsearch_roots = ["src"]\n',
         encoding="utf-8",
     )
     src_dir = tmp_path / "src"
     src_dir.mkdir()
     (src_dir / "helpers.aster").write_text(
-        "pub fn answer() -> Int:\n" "    return 42\n",
+        "pub fn answer() -> Int:\n    return 42\n",
         encoding="utf-8",
     )
     app_dir = tmp_path / "app"
     app_dir.mkdir()
     program = app_dir / "main.aster"
     program.write_text(
-        "use app.helpers\n" "fn main():\n" "    print(helpers.answer())\n",
+        "use app.helpers\nfn main():\n    print(helpers.answer())\n",
         encoding="utf-8",
     )
 
@@ -168,12 +168,12 @@ def test_run_command_resolves_current_package_name_prefix(
 
 def test_run_command_reports_invalid_manifest(tmp_path: Path, capsys: CapsysFixture) -> None:
     (tmp_path / "aster.toml").write_text(
-        "[package]\n" "name = 42\n",
+        "[package]\nname = 42\n",
         encoding="utf-8",
     )
     program = tmp_path / "main.aster"
     program.write_text(
-        "use missing\n" "fn main():\n" '    print("nope")\n',
+        'use missing\nfn main():\n    print("nope")\n',
         encoding="utf-8",
     )
 
@@ -186,16 +186,16 @@ def test_run_command_resolves_declared_dependency(tmp_path: Path, capsys: Capsys
     dep_dir = tmp_path / "vendor" / "math"
     dep_dir.mkdir(parents=True)
     (dep_dir / "utils.aster").write_text(
-        "pub fn double(n: Int) -> Int:\n" "    return n + n\n",
+        "pub fn double(n: Int) -> Int:\n    return n + n\n",
         encoding="utf-8",
     )
     (tmp_path / "aster.toml").write_text(
-        "[dependencies]\n" 'math = { path = "vendor/math" }\n',
+        '[dependencies]\nmath = { path = "vendor/math" }\n',
         encoding="utf-8",
     )
     program = tmp_path / "main.aster"
     program.write_text(
-        "use math.utils\n" "fn main():\n" "    print(utils.double(21))\n",
+        "use math.utils\nfn main():\n    print(utils.double(21))\n",
         encoding="utf-8",
     )
 
@@ -207,12 +207,12 @@ def test_run_command_reports_dependency_missing_path_key(
     tmp_path: Path, capsys: CapsysFixture
 ) -> None:
     (tmp_path / "aster.toml").write_text(
-        "[dependencies]\n" 'bad = { version = "1.0" }\n',
+        '[dependencies]\nbad = { version = "1.0" }\n',
         encoding="utf-8",
     )
     program = tmp_path / "main.aster"
     program.write_text(
-        "use bad.mod\n" "fn main():\n" '    print("nope")\n',
+        'use bad.mod\nfn main():\n    print("nope")\n',
         encoding="utf-8",
     )
 
@@ -229,12 +229,12 @@ def test_run_dep_flag_resolves_module(tmp_path: Path, capsys: CapsysFixture) -> 
     dep_dir = tmp_path / "external" / "math"
     dep_dir.mkdir(parents=True)
     (dep_dir / "utils.aster").write_text(
-        "pub fn triple(n: Int) -> Int:\n" "    return n + n + n\n",
+        "pub fn triple(n: Int) -> Int:\n    return n + n + n\n",
         encoding="utf-8",
     )
     program = tmp_path / "main.aster"
     program.write_text(
-        "use math.utils\n" "fn main():\n" "    print(utils.triple(7))\n",
+        "use math.utils\nfn main():\n    print(utils.triple(7))\n",
         encoding="utf-8",
     )
 
@@ -248,12 +248,12 @@ def test_run_dep_flag_resolves_module_with_vm_backend(
     dep_dir = tmp_path / "external" / "math"
     dep_dir.mkdir(parents=True)
     (dep_dir / "utils.aster").write_text(
-        "pub fn triple(n: Int) -> Int:\n" "    return n + n + n\n",
+        "pub fn triple(n: Int) -> Int:\n    return n + n + n\n",
         encoding="utf-8",
     )
     program = tmp_path / "main.aster"
     program.write_text(
-        "use math.utils\n" "fn main():\n" "    print(utils.triple(7))\n",
+        "use math.utils\nfn main():\n    print(utils.triple(7))\n",
         encoding="utf-8",
     )
 
@@ -276,12 +276,12 @@ def test_run_dep_flag_overrides_manifest_entry(tmp_path: Path, capsys: CapsysFix
         encoding="utf-8",
     )
     (tmp_path / "aster.toml").write_text(
-        "[dependencies]\n" 'math = { path = "old_math" }\n',
+        '[dependencies]\nmath = { path = "old_math" }\n',
         encoding="utf-8",
     )
     program = tmp_path / "main.aster"
     program.write_text(
-        "use math.utils\n" "fn main():\n" "    print(utils.answer())\n",
+        "use math.utils\nfn main():\n    print(utils.answer())\n",
         encoding="utf-8",
     )
 
@@ -293,12 +293,12 @@ def test_run_search_root_flag_resolves_module(tmp_path: Path, capsys: CapsysFixt
     lib_dir = tmp_path / "lib"
     lib_dir.mkdir()
     (lib_dir / "helpers.aster").write_text(
-        "pub fn greet() -> String:\n" '    return "hello"\n',
+        'pub fn greet() -> String:\n    return "hello"\n',
         encoding="utf-8",
     )
     program = tmp_path / "main.aster"
     program.write_text(
-        "use helpers\n" "fn main():\n" "    print(helpers.greet())\n",
+        "use helpers\nfn main():\n    print(helpers.greet())\n",
         encoding="utf-8",
     )
 
@@ -322,7 +322,7 @@ def test_run_invalid_dep_flag_format_returns_error(tmp_path: Path, capsys: Capsy
 def test_check_command_returns_zero_on_valid_program(tmp_path: Path, capsys: CapsysFixture) -> None:
     program = tmp_path / "main.aster"
     program.write_text(
-        "fn main():\n" "    x := 1\n",
+        "fn main():\n    x := 1\n",
         encoding="utf-8",
     )
     assert main(["check", str(program)]) == 0
@@ -332,7 +332,7 @@ def test_check_command_returns_zero_on_valid_program(tmp_path: Path, capsys: Cap
 def test_check_command_reports_semantic_errors(tmp_path: Path, capsys: CapsysFixture) -> None:
     program = tmp_path / "main.aster"
     program.write_text(
-        "fn main():\n" "    x := y\n",
+        "fn main():\n    x := y\n",
         encoding="utf-8",
     )
     assert main(["check", str(program)]) == 1
@@ -344,16 +344,16 @@ def test_check_command_resolves_declared_dependency(tmp_path: Path, capsys: Caps
     dep_dir = tmp_path / "vendor" / "math"
     dep_dir.mkdir(parents=True)
     (dep_dir / "utils.aster").write_text(
-        "pub fn double(n: Int) -> Int:\n" "    return n + n\n",
+        "pub fn double(n: Int) -> Int:\n    return n + n\n",
         encoding="utf-8",
     )
     (tmp_path / "aster.toml").write_text(
-        "[dependencies]\n" 'math = { path = "vendor/math" }\n',
+        '[dependencies]\nmath = { path = "vendor/math" }\n',
         encoding="utf-8",
     )
     program = tmp_path / "main.aster"
     program.write_text(
-        "use math.utils: double\n" "fn main():\n" "    x := double(2)\n",
+        "use math.utils: double\nfn main():\n    x := double(2)\n",
         encoding="utf-8",
     )
 
@@ -375,12 +375,12 @@ def test_check_command_resolves_dep_override(tmp_path: Path, capsys: CapsysFixtu
         encoding="utf-8",
     )
     (tmp_path / "aster.toml").write_text(
-        "[dependencies]\n" 'math = { path = "old_math" }\n',
+        '[dependencies]\nmath = { path = "old_math" }\n',
         encoding="utf-8",
     )
     program = tmp_path / "main.aster"
     program.write_text(
-        "use math.utils\n" "fn main():\n" "    x := 1\n",
+        "use math.utils\nfn main():\n    x := 1\n",
         encoding="utf-8",
     )
 
@@ -391,7 +391,7 @@ def test_check_command_resolves_dep_override(tmp_path: Path, capsys: CapsysFixtu
 def test_check_command_prints_ownership_warnings(tmp_path: Path, capsys: CapsysFixture) -> None:
     program = tmp_path / "main.aster"
     program.write_text(
-        "fn f(x: &mut Int) -> *raw Int:\n" "    return x\n",
+        "fn f(x: &mut Int) -> *raw Int:\n    return x\n",
         encoding="utf-8",
     )
 
@@ -404,7 +404,7 @@ def test_check_command_prints_ownership_warnings(tmp_path: Path, capsys: CapsysF
 def test_hir_command_prints_typed_output(tmp_path: Path, capsys: CapsysFixture) -> None:
     program = tmp_path / "main.aster"
     program.write_text(
-        "fn add(a: Int, b: Int) -> Int:\n" "    return a + b\n",
+        "fn add(a: Int, b: Int) -> Int:\n    return a + b\n",
         encoding="utf-8",
     )
     assert main(["hir", str(program)]) == 0
@@ -430,16 +430,16 @@ def test_build_command_resolves_declared_dependency(tmp_path: Path, capsys: Caps
     dep_dir = tmp_path / "vendor" / "math"
     dep_dir.mkdir(parents=True)
     (dep_dir / "utils.aster").write_text(
-        "pub fn double(n: Int) -> Int:\n" "    return n + n\n",
+        "pub fn double(n: Int) -> Int:\n    return n + n\n",
         encoding="utf-8",
     )
     (tmp_path / "aster.toml").write_text(
-        "[dependencies]\n" 'math = { path = "vendor/math" }\n',
+        '[dependencies]\nmath = { path = "vendor/math" }\n',
         encoding="utf-8",
     )
     program = tmp_path / "main.aster"
     program.write_text(
-        "use math.utils\n" "fn main():\n" "    print(utils.double(21))\n",
+        "use math.utils\nfn main():\n    print(utils.double(21))\n",
         encoding="utf-8",
     )
 
@@ -464,16 +464,16 @@ def test_build_command_supports_vm_backend(tmp_path: Path, capsys: CapsysFixture
     dep_dir = tmp_path / "vendor" / "math"
     dep_dir.mkdir(parents=True)
     (dep_dir / "utils.aster").write_text(
-        "pub fn double(n: Int) -> Int:\n" "    return n + n\n",
+        "pub fn double(n: Int) -> Int:\n    return n + n\n",
         encoding="utf-8",
     )
     (tmp_path / "aster.toml").write_text(
-        "[dependencies]\n" 'math = { path = "vendor/math" }\n',
+        '[dependencies]\nmath = { path = "vendor/math" }\n',
         encoding="utf-8",
     )
     program = tmp_path / "main.aster"
     program.write_text(
-        "use math.utils\n" "fn main():\n" "    print(utils.double(21))\n",
+        "use math.utils\nfn main():\n    print(utils.double(21))\n",
         encoding="utf-8",
     )
 
@@ -512,16 +512,16 @@ def test_build_command_supports_vm_signing_key(
     dep_dir = tmp_path / "vendor" / "math"
     dep_dir.mkdir(parents=True)
     (dep_dir / "utils.aster").write_text(
-        "pub fn double(n: Int) -> Int:\n" "    return n + n\n",
+        "pub fn double(n: Int) -> Int:\n    return n + n\n",
         encoding="utf-8",
     )
     (tmp_path / "aster.toml").write_text(
-        "[dependencies]\n" 'math = { path = "vendor/math" }\n',
+        '[dependencies]\nmath = { path = "vendor/math" }\n',
         encoding="utf-8",
     )
     program = tmp_path / "main.aster"
     program.write_text(
-        "use math.utils\n" "fn main():\n" "    print(utils.double(21))\n",
+        "use math.utils\nfn main():\n    print(utils.double(21))\n",
         encoding="utf-8",
     )
 
@@ -555,12 +555,12 @@ def test_build_preserves_python_imports(tmp_path: Path, capsys: CapsysFixture) -
     lib_dir = tmp_path / "lib"
     lib_dir.mkdir()
     (lib_dir / "helpers.aster").write_text(
-        "pub fn answer() -> Int:\n" "    return 42\n",
+        "pub fn answer() -> Int:\n    return 42\n",
         encoding="utf-8",
     )
     program = tmp_path / "main.aster"
     program.write_text(
-        "use os\n" "use helpers\n" "fn main():\n" "    print(helpers.answer())\n",
+        "use os\nuse helpers\nfn main():\n    print(helpers.answer())\n",
         encoding="utf-8",
     )
 
@@ -588,12 +588,12 @@ def test_build_command_out_dir(tmp_path: Path, capsys: CapsysFixture) -> None:
     lib_dir = tmp_path / "lib"
     lib_dir.mkdir()
     (lib_dir / "helpers.aster").write_text(
-        "pub fn answer() -> Int:\n" "    return 42\n",
+        "pub fn answer() -> Int:\n    return 42\n",
         encoding="utf-8",
     )
     program = tmp_path / "main.aster"
     program.write_text(
-        "use helpers\n" "fn main():\n" "    print(helpers.answer())\n",
+        "use helpers\nfn main():\n    print(helpers.answer())\n",
         encoding="utf-8",
     )
 
@@ -628,18 +628,18 @@ def test_build_command_out_dir(tmp_path: Path, capsys: CapsysFixture) -> None:
 
 def test_build_command_resolves_dep_override(tmp_path: Path, capsys: CapsysFixture) -> None:
     (tmp_path / "aster.toml").write_text(
-        "[dependencies]\n" 'math = { path = "old_math" }\n',
+        '[dependencies]\nmath = { path = "old_math" }\n',
         encoding="utf-8",
     )
     dep_dir = tmp_path / "new_math"
     dep_dir.mkdir()
     (dep_dir / "utils.aster").write_text(
-        "pub fn answer() -> Int:\n" "    return 42\n",
+        "pub fn answer() -> Int:\n    return 42\n",
         encoding="utf-8",
     )
     program = tmp_path / "main.aster"
     program.write_text(
-        "use math.utils\n" "fn main():\n" "    print(utils.answer())\n",
+        "use math.utils\nfn main():\n    print(utils.answer())\n",
         encoding="utf-8",
     )
 
@@ -652,12 +652,12 @@ def test_build_command_resolves_dep_override(tmp_path: Path, capsys: CapsysFixtu
 
 def test_build_command_reports_missing_dependency(tmp_path: Path, capsys: CapsysFixture) -> None:
     (tmp_path / "aster.toml").write_text(
-        "[dependencies]\n" 'math = { path = "does_not_exist" }\n',
+        '[dependencies]\nmath = { path = "does_not_exist" }\n',
         encoding="utf-8",
     )
     program = tmp_path / "main.aster"
     program.write_text(
-        "use math.utils\n" "fn main():\n" '    print("ok")\n',
+        'use math.utils\nfn main():\n    print("ok")\n',
         encoding="utf-8",
     )
 
@@ -683,16 +683,16 @@ def test_lock_command_writes_lockfile(tmp_path: Path, capsys: CapsysFixture) -> 
     dep_dir = tmp_path / "vendor" / "math"
     dep_dir.mkdir(parents=True)
     (dep_dir / "utils.aster").write_text(
-        "pub fn double(n: Int) -> Int:\n" "    return n + n\n",
+        "pub fn double(n: Int) -> Int:\n    return n + n\n",
         encoding="utf-8",
     )
     (tmp_path / "aster.toml").write_text(
-        "[dependencies]\n" 'math = { path = "vendor/math" }\n',
+        '[dependencies]\nmath = { path = "vendor/math" }\n',
         encoding="utf-8",
     )
     program = tmp_path / "main.aster"
     program.write_text(
-        "use math.utils\n" "fn main():\n" "    print(utils.double(21))\n",
+        "use math.utils\nfn main():\n    print(utils.double(21))\n",
         encoding="utf-8",
     )
 
@@ -711,17 +711,17 @@ def test_build_uses_lockfile_even_if_manifest_changes(
     dep_dir = tmp_path / "vendor" / "math"
     dep_dir.mkdir(parents=True)
     (dep_dir / "utils.aster").write_text(
-        "pub fn double(n: Int) -> Int:\n" "    return n + n\n",
+        "pub fn double(n: Int) -> Int:\n    return n + n\n",
         encoding="utf-8",
     )
     manifest = tmp_path / "aster.toml"
     manifest.write_text(
-        "[dependencies]\n" 'math = { path = "vendor/math" }\n',
+        '[dependencies]\nmath = { path = "vendor/math" }\n',
         encoding="utf-8",
     )
     program = tmp_path / "main.aster"
     program.write_text(
-        "use math.utils\n" "fn main():\n" "    print(utils.double(21))\n",
+        "use math.utils\nfn main():\n    print(utils.double(21))\n",
         encoding="utf-8",
     )
 
@@ -731,7 +731,7 @@ def test_build_uses_lockfile_even_if_manifest_changes(
 
     # Break the manifest; build should still work with the lockfile.
     manifest.write_text(
-        "[dependencies]\n" 'math = { path = "does_not_exist" }\n',
+        '[dependencies]\nmath = { path = "does_not_exist" }\n',
         encoding="utf-8",
     )
 

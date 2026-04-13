@@ -124,7 +124,7 @@ def test_transpile_match_to_if_elif() -> None:
 
 
 def test_transpile_match_binding() -> None:
-    src = "fn double(n: Int) -> Int:\n" "    match n:\n" "        x:\n" "            return x + x\n"
+    src = "fn double(n: Int) -> Int:\n    match n:\n        x:\n            return x + x\n"
     code = py(src)
     assert "else:" in code
     assert "x = n" in code
@@ -134,7 +134,7 @@ def test_transpile_match_binding() -> None:
 def test_transpile_match_or_pattern_binding_irrefutable() -> None:
     # Binding or-pattern: both alternatives are the same binding name.
     # Should emit `else:` (irrefutable) and inject the binding assignment.
-    src = "fn f(n: Int) -> Int:\n" "    match n:\n" "        x | x:\n" "            return x\n"
+    src = "fn f(n: Int) -> Int:\n    match n:\n        x | x:\n            return x\n"
     code = py(src)
     assert "else:" in code
     assert "x = n" in code
@@ -171,12 +171,7 @@ def test_run_arithmetic() -> None:
 
 
 def test_run_function_call() -> None:
-    src = (
-        "fn add(a: Int, b: Int) -> Int:\n"
-        "    return a + b\n"
-        "fn main():\n"
-        "    print(add(3, 4))\n"
-    )
+    src = "fn add(a: Int, b: Int) -> Int:\n    return a + b\nfn main():\n    print(add(3, 4))\n"
     assert run_py(src) == "7"
 
 
@@ -210,13 +205,7 @@ def test_run_while_loop() -> None:
 
 
 def test_run_for_range() -> None:
-    src = (
-        "fn main():\n"
-        "    mut s := 0\n"
-        "    for i in range(5):\n"
-        "        s <- s + i\n"
-        "    print(s)\n"
-    )
+    src = "fn main():\n    mut s := 0\n    for i in range(5):\n        s <- s + i\n    print(s)\n"
     assert run_py(src) == "10"
 
 
@@ -233,12 +222,12 @@ def test_run_recursion_factorial() -> None:
 
 
 def test_run_string_concat() -> None:
-    src = "fn main():\n" '    x := "hello" + ", " + "world"\n' "    print(x)\n"
+    src = 'fn main():\n    x := "hello" + ", " + "world"\n    print(x)\n'
     assert run_py(src) == "hello, world"
 
 
 def test_run_list_and_index() -> None:
-    src = "fn main():\n" "    xs := [10, 20, 30]\n" "    print(xs[1])\n"
+    src = "fn main():\n    xs := [10, 20, 30]\n    print(xs[1])\n"
     assert run_py(src) == "20"
 
 

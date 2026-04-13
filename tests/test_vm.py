@@ -100,12 +100,7 @@ def test_vm_fixed_width_equals_int() -> None:
 
 
 def test_vm_fixed_width_comparisons() -> None:
-    src = (
-        "fn main():\n"
-        "    print(byte(1) < 2)\n"
-        "    print(byte(3) >= 3)\n"
-        "    print(byte(4) != 5)\n"
-    )
+    src = "fn main():\n    print(byte(1) < 2)\n    print(byte(3) >= 3)\n    print(byte(4) != 5)\n"
     assert run_source_vm(src) == "true\ntrue\ntrue"
 
 
@@ -683,7 +678,7 @@ def test_vm_module_missing_export_via_named_import(tmp_path: Path) -> None:
     )
     program = tmp_path / "main.aster"
     program.write_text(
-        "use helpers: answer\n" "fn main():\n" "    print(answer.nope)\n",
+        "use helpers: answer\nfn main():\n    print(answer.nope)\n",
         encoding="utf-8",
     )
     with pytest.raises(VMError, match="Cannot access member of str"):
@@ -699,7 +694,7 @@ def test_vm_module_access_on_non_module_binding(tmp_path: Path) -> None:
     )
     program = tmp_path / "main.aster"
     program.write_text(
-        "use helpers\n" "fn main():\n" "    print(helpers.missing)\n",
+        "use helpers\nfn main():\n    print(helpers.missing)\n",
         encoding="utf-8",
     )
     with pytest.raises(VMError, match="Module 'helpers' has no export 'missing'"):
@@ -788,7 +783,7 @@ def test_vm_int_bool_conversion() -> None:
 
 
 def test_vm_range_two_args() -> None:
-    src = "fn main():\n" "    for i in range(2, 5):\n" "        print(i)\n"
+    src = "fn main():\n    for i in range(2, 5):\n        print(i)\n"
     assert run_source_vm(src) == "2\n3\n4"
 
 
@@ -835,7 +830,7 @@ def test_vm_match_string_pattern() -> None:
 
 def test_vm_match_no_arm_matches() -> None:
     """When no arm matches, execution falls through silently (no error)."""
-    src = "fn main():\n" "    match 99:\n" '        0: print("zero")\n' '    print("done")\n'
+    src = 'fn main():\n    match 99:\n        0: print("zero")\n    print("done")\n'
     assert run_source_vm(src) == "done"
 
 
@@ -931,7 +926,7 @@ def test_vm_import_missing_module_reports_error(tmp_path: Path) -> None:
 def test_vm_import_public_names_only(tmp_path: Path) -> None:
     """Plain module import exposes only pub declarations."""
     (tmp_path / "mod.aster").write_text(
-        "pub fn pub_fn() -> Int:\n    return 1\n" "fn priv_fn() -> Int:\n    return 2\n",
+        "pub fn pub_fn() -> Int:\n    return 1\nfn priv_fn() -> Int:\n    return 2\n",
         encoding="utf-8",
     )
     program = tmp_path / "main.aster"

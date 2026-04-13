@@ -84,7 +84,7 @@ def resolve_module_path(
         if stdlib_module.exists():
             return stdlib_module.resolve()
         raise ModuleResolutionError(
-            f"Module not found: {module_label} " f"(searched project root {effective.project_root})"
+            f"Module not found: {module_label} (searched project root {effective.project_root})"
         )
 
     search_dir = base_dir.resolve()

@@ -390,7 +390,7 @@ def test_parse_lambda_paren_params_expression_body() -> None:
 
 
 def test_parse_lambda_block_body() -> None:
-    module = parse_module("inc := (x) -> :\n" "    return x + 1\n")
+    module = parse_module("inc := (x) -> :\n    return x + 1\n")
     decl = module.declarations[0]
     assert isinstance(decl, ast.LetDecl)
     lam = decl.initializer
@@ -647,13 +647,7 @@ def test_parse_sum_to_example() -> None:
 
 
 def test_parse_match_literal_arms() -> None:
-    src = (
-        "fn f():\n"
-        "    match x:\n"
-        "        0: return 1\n"
-        "        1: return 2\n"
-        "        _: return 3\n"
-    )
+    src = "fn f():\n    match x:\n        0: return 1\n        1: return 2\n        _: return 3\n"
     module = parse_module(src)
     fn = module.declarations[0]
     assert isinstance(fn, ast.FunctionDecl)
@@ -685,7 +679,7 @@ def test_parse_match_block_arms() -> None:
 
 
 def test_parse_match_binding_pattern() -> None:
-    src = "fn f():\n" "    match x:\n" "        n: return n\n"
+    src = "fn f():\n    match x:\n        n: return n\n"
     module = parse_module(src)
     fn = module.declarations[0]
     assert isinstance(fn, ast.FunctionDecl)
@@ -696,7 +690,7 @@ def test_parse_match_binding_pattern() -> None:
 
 
 def test_parse_match_string_pattern() -> None:
-    src = "fn f():\n" "    match s:\n" '        "hi": return 1\n' "        _: return 0\n"
+    src = 'fn f():\n    match s:\n        "hi": return 1\n        _: return 0\n'
     module = parse_module(src)
     fn = module.declarations[0]
     assert isinstance(fn, ast.FunctionDecl)
@@ -706,7 +700,7 @@ def test_parse_match_string_pattern() -> None:
 
 
 def test_parse_match_tuple_pattern() -> None:
-    src = "fn f():\n" "    match pair:\n" "        (0, x): return x\n" "        _: return 0\n"
+    src = "fn f():\n    match pair:\n        (0, x): return x\n        _: return 0\n"
     module = parse_module(src)
     fn = module.declarations[0]
     assert isinstance(fn, ast.FunctionDecl)
@@ -720,7 +714,7 @@ def test_parse_match_tuple_pattern() -> None:
 
 
 def test_parse_match_list_pattern() -> None:
-    src = "fn f():\n" "    match items:\n" "        [0, x]: return x\n" "        _: return 0\n"
+    src = "fn f():\n    match items:\n        [0, x]: return x\n        _: return 0\n"
     module = parse_module(src)
     fn = module.declarations[0]
     assert isinstance(fn, ast.FunctionDecl)
@@ -734,7 +728,7 @@ def test_parse_match_list_pattern() -> None:
 
 
 def test_parse_match_record_pattern() -> None:
-    src = "fn f():\n" "    match point:\n" "        {x: 0, y}: return y\n" "        _: return 0\n"
+    src = "fn f():\n    match point:\n        {x: 0, y}: return y\n        _: return 0\n"
     module = parse_module(src)
     fn = module.declarations[0]
     assert isinstance(fn, ast.FunctionDecl)
@@ -750,7 +744,7 @@ def test_parse_match_record_pattern() -> None:
 
 
 def test_parse_match_or_pattern() -> None:
-    src = "fn f():\n" "    match value:\n" "        0 | 1: return 1\n" "        _: return 0\n"
+    src = "fn f():\n    match value:\n        0 | 1: return 1\n        _: return 0\n"
     module = parse_module(src)
     fn = module.declarations[0]
     assert isinstance(fn, ast.FunctionDecl)
@@ -764,12 +758,7 @@ def test_parse_match_or_pattern() -> None:
 
 
 def test_parse_match_list_rest_pattern() -> None:
-    src = (
-        "fn f():\n"
-        "    match items:\n"
-        "        [head, *tail]: return head\n"
-        "        _: return 0\n"
-    )
+    src = "fn f():\n    match items:\n        [head, *tail]: return head\n        _: return 0\n"
     module = parse_module(src)
     fn = module.declarations[0]
     assert isinstance(fn, ast.FunctionDecl)
@@ -784,12 +773,7 @@ def test_parse_match_list_rest_pattern() -> None:
 
 
 def test_parse_match_tuple_rest_pattern() -> None:
-    src = (
-        "fn f():\n"
-        "    match value:\n"
-        "        (head, *tail): return head\n"
-        "        _: return 0\n"
-    )
+    src = "fn f():\n    match value:\n        (head, *tail): return head\n        _: return 0\n"
     module = parse_module(src)
     fn = module.declarations[0]
     assert isinstance(fn, ast.FunctionDecl)
@@ -819,7 +803,7 @@ def test_parse_trait_decl_with_method_signature() -> None:
 
 
 def test_parse_impl_decl_inherent_method() -> None:
-    src = "impl Int:\n" "    fn show(self) -> String:\n" '        return "Int"\n'
+    src = 'impl Int:\n    fn show(self) -> String:\n        return "Int"\n'
     module = parse_module(src)
     decl = module.declarations[0]
     assert isinstance(decl, ast.ImplDecl)
@@ -831,7 +815,7 @@ def test_parse_impl_decl_inherent_method() -> None:
 
 
 def test_parse_impl_decl_for_trait() -> None:
-    src = "impl Show for Int:\n" "    fn show(self) -> String:\n" '        return "Int"\n'
+    src = 'impl Show for Int:\n    fn show(self) -> String:\n        return "Int"\n'
     module = parse_module(src)
     decl = module.declarations[0]
     assert isinstance(decl, ast.ImplDecl)

@@ -2367,6 +2367,11 @@ class SemanticAnalyzer:
             return remember(INT_TYPE)
         elif isinstance(expr, ast.StringLiteral):
             return remember(STRING_TYPE)
+        elif isinstance(expr, ast.InterpolatedString):
+            for part in expr.parts:
+                if part.is_expression:
+                    self.infer_expr_type(part.value)  # type: ignore[arg-type]
+            return remember(STRING_TYPE)
         elif isinstance(expr, ast.BoolLiteral):
             return remember(BOOL_TYPE)
         elif isinstance(expr, ast.NilLiteral):

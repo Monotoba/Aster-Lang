@@ -56,8 +56,7 @@ class TestLinalgRegistry:
 class TestVec:
     def test_vec_2d(self) -> None:
         src = (
-            "use linalg\nfn main():\n"
-            "    v := linalg.vec(1, 2)\n    print(v[0])\n    print(v[1])\n"
+            "use linalg\nfn main():\n    v := linalg.vec(1, 2)\n    print(v[0])\n    print(v[1])\n"
         )
         assert run(src) == ["1", "2"]
 
@@ -381,11 +380,7 @@ class TestDetAndInv:
         assert approx(out[1], 1.0)
 
     def test_minv_singular_raises(self) -> None:
-        src = (
-            "use linalg\nfn main():\n"
-            "    m := linalg.mat([1, 2], [2, 4])\n"
-            "    linalg.minv(m)\n"
-        )
+        src = "use linalg\nfn main():\n    m := linalg.mat([1, 2], [2, 4])\n    linalg.minv(m)\n"
         m = parse_module(src)
         interp = Interpreter()
         with pytest.raises(InterpreterError, match="singular"):
