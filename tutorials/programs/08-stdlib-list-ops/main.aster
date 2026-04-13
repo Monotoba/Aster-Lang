@@ -1,0 +1,63 @@
+# Tutorial program 08 — stdlib list operations
+#
+# Demonstrates: list.map, filter, reduce, sort_by, zip, enumerate, unique, sum
+
+use list
+use math
+use str as strl
+
+fn main():
+    nums := [5, 3, 8, 1, 9, 2, 7, 4, 6, 10]
+
+    # Sorting
+    sorted_asc := list.sort(nums)
+    print("sorted: " + str(sorted_asc))
+
+    # map: square every element
+    squares := list.map(fn(x) -> Int: x * x, nums)
+    print("squares: " + str(squares))
+
+    # filter: keep values > 5
+    big := list.filter(fn(x) -> Bool: x > 5, nums)
+    print("big (>5): " + str(big))
+
+    # reduce: running sum
+    total := list.reduce(fn(acc, x) -> Int: acc + x, nums, 0)
+    print("sum: " + str(total))
+
+    # sum / product shortcuts
+    print("sum again: " + str(list.sum(nums)))
+    small := list.take(5, sorted_asc)
+    print("product of 5 smallest: " + str(list.product(small)))
+
+    # unique
+    dupes := [1, 2, 3, 2, 1, 4, 3]
+    print("unique: " + str(list.unique(dupes)))
+
+    # zip and enumerate
+    letters := ["a", "b", "c", "d", "e"]
+    zipped := list.zip(list.range(1, 6), letters)
+    print("zipped (first): " + str(zipped[0]))
+
+    indexed := list.enumerate(letters)
+    print("indexed (first): " + str(indexed[0]))
+
+    # sort_by: sort words by length then alphabetically
+    words := ["fig", "apple", "kiwi", "date", "banana", "pear"]
+    by_len := list.sort_by(fn(w) -> Int: len(w), words)
+    print("by length: " + str(by_len))
+
+    # any / all
+    print("any > 9: " + str(list.any(fn(x) -> Bool: x > 9, nums)))
+    print("all > 0: " + str(list.all(fn(x) -> Bool: x > 0, nums)))
+    print("count > 5: " + str(list.count(fn(x) -> Bool: x > 5, nums)))
+
+    # flatten
+    nested := [[1, 2], [3, 4], [5]]
+    print("flattened: " + str(list.flatten(nested)))
+
+    # head / tail / last
+    print("head: " + str(list.head(sorted_asc)))
+    print("last: " + str(list.last(sorted_asc)))
+    tail := list.tail(sorted_asc)
+    print("tail length: " + str(list.len(tail)))

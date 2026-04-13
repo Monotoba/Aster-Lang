@@ -65,6 +65,56 @@ In the build toolchain (`aster check` and `aster build`), unresolved `use` impor
 
 Use `aster backends` to list available build backends and their formats.
 
+### Extern (FFI) declaration
+
+Aster can call functions in shared C libraries at runtime through `extern` blocks backed by `ctypes`.
+
+```aster
+extern "libm":
+    fn cos(x: Float) -> Float
+    fn sin(x: Float) -> Float
+    fn pow(base: Float, exp: Float) -> Float
+
+fn main():
+    print(cos(0))   # 1.0
+```
+
+Use `pub extern` to export the bound functions so other modules can import them:
+
+```aster
+# mymath.aster
+pub extern "libm":
+    fn sqrt(x: Float) -> Float
+
+# main.aster
+use mymath: sqrt
+fn main():
+    print(sqrt(4))  # 2.0
+```
+
+**Library resolution** (tried in order):
+1. If the name starts with `/` or `./` it is treated as a direct file path.
+2. `ctypes.util.find_library` with the stem (e.g. `"libm"` → looks for `"m"`).
+3. Direct `ctypes.CDLL(name)` as a fallback.
+
+A load failure raises a runtime error with `"FFI:"` in the message.
+
+**Type mapping**:
+
+| Aster  | C / ctypes     |
+|--------|----------------|
+| `Int`  | `c_int64`      |
+| `Float`| `c_double`     |
+| `String`| `c_char_p`   |
+| `Bool` | `c_int`        |
+| `Byte` | `c_uint8`      |
+| `Word` | `c_uint16`     |
+| `DWord`| `c_uint32`     |
+| `QWord`| `c_uint64`     |
+| absent / `Nil` | void  |
+
+**Limitations**: Only scalar types are currently supported. Pointer and struct arguments are not yet mapped. The C transpiler backend does not yet consume `extern` declarations.
+
 ### Public declaration
 ```aster
 pub fn add(a: Int, b: Int) -> Int:
@@ -339,28 +389,36 @@ but there is no dynamic dispatch or full trait resolution yet.
 
 ## Standard library modules
 
-Three native modules are built in and available without any installation. Import them with `use`:
+Eight native modules are built in and available without any installation.
+Import them with `use`:
 
 ```aster
 use math
 use str
 use std
+use list
+use io
+use random
+use time
+use linalg
 ```
+
+Full documentation is in [`docs/language/standard-library/`](standard-library/README.md).
+
+> **`String` vs `str`**: The Aster string *type* is always spelled `String` (capital S).
+> `str` is the name of the string-manipulation *module* **and** a built-in
+> *conversion function* (`str(x)` converts any value to a `String`). They are separate things.
+> If you write `use str`, the module shadows the builtin in that scope; use
+> `use str as strings` (or any alias) to keep both.
 
 ### math
 
 Mathematical functions and constants. All functions accept `Int` or `Float` inputs.
+See [`docs/language/standard-library/math.md`](standard-library/math.md) for the full reference.
 
-**Constants**
+**Constants**: `math.pi`, `math.e`, `math.tau`, `math.inf`, `math.nan`
 
-| Name  | Value |
-|-------|-------|
-| `math.pi`  | 3.141592653589793 |
-| `math.e`   | 2.718281828459045 |
-| `math.tau` | 6.283185307179586 |
-| `math.inf` | ∞ |
-
-**Functions**
+**Functions (selected)**
 
 | Function | Returns | Description |
 |----------|---------|-------------|
@@ -368,20 +426,22 @@ Mathematical functions and constants. All functions accept `Int` or `Float` inpu
 | `math.floor(x)` | Int | Round toward −∞ |
 | `math.ceil(x)` | Int | Round toward +∞ |
 | `math.round(x)` | Int | Round to nearest integer |
-| `math.sqrt(x)` | Int or Float | Square root (`x` must be ≥ 0) |
+| `math.sign(x)` | Int | `1`, `-1`, or `0` |
+| `math.clamp(x, lo, hi)` | Int or Float | Clamp to `[lo, hi]` |
+| `math.min(a, b)` / `math.max(a, b)` | Int or Float | Min / max of two values |
+| `math.sqrt(x)` | Int or Float | Square root |
 | `math.pow(base, exp)` | Int or Float | Exponentiation |
-| `math.log(x)` | Float | Natural logarithm (`x` > 0) |
-| `math.log2(x)` | Float | Base-2 logarithm (`x` > 0) |
-| `math.log10(x)` | Float | Base-10 logarithm (`x` > 0) |
-| `math.sin(x)` | Float | Sine (radians) |
-| `math.cos(x)` | Float | Cosine (radians) |
-| `math.tan(x)` | Float | Tangent (radians) |
-| `math.min(a, b)` | Int or Float | Smaller of two values |
-| `math.max(a, b)` | Int or Float | Larger of two values |
-| `math.clamp(x, lo, hi)` | Int or Float | Clamp `x` to `[lo, hi]` |
+| `math.exp(x)` | Float | e^x |
+| `math.log(x)` / `math.log2(x)` / `math.log10(x)` | Float | Logarithms |
+| `math.sin(x)` / `math.cos(x)` / `math.tan(x)` | Float | Trig (radians) |
+| `math.asin(x)` / `math.acos(x)` / `math.atan(x)` | Float | Inverse trig |
+| `math.atan2(y, x)` | Float | Four-quadrant arc-tangent |
+| `math.sinh(x)` / `math.cosh(x)` / `math.tanh(x)` | Float | Hyperbolic trig |
+| `math.gcd(a, b)` / `math.lcm(a, b)` | Int | GCD / LCM |
+| `math.is_nan(x)` / `math.is_inf(x)` / `math.is_finite(x)` | Bool | Float classification |
 
-`sqrt`, `pow`, `min`, `max`, `clamp`, and `abs` return `Int` when the result is a whole number,
-`Float` otherwise. `log`, `log2`, `log10`, `sin`, `cos`, and `tan` always return `Float`.
+`sqrt`, `pow`, `min`, `max`, `clamp`, `abs`, and `sign` return `Int` when the result is a whole
+number, `Float` otherwise. Trig, log, and exp functions always return `Float`.
 
 ```aster
 use math
@@ -395,66 +455,77 @@ fn main():
 
 ### str
 
-String manipulation functions. All functions accept `String` arguments; `str` must be imported
-as a namespace (`use str`) or with a named import (`use str: upper, lower`).
+String manipulation functions. All functions operate on `String` values.
+Import as a namespace or with named imports:
 
-> **Note:** `use str` shadows the built-in `str()` conversion function in that scope.
-> If you need both, use an alias: `use str as strings`.
+```aster
+use str                    # all functions via str.upper(s) etc.
+use str as strl            # alias to avoid shadowing str() builtin
+use str: upper, lower, split
+```
+
+> `use str` shadows the built-in `str()` conversion function in that scope.
+> Use `use str as strl` (or any alias) to keep both available.
 
 | Function | Returns | Description |
 |----------|---------|-------------|
-| `str.upper(s)` | String | Uppercase |
-| `str.lower(s)` | String | Lowercase |
-| `str.strip(s)` | String | Remove leading/trailing whitespace |
-| `str.lstrip(s)` | String | Remove leading whitespace |
-| `str.rstrip(s)` | String | Remove trailing whitespace |
+| `str.len(s)` | Int | Character count |
+| `str.is_empty(s)` | Bool | True if zero characters |
+| `str.is_digit(s)` / `str.is_alpha(s)` / `str.is_alnum(s)` / `str.is_space(s)` | Bool | Character class tests |
+| `str.upper(s)` / `str.lower(s)` / `str.title(s)` | String | Case conversion |
+| `str.strip(s)` / `str.lstrip(s)` / `str.rstrip(s)` | String | Whitespace trimming |
+| `str.reverse(s)` | String | Reverse characters |
+| `str.repeat(s, n)` | String | Repeat `n` times |
+| `str.replace(s, old, new)` | String | Replace all occurrences |
+| `str.pad_left(s, w, fill?)` / `str.pad_right(s, w, fill?)` | String | Width padding |
 | `str.split(s, sep)` | List[String] | Split on separator |
 | `str.join(sep, parts)` | String | Join list with separator |
-| `str.starts_with(s, prefix)` | Bool | Prefix test |
-| `str.ends_with(s, suffix)` | Bool | Suffix test |
-| `str.contains(s, sub)` | Bool | Substring test |
+| `str.chars(s)` | List[String] | List of characters |
+| `str.starts_with(s, p)` / `str.ends_with(s, p)` / `str.contains(s, sub)` | Bool | Search |
 | `str.find(s, sub)` | Int | First index of `sub`, or `-1` |
-| `str.replace(s, old, new)` | String | Replace all occurrences |
-| `str.pad_left(s, width, fill?)` | String | Right-justify in `width` (default fill `" "`) |
-| `str.pad_right(s, width, fill?)` | String | Left-justify in `width` (default fill `" "`) |
-| `str.chars(s)` | List[String] | List of individual characters |
+| `str.count(s, sub)` | Int | Count non-overlapping occurrences |
 | `str.char_at(s, i)` | String | Character at index `i` |
-| `str.repeat(s, n)` | String | Concatenate `s` with itself `n` times |
 | `str.slice(s, start, end)` | String | Substring `s[start:end]` |
+| `str.to_int(s)` | Int | Parse as integer (raises on failure) |
+| `str.to_float(s)` | Float | Parse as float (raises on failure) |
+| `str.format(tmpl, args...)` | String | Replace `{}` placeholders in order |
 
 ```aster
-use str as strings
+use str as strl
 
 fn main():
-    words := strings.split("one,two,three", ",")
-    upper_words := [strings.upper(words[0]), strings.upper(words[1]), strings.upper(words[2])]
-    print(strings.join(", ", upper_words))  # ONE, TWO, THREE
-
-    print(strings.pad_left("42", 6, "0"))  # 000042
-    print(strings.starts_with("hello", "he"))  # true
+    words := strl.split("one,two,three", ",")
+    print(strl.join(" / ", words))          # one / two / three
+    print(strl.pad_left("42", 6, "0"))      # 000042
+    print(strl.format("x={} y={}", 3, 7))  # x=3 y=7
+    n := strl.to_int("99")
+    print(n + 1)                            # 100
 ```
 
 ### std
 
-General utilities.
+General utilities: runtime reflection, program control, environment, and I/O.
 
 | Function | Returns | Description |
 |----------|---------|-------------|
 | `std.type_of(x)` | String | Runtime type name: `"Int"`, `"Float"`, `"String"`, `"Bool"`, `"Nil"`, `"List"`, `"Tuple"`, `"Record"`, `"Function"` |
 | `std.panic(msg)` | Nil | Raise a runtime error with `msg` |
-| `std.todo()` | Nil | Raise "not yet implemented" error |
-| `std.input(prompt?)` | String | Read a line from stdin (optional prompt) |
+| `std.assert(cond, msg?)` | Nil | Raise if `cond` is false |
+| `std.todo()` | Nil | Raise "not yet implemented" |
+| `std.input(prompt?)` | String | Read a line from stdin |
+| `std.exit(code?)` | Nil | Terminate with exit code (default 0) |
+| `std.env(key)` | String or Nil | Environment variable value, or `nil` |
+| `std.env_or(key, default)` | String | Environment variable with fallback |
+| `std.args()` | List[String] | Command-line arguments |
 
 ```aster
 use std
 
 fn main():
-    x := 42
-    print(std.type_of(x))   # Int
-    print(std.type_of("hi")) # String
-
-fn unfinished():
-    std.todo()  # raises at runtime if called
+    print(std.type_of(42))       # Int
+    print(std.type_of("hi"))     # String
+    port := std.env_or("PORT", "8080")
+    print("listening on " + port)
 ```
 
 ### linalg
@@ -518,4 +589,74 @@ fn main():
     print(r[1])                    # 21
 
     print(linalg.mdet(m))          # 6
+```
+
+### list
+
+Higher-order list utilities. See [`docs/language/standard-library/list.md`](standard-library/list.md).
+
+Key functions: `map`, `filter`, `reduce`, `any`, `all`, `sort`, `sort_by`, `sum`, `product`,
+`head`, `tail`, `last`, `take`, `drop`, `reverse`, `flatten`, `zip`, `enumerate`, `unique`,
+`contains`, `append`, `prepend`, `concat`, `range`, `repeat`, `len`.
+
+```aster
+use list
+
+fn main():
+    nums := list.range(1, 6)                            # [1, 2, 3, 4, 5]
+    evens := list.filter(fn(x) -> Bool: x % 2 == 0, nums)
+    doubled := list.map(fn(x) -> Int: x * 2, evens)
+    print(list.sum(doubled))                            # 12
+    print(list.sort([3, 1, 4, 1, 5, 9]))               # [1, 1, 3, 4, 5, 9]
+```
+
+### io
+
+File and stream I/O. See [`docs/language/standard-library/io.md`](standard-library/io.md).
+
+Key functions: `read_file`, `write_file`, `append_file`, `read_lines`, `write_lines`,
+`file_exists`, `is_file`, `is_dir`, `list_dir`, `walk_dir`, `mkdir`, `delete_file`, `print_err`.
+
+```aster
+use io
+
+fn main():
+    if io.file_exists("config.txt"):
+        content := io.read_file("config.txt")
+        print(content)
+    else:
+        io.write_file("config.txt", "# defaults\n")
+```
+
+### random
+
+Pseudo-random number generation. See [`docs/language/standard-library/random.md`](standard-library/random.md).
+
+Key functions: `random`, `rand_int`, `rand_float`, `choice`, `shuffle`, `sample`, `seed`.
+
+```aster
+use random
+
+fn main():
+    random.seed(42)
+    print(random.rand_int(1, 6))          # simulated die roll
+    suits := ["hearts", "diamonds", "clubs", "spades"]
+    print(random.choice(suits))
+```
+
+### time
+
+Timestamps and timing. See [`docs/language/standard-library/time.md`](standard-library/time.md).
+
+Key functions: `now`, `now_ms`, `monotonic`, `sleep`, `strftime`, `clock`.
+
+```aster
+use time
+
+fn main():
+    start := time.monotonic()
+    # ... work ...
+    elapsed := time.monotonic() - start
+    print("done in " + str(elapsed) + "s")
+    print(time.strftime("%Y-%m-%d %H:%M:%S"))
 ```

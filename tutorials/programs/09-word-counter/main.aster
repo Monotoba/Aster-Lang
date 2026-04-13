@@ -1,0 +1,48 @@
+# Tutorial program 09 — word counter
+#
+# Reads a text from a hard-coded string and reports word frequency stats.
+# Demonstrates: str, list, math together.
+
+use str as strl
+use list
+use math
+
+fn count_words(text: String) -> Int:
+    trimmed := strl.strip(text)
+    if strl.is_empty(trimmed):
+        return 0
+    parts := strl.split(trimmed, " ")
+    non_empty := list.filter(fn(w) -> Bool: not strl.is_empty(w), parts)
+    return list.len(non_empty)
+
+fn avg_word_length(words) -> Int:
+    if list.len(words) == 0:
+        return 0
+    lengths := list.map(fn(w) -> Int: len(w), words)
+    return list.sum(lengths) / list.len(words)
+
+fn most_common_length(words) -> Int:
+    lengths := list.map(fn(w) -> Int: len(w), words)
+    sorted := list.sort(lengths)
+    return list.last(sorted)
+
+fn main():
+    text := "the quick brown fox jumps over the lazy dog the fox and the dog"
+
+    words := strl.split(strl.strip(text), " ")
+    words <- list.filter(fn(w) -> Bool: not strl.is_empty(w), words)
+
+    n := list.len(words)
+    avg := avg_word_length(words)
+    unique_words := list.unique(words)
+    n_unique := list.len(unique_words)
+
+    long_words := list.filter(fn(w) -> Bool: len(w) >= 4, words)
+
+    print("text: " + text)
+    print("---")
+    print("total words:  " + str(n))
+    print("unique words: " + str(n_unique))
+    print("avg length:   " + str(avg))
+    print("long words (>=4 chars): " + str(long_words))
+    print("longest word: " + list.last(list.sort_by(fn(w) -> Int: len(w), words)))

@@ -971,6 +971,37 @@ def _build_io_module() -> object:
         print(msg, file=_sys.stderr)
         return NilV()
 
+    def _walk_dir(args: list) -> object:
+        """walk_dir(root) — recursively walk a directory tree.
+
+        Returns a List of Records, one per entry, each with fields:
+          path   : String  — path relative to root (using '/' separator)
+          is_dir : Bool    — True if the entry is a directory
+          name   : String  — the entry's filename component only
+        """
+        root = _require_string(args[0], "io.walk_dir")
+        root_path = _Path(root)
+        if not root_path.exists():
+            raise IE(f"io.walk_dir: path does not exist: {root!r}")
+        if not root_path.is_dir():
+            raise IE(f"io.walk_dir: not a directory: {root!r}")
+        results: list = []
+        try:
+            for entry in sorted(root_path.rglob("*"), key=lambda p: str(p)):
+                rel = entry.relative_to(root_path)
+                rel_str = str(rel).replace("\\", "/")
+                record = interp.RecordValue(  # type: ignore[attr-defined]
+                    {
+                        "path": SV(rel_str),
+                        "is_dir": BoolV(entry.is_dir()),
+                        "name": SV(entry.name),
+                    }
+                )
+                results.append(record)
+        except OSError as exc:
+            raise IE(f"io.walk_dir: {exc}") from exc
+        return LV(tuple(results))
+
     def _read_lines(args: list) -> object:
         path = _require_string(args[0], "io.read_lines")
         try:
@@ -1001,6 +1032,7 @@ def _build_io_module() -> object:
         "is_dir": BF("is_dir", _is_dir, arity=1),
         "delete_file": BF("delete_file", _delete_file, arity=1),
         "list_dir": BF("list_dir", _list_dir, arity=1),
+        "walk_dir": BF("walk_dir", _walk_dir, arity=1),
         "mkdir": BF("mkdir", _mkdir, arity=1),
         "print_err": BF("print_err", _print_err, arity=1),
     }
@@ -1654,6 +1686,7 @@ def _build_native_symbols() -> dict[str, dict[str, object]]:
         "is_dir": _sym("is_dir", ret_bool),
         "delete_file": _sym("delete_file", nil_fn),
         "list_dir": _sym("list_dir", ret_list),
+        "walk_dir": _sym("walk_dir", ret_any_list),
         "mkdir": _sym("mkdir", nil_fn),
         "print_err": _sym("print_err", nil_fn),
     }

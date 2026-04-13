@@ -85,6 +85,42 @@ entries := io.list_dir(".")
 print(entries)
 ```
 
+### `io.walk_dir(root: String) -> List[Record]`
+Recursively walk the directory tree rooted at `root`.
+Returns one Record per entry (both files and directories), sorted by path.
+Each Record has three fields:
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `path` | String | Path relative to `root`, using `/` separators |
+| `name` | String | Filename component only |
+| `is_dir` | Bool | True if the entry is a directory |
+
+```aster
+use io
+
+fn main():
+    entries := io.walk_dir("src")
+    mut i := 0
+    while i < len(entries):
+        e := entries[i]
+        prefix := if e.is_dir: "[dir] " else: "      "
+        print(prefix + e.path)
+        i <- i + 1
+```
+
+To list only files, filter by `is_dir`:
+
+```aster
+use io
+use list
+
+fn main():
+    all := io.walk_dir(".")
+    files := list.filter(fn(e) -> Bool: not e.is_dir, all)
+    print(str(list.len(files)) + " files found")
+```
+
 ---
 
 ## Filesystem mutations

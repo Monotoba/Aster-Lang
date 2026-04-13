@@ -26,14 +26,29 @@ so you can learn it gradually.
 18. [18-ownership-philosophy.md](18-ownership-philosophy.md)
 19. [19-borrows-and-signatures.md](19-borrows-and-signatures.md)
 20. [20-unsafe-and-raw-pointers.md](20-unsafe-and-raw-pointers.md)
+21. [21-ffi-extern.md](21-ffi-extern.md)
+22. [22-stdlib-math-str-list.md](22-stdlib-math-str-list.md)
+23. [23-io-files.md](23-io-files.md)
 
 ## Tutorial Programs
 
 Runnable programs live under [programs](programs).
 
+| # | Program | Feature |
+|---|---------|---------|
+| 1 | `01-fizzbuzz` | basic control flow |
+| 2 | `02-primes-sieve` | while loops, lists |
+| 3 | `03-shapes-and-match` | match patterns |
+| 4 | `04-modules-mini-project` | modules and imports |
+| 5 | `05-closures-and-counters` | closures |
+| 6 | `06-generics-and-traits` | generics / traits |
+| 7 | `07-ffi-math` | extern FFI with libm |
+| 8 | `08-stdlib-list-ops` | list module: map, filter, reduce, sort, zip |
+| 9 | `09-word-counter` | str + list + math together |
+
 Example:
 
 ```bash
-uv run aster run tutorials/programs/01-fizzbuzz/main.aster
+uv run aster run tutorials/programs/07-ffi-math/main.aster
 ```
 
