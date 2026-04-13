@@ -252,6 +252,66 @@ def build_parser() -> argparse.ArgumentParser:
     sub.add_parser("repl", help="start interactive REPL")
     sub.add_parser("version", help="show version")
 
+    # ------------------------------------------------------------------
+    # aster pkg — package manager
+    # ------------------------------------------------------------------
+    pkg_p = sub.add_parser("pkg", help="package manager commands")
+    pkg_sub = pkg_p.add_subparsers(dest="pkg_command", required=False)
+
+    # init
+    pkg_init = pkg_sub.add_parser("init", help="create a new package")
+    pkg_init.add_argument("--name", default=None, help="package name")
+    pkg_init.add_argument(
+        "--type",
+        dest="pkg_type",
+        choices=["library", "application", "tool"],
+        default="library",
+        help="package type (default: library)",
+    )
+    pkg_init.add_argument("--author", default="", help="author name")
+    pkg_init.add_argument(
+        "--output-dir",
+        type=Path,
+        default=None,
+        help="directory to create package in (default: current directory)",
+    )
+
+    # check
+    pkg_check = pkg_sub.add_parser("check", help="validate aster.toml")
+    pkg_check.add_argument(
+        "manifest",
+        type=Path,
+        nargs="?",
+        default=None,
+        help="path to aster.toml (default: search upward)",
+    )
+
+    # build
+    pkg_build = pkg_sub.add_parser("build", help="build .apkg package artifact")
+    pkg_build.add_argument(
+        "manifest",
+        type=Path,
+        nargs="?",
+        default=None,
+        help="path to aster.toml (default: search upward)",
+    )
+    pkg_build.add_argument(
+        "--out-dir",
+        type=Path,
+        default=None,
+        help="output directory for artifact (default: ./dist)",
+    )
+
+    # list
+    pkg_list = pkg_sub.add_parser("list", help="list declared dependencies")
+    pkg_list.add_argument(
+        "manifest",
+        type=Path,
+        nargs="?",
+        default=None,
+        help="path to aster.toml (default: search upward)",
+    )
+
     return parser
 
 
@@ -548,6 +608,33 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.command == "version":
         print("aster-lang scaffold 0.1.0")
+        return 0
+
+    if args.command == "pkg":
+        from aster_lang.pkg.commands import (  # noqa: PLC0415
+            cmd_build,
+            cmd_check,
+            cmd_init,
+            cmd_list,
+        )
+
+        pkg_cmd = getattr(args, "pkg_command", None)
+        if pkg_cmd == "init":
+            return cmd_init(
+                name=args.name,
+                pkg_type=args.pkg_type,
+                author=args.author,
+                output_dir=args.output_dir or Path.cwd(),
+            )
+        if pkg_cmd == "check":
+            return cmd_check(manifest_path=args.manifest)
+        if pkg_cmd == "build":
+            return cmd_build(manifest_path=args.manifest, out_dir=args.out_dir)
+        if pkg_cmd == "list":
+            return cmd_list(manifest_path=args.manifest)
+        pkg_p = parser._subparsers._group_actions[0].choices.get("pkg")  # type: ignore[union-attr]
+        if pkg_p:
+            pkg_p.print_help()
         return 0
 
     parser.print_help()
