@@ -75,7 +75,7 @@
 - [ ] benchmark harness
 
 ## Phase 8: ecosystem
-- [ ] stdlib design
+- [x] stdlib design — `math`, `str`, `std`, `list`, `io`, `random`, `time`, `linalg` with docs in `docs/language/standard-library/`
 - [ ] richer package manifest design
 - [ ] dependency mapping and package resolution
 - [x] versioning and compatibility policy

@@ -23,17 +23,20 @@ Caching and incremental compilation is done:
 - package manager plan
 - benchmark harness (`aster bench`)
 
-## Phase 8 (standard library) — in progress
+## Phase 8 (standard library) — complete
 
 **Done:**
-- `math` module — `floor`, `ceil`, `round`, `sqrt`, `pow`, `log`, `log2`, `log10`, `sin`, `cos`, `tan`, `abs`, `min`, `max`, `clamp`, `pi`, `e`, `tau`, `inf`
-- `str` module — `split`, `join`, `strip`, `lstrip`, `rstrip`, `upper`, `lower`, `starts_with`, `ends_with`, `contains`, `find`, `replace`, `pad_left`, `pad_right`, `chars`, `char_at`, `repeat`, `slice`
-- `std` module — `type_of`, `panic`, `todo`, `input`
-- `linalg` module — vectors (`vec`, `vadd`, `vsub`, `vmul`, `vscale`, `vneg`, `vdot`, `vcross`, `vlen`, `vlen_sq`, `vnorm`, `vlerp`) and matrices (`mat`, `identity`, `mrows`, `mcols`, `mget`, `mrow`, `mcol`, `madd`, `msub`, `mscale`, `mmul`, `mvmul`, `mtranspose`, `mdet`, `minv`)
-- `FloatValue` runtime type added to interpreter
-- `FloatType` added to semantic type system
-- Native module registry (`native_modules.py`) with interpreter interception and semantic symbol hook
-- 61 new tests for all three modules
+- `math` — full coverage: trig (sin/cos/tan/asin/acos/atan/atan2), hyperbolic, exp/log/log2/log10, gcd/lcm, sign, clamp, is_nan/is_inf/is_finite, constants pi/e/tau/inf/nan
+- `str` — full coverage: inspection (len/is_empty/is_digit/is_alpha/is_alnum/is_space), transformation (upper/lower/title/strip/reverse/repeat/replace/pad), split/join/chars, search, to_int/to_float, format
+- `std` — type_of, panic, todo, input, exit, env, env_or, args, assert
+- `list` — higher-order: map/filter/reduce/any/all/count/sort/sort_by; aggregate: sum/product; construction: range/repeat/append/prepend/concat; access: head/tail/last/take/drop/len; transforms: reverse/flatten/zip/enumerate/unique/contains
+- `io` — read_file/write_file/append_file/read_lines/write_lines, file_exists/is_file/is_dir, delete_file/list_dir/mkdir, print_err
+- `random` — random/rand_int/rand_float/choice/shuffle/sample/seed
+- `time` — now/now_ms/monotonic/sleep/strftime/clock
+- `linalg` — vectors and matrices (unchanged)
+- All modules have semantic symbols registered for static analysis
+- Documentation: `docs/language/standard-library/` (README + one page per module)
+- 908 tests passing
 
 **Remaining:**
 - `Float` literals in the parser and lexer (currently only reachable via native module return values)

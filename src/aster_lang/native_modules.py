@@ -169,28 +169,113 @@ def _build_math_module() -> object:
         hi = _to_float(args[2])
         return _int_or_float(max(lo, min(hi, x)))
 
+    def _exp(args: list) -> object:
+        return FV(_math.exp(_to_float(args[0])))
+
+    def _asin(args: list) -> object:
+        x = _to_float(args[0])
+        if x < -1 or x > 1:
+            raise IE("math.asin: domain error (input must be in [-1, 1])")
+        return FV(_math.asin(x))
+
+    def _acos(args: list) -> object:
+        x = _to_float(args[0])
+        if x < -1 or x > 1:
+            raise IE("math.acos: domain error (input must be in [-1, 1])")
+        return FV(_math.acos(x))
+
+    def _atan(args: list) -> object:
+        return FV(_math.atan(_to_float(args[0])))
+
+    def _atan2(args: list) -> object:
+        y = _to_float(args[0])
+        x = _to_float(args[1])
+        return FV(_math.atan2(y, x))
+
+    def _sinh(args: list) -> object:
+        return FV(_math.sinh(_to_float(args[0])))
+
+    def _cosh(args: list) -> object:
+        return FV(_math.cosh(_to_float(args[0])))
+
+    def _tanh(args: list) -> object:
+        return FV(_math.tanh(_to_float(args[0])))
+
+    def _gcd(args: list) -> object:
+        a = _require_int(args[0], "math.gcd")
+        b = _require_int(args[1], "math.gcd")
+        return IV(_math.gcd(abs(a), abs(b)))
+
+    def _lcm(args: list) -> object:
+        a = _require_int(args[0], "math.lcm")
+        b = _require_int(args[1], "math.lcm")
+        return IV(_math.lcm(abs(a), abs(b)))
+
+    def _sign(args: list) -> object:
+        x = _to_float(args[0])
+        if x > 0:
+            return IV(1)
+        if x < 0:
+            return IV(-1)
+        return IV(0)
+
+    def _is_nan(args: list) -> object:
+        interp2 = _interp()
+        x = _to_float(args[0])
+        return interp2.BoolValue(_math.isnan(x))  # type: ignore[attr-defined]
+
+    def _is_inf(args: list) -> object:
+        interp2 = _interp()
+        x = _to_float(args[0])
+        return interp2.BoolValue(_math.isinf(x))  # type: ignore[attr-defined]
+
+    def _is_finite(args: list) -> object:
+        interp2 = _interp()
+        x = _to_float(args[0])
+        return interp2.BoolValue(_math.isfinite(x))  # type: ignore[attr-defined]
+
     exports: dict[str, object] = {
         # Constants
         "pi": FV(_math.pi),
         "e": FV(_math.e),
         "tau": FV(_math.tau),
         "inf": FV(_math.inf),
-        # Functions
+        "nan": FV(_math.nan),
+        # Basic numeric
         "abs": BF("abs", _abs, arity=1),
         "floor": BF("floor", _floor, arity=1),
         "ceil": BF("ceil", _ceil, arity=1),
         "round": BF("round", _round, arity=1),
+        "sign": BF("sign", _sign, arity=1),
+        "clamp": BF("clamp", _clamp, arity=3),
+        "min": BF("min", _min, arity=2),
+        "max": BF("max", _max, arity=2),
+        # Power / logarithm
         "sqrt": BF("sqrt", _sqrt, arity=1),
         "pow": BF("pow", _pow, arity=2),
+        "exp": BF("exp", _exp, arity=1),
         "log": BF("log", _log, arity=1),
         "log2": BF("log2", _log2, arity=1),
         "log10": BF("log10", _log10, arity=1),
+        # Trigonometry
         "sin": BF("sin", _sin, arity=1),
         "cos": BF("cos", _cos, arity=1),
         "tan": BF("tan", _tan, arity=1),
-        "min": BF("min", _min, arity=2),
-        "max": BF("max", _max, arity=2),
-        "clamp": BF("clamp", _clamp, arity=3),
+        "asin": BF("asin", _asin, arity=1),
+        "acos": BF("acos", _acos, arity=1),
+        "atan": BF("atan", _atan, arity=1),
+        "atan2": BF("atan2", _atan2, arity=2),
+        # Hyperbolic
+        "sinh": BF("sinh", _sinh, arity=1),
+        "cosh": BF("cosh", _cosh, arity=1),
+        "tanh": BF("tanh", _tanh, arity=1),
+        # Integer operations
+        "gcd": BF("gcd", _gcd, arity=2),
+        "lcm": BF("lcm", _lcm, arity=2),
+        # Classification
+        "is_nan": BF("is_nan", _is_nan, arity=1),
+        "is_inf": BF("is_inf", _is_inf, arity=1),
+        "is_finite": BF("is_finite", _is_finite, arity=1),
     }
     return MV("math", exports)
 
@@ -306,25 +391,104 @@ def _build_str_module() -> object:
         end = _require_int(args[2], "str.slice")
         return SV(s[start:end])
 
+    def _len(args: list) -> object:
+        return IV(len(_require_string(args[0], "str.len")))
+
+    def _is_empty(args: list) -> object:
+        return BoolV(len(_require_string(args[0], "str.is_empty")) == 0)
+
+    def _is_digit(args: list) -> object:
+        return BoolV(_require_string(args[0], "str.is_digit").isdigit())
+
+    def _is_alpha(args: list) -> object:
+        return BoolV(_require_string(args[0], "str.is_alpha").isalpha())
+
+    def _is_alnum(args: list) -> object:
+        return BoolV(_require_string(args[0], "str.is_alnum").isalnum())
+
+    def _is_space(args: list) -> object:
+        return BoolV(_require_string(args[0], "str.is_space").isspace())
+
+    def _to_int(args: list) -> object:
+        s = _require_string(args[0], "str.to_int")
+        try:
+            return IV(int(s, 10))
+        except ValueError as exc:
+            raise interp.InterpreterError(  # type: ignore[attr-defined]
+                f"str.to_int: cannot parse {s!r} as Int"
+            ) from exc
+
+    def _to_float(args: list) -> object:
+        s = _require_string(args[0], "str.to_float")
+        try:
+            return interp.FloatValue(float(s))  # type: ignore[attr-defined]
+        except ValueError as exc:
+            raise interp.InterpreterError(  # type: ignore[attr-defined]
+                f"str.to_float: cannot parse {s!r} as Float"
+            ) from exc
+
+    def _reverse(args: list) -> object:
+        return SV(_require_string(args[0], "str.reverse")[::-1])
+
+    def _count(args: list) -> object:
+        s = _require_string(args[0], "str.count")
+        sub = _require_string(args[1], "str.count")
+        return IV(s.count(sub))
+
+    def _title(args: list) -> object:
+        return SV(_require_string(args[0], "str.title").title())
+
+    def _format(args: list) -> object:
+        """str.format(template, [arg, ...]) — replaces {} placeholders in order."""
+        template = _require_string(args[0], "str.format")
+        parts = template.split("{}")
+        if len(parts) != len(args):
+            raise interp.InterpreterError(  # type: ignore[attr-defined]
+                f"str.format: expected {len(parts) - 1} argument(s), got {len(args) - 1}"
+            )
+        result = parts[0]
+        for i, part in enumerate(parts[1:], 1):
+            result += str(args[i]) + part
+        return SV(result)
+
     exports: dict[str, object] = {
-        "split": BF("split", _split, arity=2),
-        "join": BF("join", _join, arity=2),
+        # Inspection
+        "len": BF("len", _len, arity=1),
+        "is_empty": BF("is_empty", _is_empty, arity=1),
+        "is_digit": BF("is_digit", _is_digit, arity=1),
+        "is_alpha": BF("is_alpha", _is_alpha, arity=1),
+        "is_alnum": BF("is_alnum", _is_alnum, arity=1),
+        "is_space": BF("is_space", _is_space, arity=1),
+        # Transformation
+        "upper": BF("upper", _upper, arity=1),
+        "lower": BF("lower", _lower, arity=1),
+        "title": BF("title", _title, arity=1),
         "strip": BF("strip", _strip, arity=1),
         "lstrip": BF("lstrip", _lstrip, arity=1),
         "rstrip": BF("rstrip", _rstrip, arity=1),
-        "upper": BF("upper", _upper, arity=1),
-        "lower": BF("lower", _lower, arity=1),
+        "reverse": BF("reverse", _reverse, arity=1),
+        "repeat": BF("repeat", _repeat, arity=2),
+        "replace": BF("replace", _replace, arity=3),
+        "pad_left": BF("pad_left", _pad_left, arity=-1),
+        "pad_right": BF("pad_right", _pad_right, arity=-1),
+        # Splitting / joining
+        "split": BF("split", _split, arity=2),
+        "join": BF("join", _join, arity=2),
+        "chars": BF("chars", _chars, arity=1),
+        # Search
         "starts_with": BF("starts_with", _starts_with, arity=2),
         "ends_with": BF("ends_with", _ends_with, arity=2),
         "contains": BF("contains", _contains, arity=2),
         "find": BF("find", _find, arity=2),
-        "replace": BF("replace", _replace, arity=3),
-        "pad_left": BF("pad_left", _pad_left, arity=-1),
-        "pad_right": BF("pad_right", _pad_right, arity=-1),
-        "chars": BF("chars", _chars, arity=1),
+        "count": BF("count", _count, arity=2),
+        # Indexing
         "char_at": BF("char_at", _char_at, arity=2),
-        "repeat": BF("repeat", _repeat, arity=2),
         "slice": BF("slice", _slice, arity=3),
+        # Parsing
+        "to_int": BF("to_int", _to_int, arity=1),
+        "to_float": BF("to_float", _to_float, arity=1),
+        # Formatting
+        "format": BF("format", _format, arity=-1),
     }
     return MV("str", exports)
 
@@ -335,8 +499,13 @@ def _build_str_module() -> object:
 
 
 def _build_std_module() -> object:
+    import os as _os  # noqa: PLC0415
+    import sys as _sys  # noqa: PLC0415
+
     interp = _interp()
     SV = interp.StringValue  # type: ignore[attr-defined]
+    LV = interp.ListValue  # type: ignore[attr-defined]
+    NilV = interp.NilValue  # type: ignore[attr-defined]
     BF = interp.BuiltinFunction  # type: ignore[attr-defined]
     MV = interp.ModuleValue  # type: ignore[attr-defined]
     IE = interp.InterpreterError  # type: ignore[attr-defined]
@@ -373,13 +542,601 @@ def _build_std_module() -> object:
         except EOFError:
             return SV("")
 
+    def _exit(args: list) -> object:
+        code = _require_int(args[0], "std.exit") if args else 0
+        _sys.exit(code)
+
+    def _env(args: list) -> object:
+        key = _require_string(args[0], "std.env")
+        val = _os.environ.get(key)
+        if val is None:
+            return NilV()
+        return SV(val)
+
+    def _env_or(args: list) -> object:
+        key = _require_string(args[0], "std.env_or")
+        default = _require_string(args[1], "std.env_or")
+        return SV(_os.environ.get(key, default))
+
+    def _args(args: list) -> object:
+        return LV(tuple(SV(a) for a in _sys.argv))
+
+    def _assert_fn(args: list) -> object:
+        if not args:
+            raise IE("std.assert: requires at least one argument")
+        cond = args[0]
+        if not isinstance(cond, interp.BoolValue):  # type: ignore[attr-defined]
+            raise IE(f"std.assert: expected Bool, got {type(cond).__name__}")
+        if not cond.value:  # type: ignore[attr-defined]
+            msg = _require_string(args[1], "std.assert") if len(args) > 1 else "assertion failed"
+            raise IE(f"assert: {msg}")
+        return NilV()
+
     exports: dict[str, object] = {
         "type_of": BF("type_of", _type_of, arity=1),
         "panic": BF("panic", _panic, arity=-1),
         "todo": BF("todo", _todo, arity=0),
         "input": BF("input", _input, arity=-1),
+        "exit": BF("exit", _exit, arity=-1),
+        "env": BF("env", _env, arity=1),
+        "env_or": BF("env_or", _env_or, arity=2),
+        "args": BF("args", _args, arity=0),
+        "assert": BF("assert", _assert_fn, arity=-1),
     }
     return MV("std", exports)
+
+
+# ---------------------------------------------------------------------------
+# list module
+# ---------------------------------------------------------------------------
+
+
+def _build_list_module() -> object:
+    """Higher-order list utilities: map, filter, reduce, sort, zip, etc."""
+    interp = _interp()
+    IV = interp.IntValue  # type: ignore[attr-defined]
+    BoolV = interp.BoolValue  # type: ignore[attr-defined]
+    LV = interp.ListValue  # type: ignore[attr-defined]
+    BF = interp.BuiltinFunction  # type: ignore[attr-defined]
+    MV = interp.ModuleValue  # type: ignore[attr-defined]
+    IE = interp.InterpreterError  # type: ignore[attr-defined]
+    FnV = interp.FunctionValue  # type: ignore[attr-defined]
+    BuiltinFn = interp.BuiltinFunction  # type: ignore[attr-defined]
+
+    def _require_list(v: object, label: str) -> tuple:
+        if not isinstance(v, interp.ListValue):  # type: ignore[attr-defined]
+            raise IE(f"{label}: expected List, got {type(v).__name__}")
+        return v.elements  # type: ignore[attr-defined]
+
+    def _call_fn(fn: object, args: list) -> object:
+        """Call an Aster function or builtin with args."""
+        if isinstance(fn, BuiltinFn):
+            return fn.fn(args)  # type: ignore[attr-defined]
+        if isinstance(fn, FnV):
+            # Re-use the interpreter's call machinery via a private helper.
+            # We need an Interpreter instance; we spawn a fresh one for purity.
+            # This is safe because list.map etc. are pure higher-order ops.
+            from aster_lang.interpreter import Interpreter as _Interp  # noqa: PLC0415
+
+            tmp = _Interp()
+            return tmp._call_function(fn, args)  # type: ignore[attr-defined]
+        raise IE(f"list: expected a function, got {type(fn).__name__}")
+
+    def _map(args: list) -> object:
+        fn = args[0]
+        elems = _require_list(args[1], "list.map")
+        return LV(tuple(_call_fn(fn, [e]) for e in elems))
+
+    def _filter(args: list) -> object:
+        fn = args[0]
+        elems = _require_list(args[1], "list.filter")
+        result = []
+        for e in elems:
+            v = _call_fn(fn, [e])
+            if not isinstance(v, interp.BoolValue):  # type: ignore[attr-defined]
+                raise IE("list.filter: predicate must return Bool")
+            if v.value:  # type: ignore[attr-defined]
+                result.append(e)
+        return LV(tuple(result))
+
+    def _reduce(args: list) -> object:
+        fn = args[0]
+        elems = _require_list(args[1], "list.reduce")
+        init = args[2]
+        acc = init
+        for e in elems:
+            acc = _call_fn(fn, [acc, e])
+        return acc
+
+    def _sort(args: list) -> object:
+        """sort(lst) — sort a list of comparable values (Int, Float, String)."""
+        elems = list(_require_list(args[0], "list.sort"))
+
+        def _key(v: object) -> object:
+            if isinstance(v, (interp.IntValue, interp.BitsValue)):  # type: ignore[attr-defined]  # noqa: UP038
+                return v.value  # type: ignore[attr-defined]
+            if isinstance(v, interp.FloatValue):  # type: ignore[attr-defined]
+                return v.value  # type: ignore[attr-defined]
+            if isinstance(v, interp.StringValue):  # type: ignore[attr-defined]
+                return v.value  # type: ignore[attr-defined]
+            raise IE(f"list.sort: cannot compare {type(v).__name__}")
+
+        return LV(tuple(sorted(elems, key=_key)))
+
+    def _sort_by(args: list) -> object:
+        """sort_by(key_fn, lst) — sort by applying key_fn to each element."""
+        fn = args[0]
+        elems = list(_require_list(args[1], "list.sort_by"))
+
+        def _key(v: object) -> object:
+            k = _call_fn(fn, [v])
+            if isinstance(k, (interp.IntValue, interp.BitsValue)):  # type: ignore[attr-defined]  # noqa: UP038
+                return k.value  # type: ignore[attr-defined]
+            if isinstance(k, interp.FloatValue):  # type: ignore[attr-defined]
+                return k.value  # type: ignore[attr-defined]
+            if isinstance(k, interp.StringValue):  # type: ignore[attr-defined]
+                return k.value  # type: ignore[attr-defined]
+            raise IE("list.sort_by: key function must return a comparable value")
+
+        return LV(tuple(sorted(elems, key=_key)))
+
+    def _reverse(args: list) -> object:
+        elems = _require_list(args[0], "list.reverse")
+        return LV(tuple(reversed(elems)))
+
+    def _zip(args: list) -> object:
+        a = _require_list(args[0], "list.zip")
+        b = _require_list(args[1], "list.zip")
+        length = min(len(a), len(b))
+        return LV(tuple(interp.TupleValue((a[i], b[i])) for i in range(length)))  # type: ignore[attr-defined]
+
+    def _enumerate(args: list) -> object:
+        elems = _require_list(args[0], "list.enumerate")
+        return LV(
+            tuple(interp.TupleValue((IV(i), e)) for i, e in enumerate(elems))  # type: ignore[attr-defined]
+        )
+
+    def _flatten(args: list) -> object:
+        outer = _require_list(args[0], "list.flatten")
+        result: list = []
+        for item in outer:
+            if isinstance(item, interp.ListValue):  # type: ignore[attr-defined]
+                result.extend(item.elements)  # type: ignore[attr-defined]
+            else:
+                result.append(item)
+        return LV(tuple(result))
+
+    def _any(args: list) -> object:
+        fn = args[0]
+        elems = _require_list(args[1], "list.any")
+        for e in elems:
+            v = _call_fn(fn, [e])
+            if not isinstance(v, interp.BoolValue):  # type: ignore[attr-defined]
+                raise IE("list.any: predicate must return Bool")
+            if v.value:  # type: ignore[attr-defined]
+                return BoolV(True)
+        return BoolV(False)
+
+    def _all(args: list) -> object:
+        fn = args[0]
+        elems = _require_list(args[1], "list.all")
+        for e in elems:
+            v = _call_fn(fn, [e])
+            if not isinstance(v, interp.BoolValue):  # type: ignore[attr-defined]
+                raise IE("list.all: predicate must return Bool")
+            if not v.value:  # type: ignore[attr-defined]
+                return BoolV(False)
+        return BoolV(True)
+
+    def _sum(args: list) -> object:
+        elems = _require_list(args[0], "list.sum")
+        total: float = 0.0
+        all_int = True
+        for e in elems:
+            if isinstance(e, interp.FloatValue):  # type: ignore[attr-defined]
+                all_int = False
+                total += e.value  # type: ignore[attr-defined]
+            elif isinstance(e, (interp.IntValue, interp.BitsValue)):  # type: ignore[attr-defined]  # noqa: UP038
+                total += e.value  # type: ignore[attr-defined]
+            else:
+                raise IE(f"list.sum: cannot sum {type(e).__name__}")
+        return IV(int(total)) if all_int else interp.FloatValue(total)  # type: ignore[attr-defined]
+
+    def _product(args: list) -> object:
+        elems = _require_list(args[0], "list.product")
+        result: float = 1.0
+        all_int = True
+        for e in elems:
+            if isinstance(e, interp.FloatValue):  # type: ignore[attr-defined]
+                all_int = False
+                result *= e.value  # type: ignore[attr-defined]
+            elif isinstance(e, (interp.IntValue, interp.BitsValue)):  # type: ignore[attr-defined]  # noqa: UP038
+                result *= e.value  # type: ignore[attr-defined]
+            else:
+                raise IE(f"list.product: cannot multiply {type(e).__name__}")
+        return IV(int(result)) if all_int else interp.FloatValue(result)  # type: ignore[attr-defined]
+
+    def _contains(args: list) -> object:
+        elems = _require_list(args[0], "list.contains")
+        target = args[1]
+        for e in elems:
+            if str(e) == str(target) and type(e) is type(target):
+                return BoolV(True)
+        return BoolV(False)
+
+    def _unique(args: list) -> object:
+        elems = _require_list(args[0], "list.unique")
+        seen: list = []
+        seen_keys: list = []
+        for e in elems:
+            key = (type(e).__name__, str(e))
+            if key not in seen_keys:
+                seen_keys.append(key)
+                seen.append(e)
+        return LV(tuple(seen))
+
+    def _head(args: list) -> object:
+        elems = _require_list(args[0], "list.head")
+        if not elems:
+            raise IE("list.head: list is empty")
+        return elems[0]
+
+    def _tail(args: list) -> object:
+        elems = _require_list(args[0], "list.tail")
+        if not elems:
+            raise IE("list.tail: list is empty")
+        return LV(elems[1:])
+
+    def _last(args: list) -> object:
+        elems = _require_list(args[0], "list.last")
+        if not elems:
+            raise IE("list.last: list is empty")
+        return elems[-1]
+
+    def _count(args: list) -> object:
+        fn = args[0]
+        elems = _require_list(args[1], "list.count")
+        n = 0
+        for e in elems:
+            v = _call_fn(fn, [e])
+            if not isinstance(v, interp.BoolValue):  # type: ignore[attr-defined]
+                raise IE("list.count: predicate must return Bool")
+            if v.value:  # type: ignore[attr-defined]
+                n += 1
+        return IV(n)
+
+    def _take(args: list) -> object:
+        n = _require_int(args[0], "list.take")
+        elems = _require_list(args[1], "list.take")
+        return LV(elems[:n])
+
+    def _drop(args: list) -> object:
+        n = _require_int(args[0], "list.drop")
+        elems = _require_list(args[1], "list.drop")
+        return LV(elems[n:])
+
+    def _append(args: list) -> object:
+        elems = _require_list(args[0], "list.append")
+        elem = args[1]
+        return LV(elems + (elem,))
+
+    def _prepend(args: list) -> object:
+        elem = args[0]
+        elems = _require_list(args[1], "list.prepend")
+        return LV((elem,) + elems)
+
+    def _concat(args: list) -> object:
+        a = _require_list(args[0], "list.concat")
+        b = _require_list(args[1], "list.concat")
+        return LV(a + b)
+
+    def _len(args: list) -> object:
+        return IV(len(_require_list(args[0], "list.len")))
+
+    def _range(args: list) -> object:
+        """range(start, end) or range(end) — produce an integer list."""
+        if len(args) == 1:
+            start, end = 0, _require_int(args[0], "list.range")
+        else:
+            start = _require_int(args[0], "list.range")
+            end = _require_int(args[1], "list.range")
+        return LV(tuple(IV(i) for i in range(start, end)))
+
+    def _repeat(args: list) -> object:
+        """repeat(value, n) — produce a list of n copies of value."""
+        val = args[0]
+        n = _require_int(args[1], "list.repeat")
+        return LV(tuple(val for _ in range(n)))
+
+    exports: dict[str, object] = {
+        # Higher-order
+        "map": BF("map", _map, arity=2),
+        "filter": BF("filter", _filter, arity=2),
+        "reduce": BF("reduce", _reduce, arity=3),
+        "any": BF("any", _any, arity=2),
+        "all": BF("all", _all, arity=2),
+        "count": BF("count", _count, arity=2),
+        "sort": BF("sort", _sort, arity=1),
+        "sort_by": BF("sort_by", _sort_by, arity=2),
+        # Aggregate
+        "sum": BF("sum", _sum, arity=1),
+        "product": BF("product", _product, arity=1),
+        # Construction
+        "range": BF("range", _range, arity=-1),
+        "repeat": BF("repeat", _repeat, arity=2),
+        "append": BF("append", _append, arity=2),
+        "prepend": BF("prepend", _prepend, arity=2),
+        "concat": BF("concat", _concat, arity=2),
+        # Access
+        "head": BF("head", _head, arity=1),
+        "tail": BF("tail", _tail, arity=1),
+        "last": BF("last", _last, arity=1),
+        "take": BF("take", _take, arity=2),
+        "drop": BF("drop", _drop, arity=2),
+        "len": BF("len", _len, arity=1),
+        # Transformation
+        "reverse": BF("reverse", _reverse, arity=1),
+        "flatten": BF("flatten", _flatten, arity=1),
+        "zip": BF("zip", _zip, arity=2),
+        "enumerate": BF("enumerate", _enumerate, arity=1),
+        "unique": BF("unique", _unique, arity=1),
+        "contains": BF("contains", _contains, arity=2),
+    }
+    return MV("list", exports)
+
+
+# ---------------------------------------------------------------------------
+# io module
+# ---------------------------------------------------------------------------
+
+
+def _build_io_module() -> object:
+    """File and stream I/O operations."""
+    import sys as _sys  # noqa: PLC0415
+    from pathlib import Path as _Path  # noqa: PLC0415
+
+    interp = _interp()
+    SV = interp.StringValue  # type: ignore[attr-defined]
+    BoolV = interp.BoolValue  # type: ignore[attr-defined]
+    LV = interp.ListValue  # type: ignore[attr-defined]
+    NilV = interp.NilValue  # type: ignore[attr-defined]
+    BF = interp.BuiltinFunction  # type: ignore[attr-defined]
+    MV = interp.ModuleValue  # type: ignore[attr-defined]
+    IE = interp.InterpreterError  # type: ignore[attr-defined]
+
+    def _read_file(args: list) -> object:
+        path = _require_string(args[0], "io.read_file")
+        try:
+            return SV(_Path(path).read_text(encoding="utf-8"))
+        except OSError as exc:
+            raise IE(f"io.read_file: {exc}") from exc
+
+    def _write_file(args: list) -> object:
+        path = _require_string(args[0], "io.write_file")
+        content = _require_string(args[1], "io.write_file")
+        try:
+            _Path(path).write_text(content, encoding="utf-8")
+        except OSError as exc:
+            raise IE(f"io.write_file: {exc}") from exc
+        return NilV()
+
+    def _append_file(args: list) -> object:
+        path = _require_string(args[0], "io.append_file")
+        content = _require_string(args[1], "io.append_file")
+        try:
+            with _Path(path).open("a", encoding="utf-8") as f:
+                f.write(content)
+        except OSError as exc:
+            raise IE(f"io.append_file: {exc}") from exc
+        return NilV()
+
+    def _file_exists(args: list) -> object:
+        path = _require_string(args[0], "io.file_exists")
+        return BoolV(_Path(path).exists())
+
+    def _is_file(args: list) -> object:
+        path = _require_string(args[0], "io.is_file")
+        return BoolV(_Path(path).is_file())
+
+    def _is_dir(args: list) -> object:
+        path = _require_string(args[0], "io.is_dir")
+        return BoolV(_Path(path).is_dir())
+
+    def _delete_file(args: list) -> object:
+        path = _require_string(args[0], "io.delete_file")
+        try:
+            _Path(path).unlink()
+        except OSError as exc:
+            raise IE(f"io.delete_file: {exc}") from exc
+        return NilV()
+
+    def _list_dir(args: list) -> object:
+        path = _require_string(args[0], "io.list_dir")
+        try:
+            entries = sorted(str(p.name) for p in _Path(path).iterdir())
+            return LV(tuple(SV(e) for e in entries))
+        except OSError as exc:
+            raise IE(f"io.list_dir: {exc}") from exc
+
+    def _mkdir(args: list) -> object:
+        path = _require_string(args[0], "io.mkdir")
+        try:
+            _Path(path).mkdir(parents=True, exist_ok=True)
+        except OSError as exc:
+            raise IE(f"io.mkdir: {exc}") from exc
+        return NilV()
+
+    def _print_err(args: list) -> object:
+        msg = _require_string(args[0], "io.print_err")
+        print(msg, file=_sys.stderr)
+        return NilV()
+
+    def _read_lines(args: list) -> object:
+        path = _require_string(args[0], "io.read_lines")
+        try:
+            lines = _Path(path).read_text(encoding="utf-8").splitlines()
+            return LV(tuple(SV(ln) for ln in lines))
+        except OSError as exc:
+            raise IE(f"io.read_lines: {exc}") from exc
+
+    def _write_lines(args: list) -> object:
+        path = _require_string(args[0], "io.write_lines")
+        if not isinstance(args[1], interp.ListValue):  # type: ignore[attr-defined]
+            raise IE("io.write_lines: second argument must be a List")
+        lines = [_require_string(e, "io.write_lines element") for e in args[1].elements]  # type: ignore[attr-defined]
+        try:
+            _Path(path).write_text("\n".join(lines) + "\n", encoding="utf-8")
+        except OSError as exc:
+            raise IE(f"io.write_lines: {exc}") from exc
+        return NilV()
+
+    exports: dict[str, object] = {
+        "read_file": BF("read_file", _read_file, arity=1),
+        "write_file": BF("write_file", _write_file, arity=2),
+        "append_file": BF("append_file", _append_file, arity=2),
+        "read_lines": BF("read_lines", _read_lines, arity=1),
+        "write_lines": BF("write_lines", _write_lines, arity=2),
+        "file_exists": BF("file_exists", _file_exists, arity=1),
+        "is_file": BF("is_file", _is_file, arity=1),
+        "is_dir": BF("is_dir", _is_dir, arity=1),
+        "delete_file": BF("delete_file", _delete_file, arity=1),
+        "list_dir": BF("list_dir", _list_dir, arity=1),
+        "mkdir": BF("mkdir", _mkdir, arity=1),
+        "print_err": BF("print_err", _print_err, arity=1),
+    }
+    return MV("io", exports)
+
+
+# ---------------------------------------------------------------------------
+# random module
+# ---------------------------------------------------------------------------
+
+
+def _build_random_module() -> object:
+    """Pseudo-random number generation."""
+    import random as _random  # noqa: PLC0415
+
+    interp = _interp()
+    IV = interp.IntValue  # type: ignore[attr-defined]
+    FV = interp.FloatValue  # type: ignore[attr-defined]
+    LV = interp.ListValue  # type: ignore[attr-defined]
+    NilV = interp.NilValue  # type: ignore[attr-defined]
+    BF = interp.BuiltinFunction  # type: ignore[attr-defined]
+    MV = interp.ModuleValue  # type: ignore[attr-defined]
+    IE = interp.InterpreterError  # type: ignore[attr-defined]
+
+    def _random_fn(args: list) -> object:
+        """random() — uniform float in [0.0, 1.0)."""
+        return FV(_random.random())
+
+    def _rand_int(args: list) -> object:
+        """rand_int(low, high) — random Int in [low, high] inclusive."""
+        lo = _require_int(args[0], "random.rand_int")
+        hi = _require_int(args[1], "random.rand_int")
+        if lo > hi:
+            raise IE(f"random.rand_int: low ({lo}) must be <= high ({hi})")
+        return IV(_random.randint(lo, hi))
+
+    def _rand_float(args: list) -> object:
+        """rand_float(low, high) — uniform float in [low, high)."""
+        lo = _to_float(args[0])
+        hi = _to_float(args[1])
+        return FV(_random.uniform(lo, hi))
+
+    def _choice(args: list) -> object:
+        if not isinstance(args[0], interp.ListValue):  # type: ignore[attr-defined]
+            raise IE("random.choice: expected a List")
+        elems = args[0].elements  # type: ignore[attr-defined]
+        if not elems:
+            raise IE("random.choice: list is empty")
+        return _random.choice(elems)
+
+    def _shuffle(args: list) -> object:
+        if not isinstance(args[0], interp.ListValue):  # type: ignore[attr-defined]
+            raise IE("random.shuffle: expected a List")
+        elems = list(args[0].elements)  # type: ignore[attr-defined]
+        _random.shuffle(elems)
+        return interp.ListValue(tuple(elems))  # type: ignore[attr-defined]
+
+    def _sample(args: list) -> object:
+        if not isinstance(args[0], interp.ListValue):  # type: ignore[attr-defined]
+            raise IE("random.sample: first argument must be a List")
+        k = _require_int(args[1], "random.sample")
+        elems = list(args[0].elements)  # type: ignore[attr-defined]
+        if k > len(elems):
+            raise IE(f"random.sample: sample size ({k}) larger than population ({len(elems)})")
+        return LV(tuple(_random.sample(elems, k)))
+
+    def _seed(args: list) -> object:
+        n = _require_int(args[0], "random.seed")
+        _random.seed(n)
+        return NilV()
+
+    exports: dict[str, object] = {
+        "random": BF("random", _random_fn, arity=0),
+        "rand_int": BF("rand_int", _rand_int, arity=2),
+        "rand_float": BF("rand_float", _rand_float, arity=2),
+        "choice": BF("choice", _choice, arity=1),
+        "shuffle": BF("shuffle", _shuffle, arity=1),
+        "sample": BF("sample", _sample, arity=2),
+        "seed": BF("seed", _seed, arity=1),
+    }
+    return MV("random", exports)
+
+
+# ---------------------------------------------------------------------------
+# time module
+# ---------------------------------------------------------------------------
+
+
+def _build_time_module() -> object:
+    """Time and timing utilities."""
+    import time as _time  # noqa: PLC0415
+
+    interp = _interp()
+    IV = interp.IntValue  # type: ignore[attr-defined]
+    FV = interp.FloatValue  # type: ignore[attr-defined]
+    SV = interp.StringValue  # type: ignore[attr-defined]
+    NilV = interp.NilValue  # type: ignore[attr-defined]
+    BF = interp.BuiltinFunction  # type: ignore[attr-defined]
+    MV = interp.ModuleValue  # type: ignore[attr-defined]
+
+    def _now(args: list) -> object:
+        """now() — current Unix timestamp as Float (seconds since epoch)."""
+        return FV(_time.time())
+
+    def _now_ms(args: list) -> object:
+        """now_ms() — current timestamp in integer milliseconds."""
+        return IV(int(_time.time() * 1000))
+
+    def _monotonic(args: list) -> object:
+        """monotonic() — monotonic clock Float, for measuring intervals."""
+        return FV(_time.monotonic())
+
+    def _sleep(args: list) -> object:
+        """sleep(seconds) — pause execution for the given number of seconds."""
+        secs = _to_float(args[0])
+        _time.sleep(secs)
+        return NilV()
+
+    def _strftime(args: list) -> object:
+        """strftime(fmt) — format the current local time using strftime format string."""
+        fmt = _require_string(args[0], "time.strftime")
+        return SV(_time.strftime(fmt, _time.localtime()))
+
+    def _clock(args: list) -> object:
+        """clock() — CPU process time in seconds (Float)."""
+        return FV(_time.process_time())
+
+    exports: dict[str, object] = {
+        "now": BF("now", _now, arity=0),
+        "now_ms": BF("now_ms", _now_ms, arity=0),
+        "monotonic": BF("monotonic", _monotonic, arity=0),
+        "sleep": BF("sleep", _sleep, arity=1),
+        "strftime": BF("strftime", _strftime, arity=1),
+        "clock": BF("clock", _clock, arity=0),
+    }
+    return MV("time", exports)
 
 
 # ---------------------------------------------------------------------------
@@ -700,6 +1457,10 @@ NATIVE_MODULES: dict[str, Callable[[], object]] = {
     "math": _build_math_module,
     "str": _build_str_module,
     "std": _build_std_module,
+    "list": _build_list_module,
+    "io": _build_io_module,
+    "random": _build_random_module,
+    "time": _build_time_module,
     "linalg": _build_linalg_module,
 }
 
@@ -749,53 +1510,171 @@ def _build_native_symbols() -> dict[str, dict[str, object]]:
     ret_unk = FunctionType(param_types=(UNKNOWN_TYPE,), return_type=UNKNOWN_TYPE)
 
     math_syms = {
+        # Constants
         "pi": _const("pi", FLOAT),
         "e": _const("e", FLOAT),
         "tau": _const("tau", FLOAT),
         "inf": _const("inf", FLOAT),
+        "nan": _const("nan", FLOAT),
+        # Basic numeric
         "abs": _sym("abs", ret_unk),
         "floor": _sym("floor", ret_int),
         "ceil": _sym("ceil", ret_int),
         "round": _sym("round", ret_int),
+        "sign": _sym("sign", ret_int),
+        "clamp": _sym("clamp", ret_unk),
+        "min": _sym("min", ret_unk),
+        "max": _sym("max", ret_unk),
+        # Power / logarithm
         "sqrt": _sym("sqrt", ret_float),
         "pow": _sym("pow", ret_unk),
+        "exp": _sym("exp", ret_float),
         "log": _sym("log", ret_float),
         "log2": _sym("log2", ret_float),
         "log10": _sym("log10", ret_float),
+        # Trigonometry
         "sin": _sym("sin", ret_float),
         "cos": _sym("cos", ret_float),
         "tan": _sym("tan", ret_float),
-        "min": _sym("min", ret_unk),
-        "max": _sym("max", ret_unk),
-        "clamp": _sym("clamp", ret_unk),
+        "asin": _sym("asin", ret_float),
+        "acos": _sym("acos", ret_float),
+        "atan": _sym("atan", ret_float),
+        "atan2": _sym("atan2", ret_float),
+        # Hyperbolic
+        "sinh": _sym("sinh", ret_float),
+        "cosh": _sym("cosh", ret_float),
+        "tanh": _sym("tanh", ret_float),
+        # Integer operations
+        "gcd": _sym("gcd", ret_int),
+        "lcm": _sym("lcm", ret_int),
+        # Classification
+        "is_nan": _sym("is_nan", ret_bool),
+        "is_inf": _sym("is_inf", ret_bool),
+        "is_finite": _sym("is_finite", ret_bool),
     }
 
+    ret_any_list = FunctionType(param_types=(UNKNOWN_TYPE,), return_type=ListType(UNKNOWN_TYPE))
+
     str_syms = {
-        "split": _sym("split", ret_list),
-        "join": _sym("join", ret_str),
+        # Inspection
+        "len": _sym("len", ret_int),
+        "is_empty": _sym("is_empty", ret_bool),
+        "is_digit": _sym("is_digit", ret_bool),
+        "is_alpha": _sym("is_alpha", ret_bool),
+        "is_alnum": _sym("is_alnum", ret_bool),
+        "is_space": _sym("is_space", ret_bool),
+        # Transformation
+        "upper": _sym("upper", ret_str),
+        "lower": _sym("lower", ret_str),
+        "title": _sym("title", ret_str),
         "strip": _sym("strip", ret_str),
         "lstrip": _sym("lstrip", ret_str),
         "rstrip": _sym("rstrip", ret_str),
-        "upper": _sym("upper", ret_str),
-        "lower": _sym("lower", ret_str),
+        "reverse": _sym("reverse", ret_str),
+        "repeat": _sym("repeat", ret_str),
+        "replace": _sym("replace", ret_str),
+        "pad_left": _sym("pad_left", ret_str),
+        "pad_right": _sym("pad_right", ret_str),
+        # Splitting / joining
+        "split": _sym("split", ret_list),
+        "join": _sym("join", ret_str),
+        "chars": _sym("chars", ret_list),
+        # Search
         "starts_with": _sym("starts_with", ret_bool),
         "ends_with": _sym("ends_with", ret_bool),
         "contains": _sym("contains", ret_bool),
         "find": _sym("find", ret_int),
-        "replace": _sym("replace", ret_str),
-        "pad_left": _sym("pad_left", ret_str),
-        "pad_right": _sym("pad_right", ret_str),
-        "chars": _sym("chars", ret_list),
+        "count": _sym("count", ret_int),
+        # Indexing
         "char_at": _sym("char_at", ret_str),
-        "repeat": _sym("repeat", ret_str),
         "slice": _sym("slice", ret_str),
+        # Parsing
+        "to_int": _sym("to_int", ret_int),
+        "to_float": _sym("to_float", ret_float),
+        # Formatting
+        "format": _sym("format", ret_str),
     }
 
+    nil_fn = FunctionType(param_types=(UNKNOWN_TYPE,), return_type=NIL_TYPE)
     std_syms = {
         "type_of": _sym("type_of", ret_str),
-        "panic": _sym("panic", FunctionType(param_types=(UNKNOWN_TYPE,), return_type=NIL_TYPE)),
+        "panic": _sym("panic", nil_fn),
         "todo": _sym("todo", FunctionType(param_types=(), return_type=NIL_TYPE)),
         "input": _sym("input", ret_str),
+        "exit": _sym("exit", nil_fn),
+        "env": _sym("env", ret_unk),
+        "env_or": _sym("env_or", ret_str),
+        "args": _sym("args", ret_list),
+        "assert": _sym("assert", nil_fn),
+    }
+
+    list_syms = {
+        # Higher-order
+        "map": _sym("map", ret_any_list),
+        "filter": _sym("filter", ret_any_list),
+        "reduce": _sym("reduce", ret_unk),
+        "any": _sym("any", ret_bool),
+        "all": _sym("all", ret_bool),
+        "count": _sym("count", ret_int),
+        "sort": _sym("sort", ret_any_list),
+        "sort_by": _sym("sort_by", ret_any_list),
+        # Aggregate
+        "sum": _sym("sum", ret_unk),
+        "product": _sym("product", ret_unk),
+        # Construction
+        "range": _sym("range", ret_any_list),
+        "repeat": _sym("repeat", ret_any_list),
+        "append": _sym("append", ret_any_list),
+        "prepend": _sym("prepend", ret_any_list),
+        "concat": _sym("concat", ret_any_list),
+        # Access
+        "head": _sym("head", ret_unk),
+        "tail": _sym("tail", ret_any_list),
+        "last": _sym("last", ret_unk),
+        "take": _sym("take", ret_any_list),
+        "drop": _sym("drop", ret_any_list),
+        "len": _sym("len", ret_int),
+        # Transformation
+        "reverse": _sym("reverse", ret_any_list),
+        "flatten": _sym("flatten", ret_any_list),
+        "zip": _sym("zip", ret_any_list),
+        "enumerate": _sym("enumerate", ret_any_list),
+        "unique": _sym("unique", ret_any_list),
+        "contains": _sym("contains", ret_bool),
+    }
+
+    io_syms = {
+        "read_file": _sym("read_file", ret_str),
+        "write_file": _sym("write_file", nil_fn),
+        "append_file": _sym("append_file", nil_fn),
+        "read_lines": _sym("read_lines", ret_list),
+        "write_lines": _sym("write_lines", nil_fn),
+        "file_exists": _sym("file_exists", ret_bool),
+        "is_file": _sym("is_file", ret_bool),
+        "is_dir": _sym("is_dir", ret_bool),
+        "delete_file": _sym("delete_file", nil_fn),
+        "list_dir": _sym("list_dir", ret_list),
+        "mkdir": _sym("mkdir", nil_fn),
+        "print_err": _sym("print_err", nil_fn),
+    }
+
+    random_syms = {
+        "random": _sym("random", ret_float),
+        "rand_int": _sym("rand_int", ret_int),
+        "rand_float": _sym("rand_float", ret_float),
+        "choice": _sym("choice", ret_unk),
+        "shuffle": _sym("shuffle", ret_any_list),
+        "sample": _sym("sample", ret_any_list),
+        "seed": _sym("seed", nil_fn),
+    }
+
+    time_syms = {
+        "now": _sym("now", ret_float),
+        "now_ms": _sym("now_ms", ret_int),
+        "monotonic": _sym("monotonic", ret_float),
+        "sleep": _sym("sleep", nil_fn),
+        "strftime": _sym("strftime", ret_str),
+        "clock": _sym("clock", ret_float),
     }
 
     ret_vec = FunctionType(param_types=(UNKNOWN_TYPE,), return_type=ListType(UNKNOWN_TYPE))
@@ -840,6 +1719,10 @@ def _build_native_symbols() -> dict[str, dict[str, object]]:
         "math": math_syms,
         "str": str_syms,
         "std": std_syms,
+        "list": list_syms,
+        "io": io_syms,
+        "random": random_syms,
+        "time": time_syms,
         "linalg": linalg_syms,
     }
 
