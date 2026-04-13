@@ -16,11 +16,7 @@ pub typealias TcpClient = { sock: Int, addr: String, port: Int }
 pub fn dial(addr: String, port: Int) -> TcpClient:
     sock := socket.create(socket.AF_INET, socket.SOCK_STREAM)
     socket.connect(sock, addr, port)
-    return {
-        sock: sock,
-        addr: addr,
-        port: port
-    }
+    return { sock: sock, addr: addr, port: port }
 
 # send(client, data) -> Int
 # Send data to the remote server.
@@ -49,21 +45,13 @@ pub fn listen(addr: String, port: Int) -> TcpServer:
     sock := socket.create(socket.AF_INET, socket.SOCK_STREAM)
     socket.bind(sock, addr, port)
     socket.listen(sock, 128)
-    return {
-        sock: sock,
-        addr: addr,
-        port: port
-    }
+    return { sock: sock, addr: addr, port: port }
 
 # accept(server) -> TcpClient
 # Accept a new connection from a client.
 pub fn accept(server: TcpServer) -> TcpClient:
     res := socket.accept(server.sock)
-    return {
-        sock: res.conn,
-        addr: res.addr,
-        port: res.port
-    }
+    return { sock: res.conn, addr: res.addr, port: res.port }
 
 # stop(server) -> Nil
 # Stop the server and close its listening socket.

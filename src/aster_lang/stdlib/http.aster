@@ -29,7 +29,7 @@ pub fn get(url: String) -> Response:
     ip := socket.gethostbyname(host)
     client := net.dial(ip, port)
 
-    request := "GET " + path + " HTTP/1.1\r\n"
+    mut request := "GET " + path + " HTTP/1.1\r\n"
     request <- request + "Host: " + host + "\r\n"
     request <- request + "Connection: close\r\n"
     request <- request + "\r\n"
@@ -37,8 +37,8 @@ pub fn get(url: String) -> Response:
     net.send(client, request)
 
     # Simple receiver (reads until connection close for HTTP/1.1 with close)
-    raw_res := ""
-    chunk := "init"
+    mut raw_res := ""
+    mut chunk := "init"
     while strl.len(chunk) > 0:
         chunk <- net.recv(client, 4096)
         raw_res <- raw_res + chunk
@@ -67,7 +67,7 @@ pub fn listen(port: Int, handler: Fn(Request) -> Response):
             res := handler(req)
             
             # Format response
-            res_str := "HTTP/1.1 " + str(res.status) + " OK\r\n"
+            mut res_str := "HTTP/1.1 " + str(res.status) + " OK\r\n"
             res_str <- res_str + "Content-Length: " + str(strl.len(res.body)) + "\r\n"
             res_str <- res_str + "Connection: close\r\n"
             # TODO: Headers
@@ -84,64 +84,64 @@ pub fn listen(port: Int, handler: Fn(Request) -> Response):
 
 fn _parse_url(url: String):
     # Simple parser for http://host[:port]/path
-    work := url
+    mut work := url
     if strl.starts_with(url, "http://"):
         work <- strl.slice(url, 7, strl.len(url))
-    
+
     slash_idx := strl.find(work, "/")
-    host_part := ""
-    path := "/"
-    
+    mut host_part := ""
+    mut path := "/"
+
     if slash_idx == -1:
         host_part <- work
     else:
         host_part <- strl.slice(work, 0, slash_idx)
         path <- strl.slice(work, slash_idx, strl.len(work))
-    
+
     colon_idx := strl.find(host_part, ":")
-    host := host_part
-    port := 80
-    
+    mut host := host_part
+    mut port := 80
+
     if colon_idx != -1:
         host <- strl.slice(host_part, 0, colon_idx)
         port_str := strl.slice(host_part, colon_idx + 1, strl.len(host_part))
         port <- strl.to_int(port_str)
-    
+
     return [host, port, path]
 
 fn _parse_response(raw: String) -> Response:
     # Find end of status line
     line_end := strl.find(raw, "\r\n")
     status_line := strl.slice(raw, 0, line_end)
-    
+
     # Very crude status extraction: "HTTP/1.1 200 OK"
     parts := strl.split(status_line, " ")
-    status := 0
+    mut status := 0
     if list.len(parts) >= 2:
         status <- strl.to_int(parts[1])
-    
+
     # Find body (after \r\n\r\n)
     body_start := strl.find(raw, "\r\n\r\n")
-    body := ""
+    mut body := ""
     if body_start != -1:
         body <- strl.slice(raw, body_start + 4, strl.len(raw))
-    
+
     return { status: status, body: body }
 
 fn _parse_request(raw: String) -> Request:
     line_end := strl.find(raw, "\r\n")
     req_line := strl.slice(raw, 0, line_end)
     parts := strl.split(req_line, " ")
-    
-    method := "GET"
-    path := "/"
+
+    mut method := "GET"
+    mut path := "/"
     if list.len(parts) >= 2:
         method <- parts[0]
         path <- parts[1]
-    
+
     # Body
     body_start := strl.find(raw, "\r\n\r\n")
-    body := ""
+    mut body := ""
     if body_start != -1:
         body <- strl.slice(raw, body_start + 4, strl.len(raw))
 

@@ -312,10 +312,18 @@ def _build_str_module() -> object:
         return SV(_require_string(args[0], "str.strip").strip())
 
     def _lstrip(args: list) -> object:
-        return SV(_require_string(args[0], "str.lstrip").lstrip())
+        s = _require_string(args[0], "str.lstrip")
+        if len(args) == 2:
+            chars = _require_string(args[1], "str.lstrip")
+            return SV(s.lstrip(chars))
+        return SV(s.lstrip())
 
     def _rstrip(args: list) -> object:
-        return SV(_require_string(args[0], "str.rstrip").rstrip())
+        s = _require_string(args[0], "str.rstrip")
+        if len(args) == 2:
+            chars = _require_string(args[1], "str.rstrip")
+            return SV(s.rstrip(chars))
+        return SV(s.rstrip())
 
     def _upper(args: list) -> object:
         return SV(_require_string(args[0], "str.upper").upper())
@@ -469,8 +477,8 @@ def _build_str_module() -> object:
         "lower": BF("lower", _lower, arity=1),
         "title": BF("title", _title, arity=1),
         "strip": BF("strip", _strip, arity=1),
-        "lstrip": BF("lstrip", _lstrip, arity=1),
-        "rstrip": BF("rstrip", _rstrip, arity=1),
+        "lstrip": BF("lstrip", _lstrip, arity=-1),
+        "rstrip": BF("rstrip", _rstrip, arity=-1),
         "reverse": BF("reverse", _reverse, arity=1),
         "repeat": BF("repeat", _repeat, arity=2),
         "replace": BF("replace", _replace, arity=3),
