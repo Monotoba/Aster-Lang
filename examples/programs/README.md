@@ -35,4 +35,5 @@ uv run aster check examples/programs/<program>/main.aster --ownership deny
 10. `10-byte-pack`
 11. `11-ownership-modes`
 12. `12-raw-pointer-surface`
+13. `13-ffi-libm`
 

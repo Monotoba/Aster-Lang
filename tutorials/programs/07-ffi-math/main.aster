@@ -1,0 +1,13 @@
+extern "libm":
+    fn cos(x: Float) -> Float
+    fn sin(x: Float) -> Float
+    fn sqrt(x: Float) -> Float
+    fn floor(x: Float) -> Float
+    fn ceil(x: Float) -> Float
+
+fn main():
+    print("cos(0)  = " + str(cos(0)))
+    print("sin(0)  = " + str(sin(0)))
+    print("sqrt(9) = " + str(sqrt(9)))
+    print("floor(2) = " + str(floor(2)))
+    print("ceil(2)  = " + str(ceil(2)))

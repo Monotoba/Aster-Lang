@@ -1,0 +1,35 @@
+use cmath
+
+fn main():
+    # Basic trig
+    print("--- Trigonometry ---")
+    print("sin(0)       = " + str(cmath.sin(0)))
+    print("cos(0)       = " + str(cmath.cos(0)))
+    print("tan(0)       = " + str(cmath.tan(0)))
+    print("hypot(3, 4)  = " + str(cmath.hypot(3, 4)))
+
+    # Roots and powers
+    print("")
+    print("--- Roots and Powers ---")
+    print("sqrt(2)      = " + str(cmath.sqrt(2)))
+    print("cbrt(27)     = " + str(cmath.cbrt(27)))
+    print("pow(2, 10)   = " + str(cmath.pow(2, 10)))
+
+    # Logarithms and exp
+    print("")
+    print("--- Logarithms ---")
+    print("log(e)       = " + str(cmath.log(cmath.exp(1))))
+    print("log2(1024)   = " + str(cmath.log2(1024)))
+    print("log10(1000)  = " + str(cmath.log10(1000)))
+
+    # Rounding
+    print("")
+    print("--- Rounding ---")
+    print("floor(2)     = " + str(cmath.floor(2)))
+    print("ceil(2)      = " + str(cmath.ceil(2)))
+    print("fabs(-5)     = " + str(cmath.fabs(-5)))
+
+    # atan2 — angle of the unit vector (1, 1)
+    print("")
+    print("--- atan2 ---")
+    print("atan2(1, 1)  = " + str(cmath.atan2(1, 1)))

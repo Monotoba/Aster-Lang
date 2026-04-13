@@ -1,0 +1,19 @@
+## A thin wrapper module over libm's scalar functions.
+## Import with: use cmath
+
+pub extern "libm":
+    fn sqrt(x: Float) -> Float
+    fn cbrt(x: Float) -> Float
+    fn pow(base: Float, exp: Float) -> Float
+    fn log(x: Float) -> Float
+    fn log2(x: Float) -> Float
+    fn log10(x: Float) -> Float
+    fn exp(x: Float) -> Float
+    fn floor(x: Float) -> Float
+    fn ceil(x: Float) -> Float
+    fn fabs(x: Float) -> Float
+    fn sin(x: Float) -> Float
+    fn cos(x: Float) -> Float
+    fn tan(x: Float) -> Float
+    fn atan2(y: Float, x: Float) -> Float
+    fn hypot(x: Float, y: Float) -> Float
