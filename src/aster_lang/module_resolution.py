@@ -9,6 +9,11 @@ from pathlib import Path
 MANIFEST_NAME = "aster.toml"
 
 
+def get_stdlib_path() -> Path:
+    """Return the absolute path to the bundled stdlib .aster source files."""
+    return Path(__file__).parent / "stdlib"
+
+
 class ModuleResolutionError(Exception):
     """Raised when module resolution or manifest loading fails."""
 
@@ -74,6 +79,10 @@ def resolve_module_path(
             module_path = search_root.joinpath(*relative_parts).with_suffix(".aster")
             if module_path.exists():
                 return module_path.resolve()
+        # 3. Fall through to bundled stdlib.
+        stdlib_module = get_stdlib_path().joinpath(*relative_parts).with_suffix(".aster")
+        if stdlib_module.exists():
+            return stdlib_module.resolve()
         raise ModuleResolutionError(
             f"Module not found: {module_label} " f"(searched project root {effective.project_root})"
         )
@@ -87,6 +96,10 @@ def resolve_module_path(
             break
         search_dir = search_dir.parent
 
+    # Check bundled stdlib before giving up.
+    stdlib_module = get_stdlib_path().joinpath(*module_parts).with_suffix(".aster")
+    if stdlib_module.exists():
+        return stdlib_module.resolve()
     raise ModuleResolutionError(f"Module not found: {module_label}")
 
 

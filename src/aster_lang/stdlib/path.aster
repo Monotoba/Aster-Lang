@@ -1,0 +1,121 @@
+# stdlib/path.aster — string-based path manipulation utilities
+#
+# This module works entirely with String values and does NOT touch the
+# filesystem.  For filesystem operations (exists, list_dir, walk_dir …)
+# use the native `io` module.
+#
+# All functions are exported with `pub`.
+
+use str as strl
+
+# ---------------------------------------------------------------------------
+# Separators
+# ---------------------------------------------------------------------------
+
+pub fn sep() -> String:
+    return "/"
+
+pub fn ext_sep() -> String:
+    return "."
+
+# ---------------------------------------------------------------------------
+# Joining and splitting
+# ---------------------------------------------------------------------------
+
+pub fn join(a: String, b: String) -> String:
+    a_strip := strl.rstrip(a, "/")
+    b_strip := strl.lstrip(b, "/")
+    if strl.is_empty(a_strip):
+        return b_strip
+    if strl.is_empty(b_strip):
+        return a_strip
+    return a_strip + "/" + b_strip
+
+pub fn split(path: String) -> List:
+    cleaned := _normalize_slashes(path)
+    parts := strl.split(cleaned, "/")
+    return parts
+
+# ---------------------------------------------------------------------------
+# Component extraction
+# ---------------------------------------------------------------------------
+
+pub fn basename(path: String) -> String:
+    cleaned := _normalize_slashes(path)
+    parts := strl.split(cleaned, "/")
+    if strl.is_empty(cleaned):
+        return ""
+    return list_last(parts)
+
+pub fn dirname(path: String) -> String:
+    cleaned := _normalize_slashes(path)
+    idx := strl.rfind(cleaned, "/")
+    if idx < 0:
+        return ""
+    if idx == 0:
+        return "/"
+    return strl.slice(cleaned, 0, idx)
+
+pub fn stem(path: String) -> String:
+    base := basename(path)
+    idx := strl.rfind(base, ".")
+    if idx <= 0:
+        return base
+    return strl.slice(base, 0, idx)
+
+pub fn extension(path: String) -> String:
+    base := basename(path)
+    idx := strl.rfind(base, ".")
+    if idx <= 0:
+        return ""
+    return strl.slice(base, idx, strl.len(base))
+
+pub fn with_extension(path: String, ext: String) -> String:
+    d := dirname(path)
+    s := stem(path)
+    new_ext := ext
+    if not strl.starts_with(ext, "."):
+        new_ext <- "." + ext
+    base := s + new_ext
+    if strl.is_empty(d):
+        return base
+    return d + "/" + base
+
+# ---------------------------------------------------------------------------
+# Predicates
+# ---------------------------------------------------------------------------
+
+pub fn is_absolute(path: String) -> Bool:
+    return strl.starts_with(path, "/")
+
+pub fn is_relative(path: String) -> Bool:
+    return not is_absolute(path)
+
+pub fn has_extension(path: String) -> Bool:
+    return not strl.is_empty(extension(path))
+
+# ---------------------------------------------------------------------------
+# Normalisation
+# ---------------------------------------------------------------------------
+
+pub fn normalize(path: String) -> String:
+    # Collapse redundant slashes and remove trailing slash.
+    cleaned := _normalize_slashes(path)
+    if strl.is_empty(cleaned):
+        return "."
+    return cleaned
+
+# ---------------------------------------------------------------------------
+# Private helpers
+# ---------------------------------------------------------------------------
+
+fn _normalize_slashes(path: String) -> String:
+    # Replace backslashes with forward slashes and strip trailing slash.
+    fwd := strl.replace(path, "\\", "/")
+    result := strl.rstrip(fwd, "/")
+    return result
+
+fn list_last(lst: List) -> String:
+    # Return last element of a non-empty List.
+    use list
+    return list.last(lst)

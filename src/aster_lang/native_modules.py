@@ -343,6 +343,11 @@ def _build_str_module() -> object:
         sub = _require_string(args[1], "str.find")
         return IV(s.find(sub))
 
+    def _rfind(args: list) -> object:
+        s = _require_string(args[0], "str.rfind")
+        sub = _require_string(args[1], "str.rfind")
+        return IV(s.rfind(sub))
+
     def _replace(args: list) -> object:
         s = _require_string(args[0], "str.replace")
         old = _require_string(args[1], "str.replace")
@@ -480,6 +485,7 @@ def _build_str_module() -> object:
         "ends_with": BF("ends_with", _ends_with, arity=2),
         "contains": BF("contains", _contains, arity=2),
         "find": BF("find", _find, arity=2),
+        "rfind": BF("rfind", _rfind, arity=2),
         "count": BF("count", _count, arity=2),
         # Indexing
         "char_at": BF("char_at", _char_at, arity=2),
@@ -1616,6 +1622,7 @@ def _build_native_symbols() -> dict[str, dict[str, object]]:
         "ends_with": _sym("ends_with", ret_bool),
         "contains": _sym("contains", ret_bool),
         "find": _sym("find", ret_int),
+        "rfind": _sym("rfind", ret_int),
         "count": _sym("count", ret_int),
         # Indexing
         "char_at": _sym("char_at", ret_str),
