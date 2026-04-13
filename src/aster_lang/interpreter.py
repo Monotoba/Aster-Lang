@@ -32,6 +32,18 @@ def _get_native_modules() -> dict[str, Callable[[], object]]:
     return _NATIVE_MODULES
 
 
+_FFI_MODULE: object | None = None
+
+
+def _get_ffi() -> object:
+    global _FFI_MODULE  # noqa: PLW0603
+    if _FFI_MODULE is None:
+        import aster_lang.ffi as _m  # noqa: PLC0415
+
+        _FFI_MODULE = _m
+    return _FFI_MODULE
+
+
 # Runtime Values
 
 
@@ -661,6 +673,8 @@ class Interpreter:
         elif isinstance(decl, ast.TraitDecl | ast.ImplDecl):
             # Traits/impls are compile-time only in this prototype.
             pass
+        elif isinstance(decl, ast.ExternDecl):
+            self.execute_extern_decl(decl)
 
     def execute_function_decl(self, decl: ast.FunctionDecl) -> None:
         """Execute a function declaration."""
@@ -673,6 +687,13 @@ class Interpreter:
             closure=self.current_env,
         )
         self.current_env.define(decl.name, func)
+
+    def execute_extern_decl(self, decl: ast.ExternDecl) -> None:
+        """Execute an extern block: load the library and bind the functions."""
+        ffi = _get_ffi()
+        bound = ffi.load_extern_functions(decl.library, decl.functions)  # type: ignore[attr-defined]
+        for name, builtin_fn in bound.items():
+            self.current_env.define(name, builtin_fn)
 
     def execute_import_decl(self, decl: ast.ImportDecl) -> None:
         """Execute an import declaration."""
@@ -721,6 +742,10 @@ class Interpreter:
 
             exports: dict[str, Value] = {}
             for decl in module.declarations:
+                if isinstance(decl, ast.ExternDecl) and decl.is_public:
+                    for fn_sig in decl.functions:
+                        exports[fn_sig.name] = module_interpreter.global_env.get(fn_sig.name)
+                    continue
                 export_name = self._export_name(decl)
                 if export_name is None:
                     continue

@@ -114,6 +114,15 @@ class ImportDecl(Decl):
 
 
 @dataclass(slots=True)
+class ExternDecl(Decl):
+    """Extern block: extern "libname": fn fname(params) -> ReturnType"""
+
+    library: str
+    functions: list[FunctionSig]
+    is_public: bool = False
+
+
+@dataclass(slots=True)
 class LetDecl(Decl):
     """Top-level binding declaration: pub? mut? name: Type := expr"""
 

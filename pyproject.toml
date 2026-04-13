@@ -32,6 +32,9 @@ package-dir = {"" = "src"}
 [tool.setuptools.packages.find]
 where = ["src"]
 
+[tool.setuptools.package-data]
+aster_lang = ["stdlib/*.aster"]
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "-q"
@@ -55,3 +58,10 @@ packages = ["aster_lang"]
 # the resulting attribute access patterns are not amenable to static typing.
 module = "aster_lang.native_modules"
 ignore_errors = true
+
+[[tool.mypy.overrides]]
+# Test files use pytest decorators (e.g. skipif marks) that mypy cannot type
+# through cleanly; suppress warn_unused_ignores so type: ignore comments work
+# consistently across both standalone and pre-commit mypy invocations.
+module = "tests.*"
+warn_unused_ignores = false

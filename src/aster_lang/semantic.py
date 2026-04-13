@@ -916,6 +916,25 @@ class SemanticAnalyzer:
             self.analyze_impl_decl(decl)
         elif isinstance(decl, ast.EffectDecl):
             self.analyze_effect_decl(decl)
+        elif isinstance(decl, ast.ExternDecl):
+            self.analyze_extern_decl(decl)
+
+    def analyze_extern_decl(self, decl: ast.ExternDecl) -> None:
+        """Analyze an extern block: register each function signature."""
+        for sig in decl.functions:
+            param_types = tuple(
+                self.resolve_type_expr(p.type_annotation) if p.type_annotation else UNKNOWN_TYPE
+                for p in sig.params
+            )
+            return_type = self.resolve_type_expr(sig.return_type) if sig.return_type else NIL_TYPE
+            symbol = Symbol(
+                name=sig.name,
+                kind=SymbolKind.FUNCTION,
+                type=FunctionType(param_types, return_type),
+                declaration_node=sig,
+            )
+            if not self.symbol_table.define(symbol):
+                self.error(f"Function '{sig.name}' is already defined", decl)
 
     def analyze_effect_decl(self, decl: ast.EffectDecl) -> None:
         """Analyze an effect declaration: registers the effect name."""
@@ -1482,6 +1501,27 @@ class SemanticAnalyzer:
                     type=UNKNOWN_TYPE,
                     declaration_node=decl,
                 )
+            elif isinstance(decl, ast.ExternDecl):
+                if not decl.is_public:
+                    continue
+                for sig in decl.functions:
+                    param_types = tuple(
+                        self.resolve_type_expr(p.type_annotation)
+                        if p.type_annotation is not None
+                        else UNKNOWN_TYPE
+                        for p in sig.params
+                    )
+                    return_type = (
+                        self.resolve_type_expr(sig.return_type)
+                        if sig.return_type is not None
+                        else NIL_TYPE
+                    )
+                    exports[sig.name] = Symbol(
+                        name=sig.name,
+                        kind=SymbolKind.FUNCTION,
+                        type=FunctionType(param_types, return_type),
+                        declaration_node=sig,
+                    )
         return exports
 
     def _infer_exported_let_type(self, expr: ast.Expr) -> Type:
@@ -2935,6 +2975,7 @@ class SemanticAnalyzer:
                     "String": STRING_TYPE,
                     "Bool": BOOL_TYPE,
                     "Nil": NIL_TYPE,
+                    "Float": FloatType(),
                 }
                 if name in type_map:
                     return type_map[name]

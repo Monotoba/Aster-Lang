@@ -80,9 +80,20 @@ class Formatter:
             self._format_impl_decl(decl)
         elif isinstance(decl, ast.EffectDecl):
             self._format_effect_decl(decl)
+        elif isinstance(decl, ast.ExternDecl):
+            self._format_extern_decl(decl)
         else:
             self._emit(f"# (unknown decl: {type(decl).__name__})")
         self._apply_trailing_comment(decl)
+
+    def _format_extern_decl(self, decl: ast.ExternDecl) -> None:
+        pub = "pub " if decl.is_public else ""
+        escaped = decl.library.replace("\\", "\\\\").replace('"', '\\"')
+        self._emit(f'{pub}extern "{escaped}":')
+        self._indent()
+        for sig in decl.functions:
+            self._emit(self._format_function_sig(sig))
+        self._dedent()
 
     def _format_effect_decl(self, decl: ast.EffectDecl) -> None:
         pub = "pub " if decl.is_public else ""

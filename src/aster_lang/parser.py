@@ -100,6 +100,8 @@ class Parser:
             node = self.parse_effect_decl(is_public)
         elif self.check(TokenKind.USE):
             node = self.parse_import_decl()
+        elif self.check(TokenKind.EXTERN):
+            node = self.parse_extern_decl(is_public)
         elif self.check(TokenKind.MUT, TokenKind.IDENTIFIER):
             # Top-level binding declaration
             is_mutable = self.match(TokenKind.MUT)
@@ -272,6 +274,27 @@ class Parser:
             members=members,
             is_public=is_public,
         )
+
+    def parse_extern_decl(self, is_public: bool = False) -> ast.ExternDecl:
+        """Parse extern block: extern "libname": NEWLINE INDENT fn ... DEDENT"""
+        self.expect(TokenKind.EXTERN)
+        lib_token = self.expect(TokenKind.STRING, "Expected library name string after 'extern'")
+        library = lib_token.text  # lexer strips surrounding quotes
+
+        self.expect(TokenKind.COLON)
+        self.expect(TokenKind.NEWLINE)
+        self.expect(TokenKind.INDENT)
+
+        functions: list[ast.FunctionSig] = []
+        self.skip_newlines()
+        while not self.check(TokenKind.DEDENT, TokenKind.EOF):
+            if not self.check(TokenKind.FN):
+                raise ParseError("Expected 'fn' inside extern block", self.current)
+            functions.append(self.parse_function_sig())
+
+        self.expect(TokenKind.DEDENT)
+        self.skip_newlines()
+        return ast.ExternDecl(library=library, functions=functions, is_public=is_public)
 
     def parse_impl_decl(self) -> ast.ImplDecl:
         """Parse impl declaration.
@@ -1128,7 +1151,13 @@ def parse_repl_input(source: str) -> list[ast.Decl | ast.Stmt]:
     """
     parser = Parser(source)
     items: list[ast.Decl | ast.Stmt] = []
-    _DECL_STARTS = (TokenKind.FN, TokenKind.TYPEALIAS, TokenKind.USE, TokenKind.PUB)
+    _DECL_STARTS = (
+        TokenKind.FN,
+        TokenKind.TYPEALIAS,
+        TokenKind.USE,
+        TokenKind.PUB,
+        TokenKind.EXTERN,
+    )
     while not parser.check(TokenKind.EOF):
         parser.skip_newlines()
         if parser.check(TokenKind.EOF):
