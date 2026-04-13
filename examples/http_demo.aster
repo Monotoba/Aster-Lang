@@ -1,0 +1,18 @@
+use http
+
+fn main():
+    print("Aster HTTP Library Demo")
+    print("-----------------------")
+
+    # Client Demo (Structural check - this will fail if no internet)
+    # res := http.get("http://www.google.com/")
+    # print("Status: " + str(res.status))
+    # print("Body length: " + str(len(res.body)))
+
+    # Server Demo (Blocking)
+    print("To start a server, uncomment the following line:")
+    # http.listen(8080, fn(req) -> :
+    #     return { status: 200, body: "Hello from Aster!" }
+    # )
+    
+    print("HTTP module symbols loaded correctly.")

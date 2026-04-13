@@ -64,3 +64,4 @@ These functions are available globally — no `use` statement required.
 | [linalg](linalg.md) | Vectors and matrices |
 | [socket](socket.md) | Network sockets |
 | [net](net.md) | High-level networking |
+| [http](http.md) | HTTP client and server |
