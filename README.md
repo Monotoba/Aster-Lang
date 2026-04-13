@@ -1,4 +1,4 @@
-# Aster Language GPT Starter Repository
+# Aster Language Starter Repository
 
 Aster is a human-first general-purpose programming language and toolchain project.
 This repository is a **project bootstrap kit** for designing and implementing:
