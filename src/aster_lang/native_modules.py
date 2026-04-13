@@ -1488,6 +1488,155 @@ def _build_linalg_module() -> object:
 
 
 # ---------------------------------------------------------------------------
+# socket module
+# ---------------------------------------------------------------------------
+
+_SOCKETS: dict[int, object] = {}
+_NEXT_SOCKET_ID = 1
+
+
+def _build_socket_module() -> object:
+    """Network sockets: TCP and UDP communication."""
+    import socket as _socket  # noqa: PLC0415
+
+    interp = _interp()
+    IV = interp.IntValue  # type: ignore[attr-defined]
+    SV = interp.StringValue  # type: ignore[attr-defined]
+    NilV = interp.NilValue  # type: ignore[attr-defined]
+    BF = interp.BuiltinFunction  # type: ignore[attr-defined]
+    MV = interp.ModuleValue  # type: ignore[attr-defined]
+    RV = interp.RecordValue  # type: ignore[attr-defined]
+    IE = interp.InterpreterError  # type: ignore[attr-defined]
+
+    def _create(args: list) -> object:
+        global _NEXT_SOCKET_ID  # noqa: PLW0603
+        family = _require_int(args[0], "socket.create")
+        type_ = _require_int(args[1], "socket.create")
+        try:
+            sock = _socket.socket(family, type_)
+            sock_id = _NEXT_SOCKET_ID
+            _NEXT_SOCKET_ID += 1
+            _SOCKETS[sock_id] = sock
+            return IV(sock_id)
+        except OSError as exc:
+            raise IE(f"socket.create: {exc}") from exc
+
+    def _bind(args: list) -> object:
+        sid = _require_int(args[0], "socket.bind")
+        addr = _require_string(args[1], "socket.bind")
+        port = _require_int(args[2], "socket.bind")
+        if sid not in _SOCKETS:
+            raise IE(f"socket.bind: invalid socket ID {sid}")
+        try:
+            _SOCKETS[sid].bind((addr, port))  # type: ignore[attr-defined]
+            return NilV()
+        except OSError as exc:
+            raise IE(f"socket.bind: {exc}") from exc
+
+    def _listen(args: list) -> object:
+        sid = _require_int(args[0], "socket.listen")
+        backlog = _require_int(args[1], "socket.listen")
+        if sid not in _SOCKETS:
+            raise IE(f"socket.listen: invalid socket ID {sid}")
+        try:
+            _SOCKETS[sid].listen(backlog)  # type: ignore[attr-defined]
+            return NilV()
+        except OSError as exc:
+            raise IE(f"socket.listen: {exc}") from exc
+
+    def _accept(args: list) -> object:
+        global _NEXT_SOCKET_ID  # noqa: PLW0603
+        sid = _require_int(args[0], "socket.accept")
+        if sid not in _SOCKETS:
+            raise IE(f"socket.accept: invalid socket ID {sid}")
+        try:
+            conn, addr_info = _SOCKETS[sid].accept()  # type: ignore[attr-defined]
+            conn_id = _NEXT_SOCKET_ID
+            _NEXT_SOCKET_ID += 1
+            _SOCKETS[conn_id] = conn
+            addr_str = str(addr_info[0])
+            port = int(addr_info[1])
+            return RV({"conn": IV(conn_id), "addr": SV(addr_str), "port": IV(port)})
+        except OSError as exc:
+            raise IE(f"socket.accept: {exc}") from exc
+
+    def _connect(args: list) -> object:
+        sid = _require_int(args[0], "socket.connect")
+        addr = _require_string(args[1], "socket.connect")
+        port = _require_int(args[2], "socket.connect")
+        if sid not in _SOCKETS:
+            raise IE(f"socket.connect: invalid socket ID {sid}")
+        try:
+            _SOCKETS[sid].connect((addr, port))  # type: ignore[attr-defined]
+            return NilV()
+        except OSError as exc:
+            raise IE(f"socket.connect: {exc}") from exc
+
+    def _send(args: list) -> object:
+        sid = _require_int(args[0], "socket.send")
+        data = _require_string(args[1], "socket.send")
+        if sid not in _SOCKETS:
+            raise IE(f"socket.send: invalid socket ID {sid}")
+        try:
+            sent = _SOCKETS[sid].send(data.encode("utf-8"))  # type: ignore[attr-defined]
+            return IV(sent)
+        except OSError as exc:
+            raise IE(f"socket.send: {exc}") from exc
+
+    def _recv(args: list) -> object:
+        sid = _require_int(args[0], "socket.recv")
+        bufsize = _require_int(args[1], "socket.recv")
+        if sid not in _SOCKETS:
+            raise IE(f"socket.recv: invalid socket ID {sid}")
+        try:
+            data = _SOCKETS[sid].recv(bufsize)  # type: ignore[attr-defined]
+            return SV(data.decode("utf-8", errors="replace"))
+        except OSError as exc:
+            raise IE(f"socket.recv: {exc}") from exc
+
+    def _close(args: list) -> object:
+        sid = _require_int(args[0], "socket.close")
+        if sid not in _SOCKETS:
+            return NilV()
+        try:
+            _SOCKETS[sid].close()  # type: ignore[attr-defined]
+            del _SOCKETS[sid]
+            return NilV()
+        except OSError as exc:
+            raise IE(f"socket.close: {exc}") from exc
+
+    def _gethostname(args: list) -> object:
+        return SV(_socket.gethostname())
+
+    def _gethostbyname(args: list) -> object:
+        name = _require_string(args[0], "socket.gethostbyname")
+        try:
+            return SV(_socket.gethostbyname(name))
+        except OSError as exc:
+            raise IE(f"socket.gethostbyname: {exc}") from exc
+
+    exports: dict[str, object] = {
+        # Constants
+        "AF_INET": IV(_socket.AF_INET),
+        "AF_INET6": IV(_socket.AF_INET6),
+        "SOCK_STREAM": IV(_socket.SOCK_STREAM),
+        "SOCK_DGRAM": IV(_socket.SOCK_DGRAM),
+        # Functions
+        "create": BF("create", _create, arity=2),
+        "bind": BF("bind", _bind, arity=3),
+        "listen": BF("listen", _listen, arity=2),
+        "accept": BF("accept", _accept, arity=1),
+        "connect": BF("connect", _connect, arity=3),
+        "send": BF("send", _send, arity=2),
+        "recv": BF("recv", _recv, arity=2),
+        "close": BF("close", _close, arity=1),
+        "gethostname": BF("gethostname", _gethostname, arity=0),
+        "gethostbyname": BF("gethostbyname", _gethostbyname, arity=1),
+    }
+    return MV("socket", exports)
+
+
+# ---------------------------------------------------------------------------
 # Registry
 # ---------------------------------------------------------------------------
 
@@ -1500,6 +1649,7 @@ NATIVE_MODULES: dict[str, Callable[[], object]] = {
     "random": _build_random_module,
     "time": _build_time_module,
     "linalg": _build_linalg_module,
+    "socket": _build_socket_module,
 }
 
 # ---------------------------------------------------------------------------
@@ -1755,6 +1905,25 @@ def _build_native_symbols() -> dict[str, dict[str, object]]:
         "minv": _sym("minv", ret_mat),
     }
 
+    socket_syms = {
+        # Constants
+        "AF_INET": _const("AF_INET", INT_TYPE),
+        "AF_INET6": _const("AF_INET6", INT_TYPE),
+        "SOCK_STREAM": _const("SOCK_STREAM", INT_TYPE),
+        "SOCK_DGRAM": _const("SOCK_DGRAM", INT_TYPE),
+        # Functions
+        "create": _sym("create", ret_int),
+        "bind": _sym("bind", nil_fn),
+        "listen": _sym("listen", nil_fn),
+        "accept": _sym("accept", ret_unk),
+        "connect": _sym("connect", nil_fn),
+        "send": _sym("send", ret_int),
+        "recv": _sym("recv", ret_str),
+        "close": _sym("close", nil_fn),
+        "gethostname": _sym("gethostname", ret_str),
+        "gethostbyname": _sym("gethostbyname", ret_str),
+    }
+
     return {  # type: ignore[return-value]
         "math": math_syms,
         "str": str_syms,
@@ -1764,6 +1933,7 @@ def _build_native_symbols() -> dict[str, dict[str, object]]:
         "random": random_syms,
         "time": time_syms,
         "linalg": linalg_syms,
+        "socket": socket_syms,
     }
 
 

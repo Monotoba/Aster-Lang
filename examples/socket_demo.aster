@@ -1,0 +1,24 @@
+use socket
+use std
+
+fn main():
+    print("Socket Library Demo")
+    print("-------------------")
+    
+    hostname := socket.gethostname()
+    print("Local hostname: " + hostname)
+    
+    # Try to resolve a common address
+    ip := socket.gethostbyname("www.google.com")
+    print("www.google.com resolved to: " + ip)
+
+    # Demonstrate creation and closing
+    print("Creating a TCP socket...")
+    sock := socket.create(socket.AF_INET, socket.SOCK_STREAM)
+    print("Socket ID: " + str(sock))
+    
+    # In a real app we'd bind/connect here
+    
+    print("Closing socket...")
+    socket.close(sock)
+    print("Done.")
