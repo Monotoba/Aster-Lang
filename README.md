@@ -1,28 +1,12 @@
-# Aster Language Starter Repository
+# Aster Language
 
-Aster is a human-first general-purpose programming language and toolchain project.
-This repository is a **project bootstrap kit** for designing and implementing:
+Aster is a human-first general-purpose programming language and toolchain.
+It combines Python-style readability and indentation-sensitive syntax with
+stronger typing, opt-in ownership diagnostics, and a path toward compiled
+performance.
 
-- the Aster language
-- the Aster interpreter
-- the Aster compiler
-- the Aster formatter
-- the Aster parser and grammar tools
-- supporting documentation, examples, and developer workflow
-
-This package is structured so a human developer or coding agent can unzip it, run the setup script, initialize Git, run tests, and continue development immediately.
-
-## Included
-
-- language and toolchain design documents
-- Bottlecaps-compatible EBNF grammars
-- parser / railroad diagram guidance
-- scaffold Python package for the future toolchain
-- tests-first workflow skeleton
-- bootstrap scripts for Linux, macOS, and Windows
-- AI assistant instructions for Codex, Claude Code, Gemini, Aider, and similar tools
-- backlog, status, recovery, and handoff documents
-- GPL-2.0 license
+This repository contains the reference implementation: interpreter, semantic
+analyzer, formatter, REPL, VM, Python transpiler, and standard library.
 
 ## Quick start
 
@@ -33,7 +17,7 @@ cd aster-lang-gpt
 bash ./setup-prj.sh
 source .venv/bin/activate
 pytest
-python -m aster_lang --help
+aster --help
 ```
 
 ### Windows PowerShell
@@ -43,58 +27,136 @@ cd aster-lang-gpt
 powershell -ExecutionPolicy Bypass -File .\setup-prj.ps1
 .\.venv\Scripts\Activate.ps1
 pytest
-python -m aster_lang --help
+aster --help
 ```
 
-## Expected workflow
+## Language at a glance
 
-1. Run the bootstrap script.
-2. Review `STATUS.md`, `BACKLOG.md`, and `RECOVERY.md`.
-3. Read `AGENTS.md` and the AI-specific notes in `ai/`.
-4. Review the language docs in `docs/language/`.
-5. Implement changes test-first.
-6. Run:
-   - `pytest`
-   - `ruff check .`
-   - `mypy src`
-7. Commit with a clear message.
+```aster
+use math
+use list
+
+fn primes_up_to(limit: Int) -> List:
+    mut sieve := list.range(2, limit)
+    mut result := []
+    while list.len(sieve) > 0:
+        p := list.head(sieve)
+        result <- list.append(result, p)
+        sieve <- list.filter(fn(n) -> Bool: n % p != 0, sieve)
+    return result
+
+fn main():
+    ps := primes_up_to(50)
+    print("primes: " + str(ps))
+    print("count:  " + str(list.len(ps)))
+```
+
+Key syntax:
+- `:=` declares a binding; `<-` mutates one
+- `mut` marks a mutable binding
+- `fn` for functions and lambdas; `pub fn` to export from a module
+- `use math`, `use str as strl` for module imports
+- `match` for structural pattern matching
+- `&T`, `&mut T`, `*own T` for future ownership types (diagnostics available now)
+
+## Toolchain commands
+
+```bash
+aster run <file>                  # interpret a program
+aster run --backend vm <file>     # run on the bytecode VM
+aster check <file>                # semantic lint (no execution)
+aster fmt <file>                  # format source
+aster build --backend python <file>  # transpile to Python
+aster build --backend vm <file>   # compile to bytecode bundle
+aster build --backend c <file>    # C backend stub
+aster backends                    # list available backends
+aster repl                        # interactive REPL
+aster ast <file>                  # dump parsed AST
+aster doc <file>                  # generate documentation
+aster lock <file>                 # write aster.lock
+aster test <dir>                  # run test suite
+```
+
+Flags available on `run`, `check`, and `build`:
+
+```bash
+--ownership off|warn|deny         # opt-in borrow/ownership diagnostics
+--dep NAME=PATH                   # override a manifest dependency path
+--search-root PATH                # add a module search root
+--lockfile <path>                 # pin resolution to a lockfile
+```
+
+## Standard library
+
+Eight native modules ship with the interpreter:
+
+| Module   | Highlights |
+|----------|-----------|
+| `math`   | trig, exp/log, GCD/LCM, float classification, constants |
+| `str`    | split/join, search (find/rfind), slice, pad, parse, format |
+| `list`   | map, filter, reduce, sort, zip, enumerate, flatten, unique |
+| `io`     | read/write/append files, list\_dir, walk\_dir, mkdir |
+| `std`    | type\_of, env, args, assert, exit |
+| `random` | rand\_int, rand\_float, choice, shuffle, sample |
+| `time`   | now, monotonic, sleep, strftime |
+| `linalg` | Vec2/Vec3/Vec4, Mat2/Mat3/Mat4, dot, cross, norm, lerp |
+
+Additional stdlib modules written in Aster itself live in `src/aster_lang/stdlib/`:
+
+| Module | Highlights |
+|--------|-----------|
+| `path` | join, basename, dirname, stem, extension, with\_extension, normalize, is\_absolute |
+
+See `docs/language/standard-library/` for full reference documentation.
+
+## Tutorials
+
+23 tutorials take you from basics to advanced features:
+
+1–10: bindings, control flow, functions, collections, match, destructuring, modules, lambdas, tooling  
+11–20: type aliases, generics, traits, bitwise types, operator precedence, higher-order functions, project layout, debugging type errors, ownership philosophy, borrows  
+21–23: FFI/extern, stdlib (math/str/list), io and system modules
+
+Runnable tutorial programs are in `tutorials/programs/` (9 programs covering
+fizzbuzz through word counting and FFI math).
 
 ## Repository map
 
-- `src/aster_lang/` — scaffold code
-- `tests/` — unit tests
-- `docs/` — user and developer documentation
-- `grammar/` — EBNF grammars for Bottlecaps and internal use
-- `examples/` — tiny Aster examples
-- `scripts/` — helper scripts
-- `tasks/` — recovery-oriented task tracking
-- `ai/` — AI-specific instructions and workflow notes
+```
+src/aster_lang/         reference implementation
+  stdlib/               Aster-written standard library modules
+tests/                  908 passing unit and integration tests
+docs/
+  language/             language reference and standard library docs
+  toolchain/            interpreter, compiler, VM, formatter, package manager design
+grammar/                EBNF grammars (Bottlecaps-compatible)
+examples/               standalone Aster programs
+tutorials/              23 numbered tutorials + runnable programs
+tasks/                  recovery-oriented task tracking
+ai/                     AI assistant instructions (Codex, Claude, Gemini, Aider)
+```
 
-## Current state
+## Package manager
 
-The repository has moved well beyond the initial scaffold. It now includes:
+The Aster package manager design is specified in
+`docs/toolchain/PACKAGE-MANAGER-DESIGN.md`. It defines:
 
-- working lexer, parser, semantic analyzer, interpreter, formatter, REPL, and Python transpiler
-- full `match` statement support: literal, wildcard, binding, tuple, list, record, or-patterns, and trailing rest patterns — including binding or-patterns and structural match arm compilation in the transpiler
-- local destructuring bindings for tuples, lists, and records
-- file-based module imports with `pub`-aware exports for functions, bindings, and type aliases
-- `typealias` declarations registered in the symbol table and exportable across modules; qualified type names (`mod.Vec`) usable in annotations
-- manifest-based module configuration via `aster.toml`: `[package].name`, `[modules].search_roots`, and `[dependencies]` with local path entries
-- `--dep NAME=PATH` and `--search-root PATH` CLI flags on `run`, `check`, `build`, and `vm` to override manifest resolution
-- `aster run --backend interpreter|vm <file>` to select the execution backend without switching commands
-- `aster build --backend python|vm|c <file>` to choose between Python transpilation, a VM bundle with a launcher plus a serialized, versioned, integrity-checked bytecode artifact (optional HMAC signature via `ASTER_VM_SIGNING_KEY`), or the placeholder C backend (emits a stub `.c` file)
-- `aster backends` to list available build backends and formats
-- REPL and VM flows for learning the language (`aster repl`, `aster run --backend vm`, `aster vm <file>`), while advanced users can compile using `aster build --backend ...`
-- semantic-only lint (`aster check <file>`) for CI workflows
-- recursive build output (`aster build <file>`) emits a runnable `__aster_build__/` directory
-- `aster build --out-dir <dir>` and `--clean` for build artifact control
-- `aster lock <file>` to write `aster.lock`, and `--lockfile` on `check/build` for pinned resolution
-- AST pretty-printer (`aster ast <file>`) for debugging parse output
-- bitwise operators: `& | ^ ~ << >>`
-- fixed-width unsigned integer types: `Nibble`/`Byte`/`Word`/`DWord`/`QWord` plus cast builtins (`nibble/byte/word/dword/qword`)
-- string byte helpers: `ascii_bytes` (ASCII-only) and `unicode_bytes` (UTF-8)
-- opt-in ownership/borrow surface diagnostics: `aster check/build --ownership off|warn|deny` (default: `off`)
-- 699 passing tests
+- `aster.toml` manifest format with typed author records, platform constraints, and semver dependency specs
+- `.apkg` reproducible tar+zstd archive format
+- `aster.lock` deterministic lockfile
+- `aster pkg` CLI family (`init`, `build`, `check`, `install`, `search`, `submit`, …)
+- moderated submission workflow, integrity verification, and error code table (`APKG001`–`APKG018`)
+
+## Development workflow
+
+```bash
+pytest                  # run all tests
+ruff check .            # lint
+mypy src                # type check
+```
+
+Commits follow `type(scope): description` convention. See `AGENTS.md` for
+AI-assistant workflow notes and `BACKLOG.md` for the current task queue.
 
 ## License
 
