@@ -17,11 +17,11 @@ Caching and incremental compilation is done:
 - `aster test` — test runner with `test_*.aster` discovery, `fn test_*()` execution, `assert()` built-in
 - `aster doc` — doc generator reading `##` comments from `pub` declarations, emitting Markdown
 - Error index (`docs/ERROR-INDEX.md`) — 55 error IDs with causes, examples, and fixes
+- `aster bench` — benchmark harness with `bench_*.aster` discovery, `fn bench_*()` timing, `--iters N` flag, timing stats (mean/min/max per function)
 
 **Remaining:**
 - language server plan (hold until IDE work begins)
 - package manager plan
-- benchmark harness (`aster bench`)
 
 ## Phase 8 (standard library) — complete
 

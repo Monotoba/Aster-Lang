@@ -6,6 +6,8 @@ from pathlib import Path
 from aster_lang.ast_printer import dump
 from aster_lang.backend import BackendBuildOptions
 from aster_lang.backend_adapters import get_default_backend_registry
+from aster_lang.bench_runner import format_suite_result as format_bench_result
+from aster_lang.bench_runner import run_benches
 from aster_lang.cache import CacheManager
 from aster_lang.compiler import compile_source
 from aster_lang.doc_gen import generate_docs
@@ -234,6 +236,36 @@ def build_parser() -> argparse.ArgumentParser:
         help="override or declare a dependency path (repeatable)",
     )
     test_p.add_argument(
+        "--search-root",
+        action="append",
+        metavar="PATH",
+        default=[],
+        help="prepend an extra module search root (repeatable)",
+    )
+
+    bench_p = sub.add_parser("bench", help="run Aster bench files (fn bench_*)")
+    bench_p.add_argument(
+        "path",
+        type=Path,
+        nargs="?",
+        default=Path("."),
+        help="file or directory to search for benches (default: current directory)",
+    )
+    bench_p.add_argument(
+        "--iters",
+        type=int,
+        default=100,
+        metavar="N",
+        help="number of timed iterations per benchmark (default: 100)",
+    )
+    bench_p.add_argument(
+        "--dep",
+        action="append",
+        metavar="NAME=PATH",
+        default=[],
+        help="override or declare a dependency path (repeatable)",
+    )
+    bench_p.add_argument(
         "--search-root",
         action="append",
         metavar="PATH",
@@ -593,6 +625,22 @@ def main(argv: list[str] | None = None) -> int:
         )
         print(format_suite_result(suite))
         return 0 if suite.failed == 0 else 1
+
+    if args.command == "bench":
+        try:
+            dep_overrides = _parse_dep_overrides(args.dep)
+        except ValueError as exc:
+            print(str(exc))
+            return 1
+        extra_roots = _parse_extra_roots(args.search_root)
+        bench_suite = run_benches(
+            args.path,
+            iterations=args.iters,
+            dep_overrides=dep_overrides,
+            extra_roots=extra_roots,
+        )
+        print(format_bench_result(bench_suite))
+        return 0 if bench_suite.failed == 0 else 1
 
     if args.command == "backends":
         registry = get_default_backend_registry()

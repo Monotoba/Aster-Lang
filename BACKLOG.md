@@ -72,7 +72,7 @@
 - [x] doc generator (`aster doc`) — extracts `##` doc comments from pub declarations, emits Markdown
 - [x] test runner (`aster test`) — discovers `test_*.aster`, runs `fn test_*()`, reports pass/fail
 - [x] error index — `docs/ERROR-INDEX.md`, 55 error IDs across all pipeline components
-- [ ] benchmark harness
+- [x] benchmark harness (`aster bench`) — discovers `bench_*.aster`, runs `fn bench_*()`, reports mean/min/max per function
 
 ## Phase 8: ecosystem
 - [x] stdlib design — `math`, `str`, `std`, `list`, `io`, `random`, `time`, `linalg` with docs in `docs/language/standard-library/`

@@ -1,0 +1,22 @@
+## Benchmark: integer summation
+
+fn sum_to(n: Int) -> Int:
+    mut total := 0
+    mut i := 1
+    while i <= n:
+        total <- total + i
+        i <- i + 1
+    return total
+
+fn bench_sum_to_100():
+    sum_to(100)
+
+fn bench_sum_to_1000():
+    sum_to(1000)
+
+fn bench_string_concat():
+    mut s := ""
+    mut i := 0
+    while i < 20:
+        s <- s + "x"
+        i <- i + 1
