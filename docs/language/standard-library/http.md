@@ -7,16 +7,27 @@ Import with `use http`.
 
 ---
 
+## Type aliases
+
+| Alias | Fields | Description |
+|-------|--------|-------------|
+| `http.Request` | `method`, `path`, `body` | Incoming HTTP request |
+| `http.Response` | `status`, `body` | HTTP response to send |
+
+---
+
 ## HTTP Client
 
 | Function | Returns | Description |
 |----------|---------|-------------|
-| `http.get(url: String) -> Record` | Record | Send an HTTP GET request and return the response |
+| `http.get(url: String) -> http.Response` | Record | Send an HTTP GET request and return the response |
 
-### Response Record
+### Response fields
 
-- `status`: Int (e.g. 200)
-- `body`: String
+| Field | Type | Description |
+|-------|------|-------------|
+| `status` | Int | HTTP status code (e.g. `200`) |
+| `body` | String | Response body |
 
 ---
 
@@ -24,24 +35,27 @@ Import with `use http`.
 
 | Function | Returns | Description |
 |----------|---------|-------------|
-| `http.listen(port: Int, handler: Function)` | Nil | Start an HTTP server on the given port |
+| `http.listen(port: Int, handler: Fn(Request) -> Response)` | Nil | Start an HTTP server; blocks forever |
 
-### Request Record (passed to handler)
+### Request fields (passed to handler)
 
-- `method`: String
-- `path`: String
-- `body`: String
+| Field | Type | Description |
+|-------|------|-------------|
+| `method` | String | HTTP method (`"GET"`, `"POST"`, …) |
+| `path` | String | Request path (e.g. `"/"`) |
+| `body` | String | Request body |
 
-### Handler Function
+### Handler function
 
-The handler should accept a `Request` record and return a `Response` record.
+The handler receives a `Request` record and must return a `Response` record.
+Pass a named function — inline `fn` literals as arguments are not yet supported.
 
 ```aster
-fn my_handler(req):
-    return {
-        status: 200,
-        body: "Hello, " + req.path
-    }
+fn my_handler(req) -> http.Response:
+    return { status: 200, body: "Hello from Aster!" }
+
+fn main():
+    http.listen(8080, my_handler)
 ```
 
 ---
@@ -62,11 +76,10 @@ fn main():
 ```aster
 use http
 
+fn handle(req) -> http.Response:
+    return { status: 200, body: "<h1>Hello from Aster!</h1><p>Path: " + req.path + "</p>" }
+
 fn main():
-    http.listen(8080, fn(req) -> :
-        return {
-            status: 200,
-            body: "<h1>Aster HTTP Server</h1><p>You requested: " + req.path + "</p>"
-        }
-    )
+    print("Starting HTTP server on port 8080...")
+    http.listen(8080, handle)
 ```

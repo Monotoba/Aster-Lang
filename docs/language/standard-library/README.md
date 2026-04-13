@@ -65,3 +65,4 @@ These functions are available globally — no `use` statement required.
 | [socket](socket.md) | Network sockets |
 | [net](net.md) | High-level networking |
 | [http](http.md) | HTTP client and server |
+| [path](path.md) | String-based path manipulation (no filesystem I/O) |

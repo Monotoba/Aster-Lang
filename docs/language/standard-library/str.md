@@ -61,11 +61,21 @@ str.title("hello world")   # → "Hello World"
 ### `str.strip(s) -> String`
 Remove leading and trailing whitespace.
 
-### `str.lstrip(s) -> String`
-Remove leading whitespace only.
+### `str.lstrip(s, chars?) -> String`
+Remove leading whitespace (no second argument) or remove any characters in `chars` from the left.
 
-### `str.rstrip(s) -> String`
-Remove trailing whitespace only.
+```aster
+str.lstrip("  hello")        # → "hello"
+str.lstrip("/a/b/", "/")     # → "a/b/"
+```
+
+### `str.rstrip(s, chars?) -> String`
+Remove trailing whitespace (no second argument) or remove any characters in `chars` from the right.
+
+```aster
+str.rstrip("hello  ")        # → "hello"
+str.rstrip("/a/b/", "/")     # → "/a/b"
+```
 
 ### `str.reverse(s) -> String`
 Reverse the characters of a string.

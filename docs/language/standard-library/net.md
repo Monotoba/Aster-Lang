@@ -11,16 +11,18 @@ Import with `use net`.
 
 | Function | Returns | Description |
 |----------|---------|-------------|
-| `net.dial(addr: String, port: Int) -> List` | List | Connect to a remote TCP server |
-| `net.send(client: List, data: String) -> Int` | Int | Send data to the remote server |
-| `net.recv(client: List, bufsize: Int) -> String` | String | Receive data from the remote server |
-| `net.close(client: List) -> Nil` | Nil | Close the client connection |
+| `net.dial(addr: String, port: Int) -> TcpClient` | Record | Connect to a remote TCP server |
+| `net.send(client: TcpClient, data: String) -> Int` | Int | Send data to the remote server |
+| `net.recv(client: TcpClient, bufsize: Int) -> String` | String | Receive data from the remote server |
+| `net.close(client: TcpClient) -> Nil` | Nil | Close the client connection |
 
-### TcpClient (List)
+### TcpClient record fields
 
-- `[0]`: Int (raw socket ID)
-- `[1]`: String (address)
-- `[2]`: Int (port)
+| Field | Type | Description |
+|-------|------|-------------|
+| `sock` | Int | Raw socket file descriptor |
+| `addr` | String | Remote address |
+| `port` | Int | Remote port |
 
 ---
 
@@ -28,15 +30,17 @@ Import with `use net`.
 
 | Function | Returns | Description |
 |----------|---------|-------------|
-| `net.listen(addr: String, port: Int) -> List` | List | Start a TCP server |
-| `net.accept(server: List) -> List` | List | Accept a new connection from a client |
-| `net.stop(server: List) -> Nil` | Nil | Stop the server and close its listening socket |
+| `net.listen(addr: String, port: Int) -> TcpServer` | Record | Start a TCP server |
+| `net.accept(server: TcpServer) -> TcpClient` | Record | Accept a new connection from a client |
+| `net.stop(server: TcpServer) -> Nil` | Nil | Stop the server and close its listening socket |
 
-### TcpServer (List)
+### TcpServer record fields
 
-- `[0]`: Int (raw socket ID)
-- `[1]`: String (address)
-- `[2]`: Int (port)
+| Field | Type | Description |
+|-------|------|-------------|
+| `sock` | Int | Raw socket file descriptor |
+| `addr` | String | Bound address |
+| `port` | Int | Bound port |
 
 ---
 
@@ -46,12 +50,24 @@ Import with `use net`.
 use net
 
 fn main():
-    print("Connecting to 127.0.0.1:8080...")
     client := net.dial("127.0.0.1", 8080)
-    
     net.send(client, "Hello, Server!")
     reply := net.recv(client, 1024)
     print("Server says: " + reply)
-    
     net.close(client)
+```
+
+## Example: Echo Server
+
+```aster
+use net
+
+fn main():
+    server := net.listen("0.0.0.0", 8080)
+    print("Listening on port 8080...")
+    while true:
+        client := net.accept(server)
+        data := net.recv(client, 1024)
+        net.send(client, data)
+        net.close(client)
 ```
