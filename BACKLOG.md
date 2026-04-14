@@ -67,7 +67,7 @@
 - [x] caching and incremental compilation
 
 ## Phase 7: tooling
-- [ ] language server plan
+- [x] language server plan — full design in `docs/toolchain/LANGUAGE-SERVER.md`; 5 phases (diagnostics → hover/fmt → goto-def → completion → references)
 - [ ] package manager plan
 - [x] doc generator (`aster doc`) — extracts `##` doc comments from pub declarations, emits Markdown
 - [x] test runner (`aster test`) — discovers `test_*.aster`, runs `fn test_*()`, reports pass/fail

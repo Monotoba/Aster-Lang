@@ -20,7 +20,7 @@ Caching and incremental compilation is done:
 - `aster bench` — benchmark harness with `bench_*.aster` discovery, `fn bench_*()` timing, `--iters N` flag, timing stats (mean/min/max per function)
 
 **Remaining:**
-- language server plan (hold until IDE work begins)
+- language server Phase 1 implementation (diagnostics via `pygls`) — design complete in `docs/toolchain/LANGUAGE-SERVER.md`
 - package manager plan
 
 ## Phase 8 (standard library) — complete
