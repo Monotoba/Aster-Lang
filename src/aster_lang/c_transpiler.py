@@ -88,6 +88,7 @@ _UNARY_FN: dict[str, str] = {
 # Built-in Aster names that map to C helpers
 _BUILTIN_FN: dict[str, str] = {
     "print": "aster_print",
+    "len": "aster_list_len",
 }
 
 _INDENT = "    "
@@ -98,8 +99,12 @@ class CTranspiler:
 
     def __init__(self) -> None:
         self._lines: list[str] = []
-        # Forward-declare all user functions so order doesn't matter.
         self._forward_decls: list[str] = []
+        self._tmp_counter = 0
+
+    def _fresh_tmp(self) -> str:
+        self._tmp_counter += 1
+        return f"_tmp{self._tmp_counter}"
 
     def transpile(self, mmod: MModule) -> str:
         """Return a complete C translation unit for *mmod*."""
@@ -240,9 +245,27 @@ class CTranspiler:
             return f"/* unsupported unary: {e.op} */"
 
         if isinstance(e, HCall):
+            if isinstance(e.func, HName) and e.func.name == "len":
+                # len() returns size_t, wrap in aster_int for AsterValue.
+                args = ", ".join(self._emit_expr(a) for a in e.args)
+                return f"aster_int(aster_list_len({args}))"
             return self._emit_call(e)
 
-        if isinstance(e, HBorrow | HIndex | HMember | HList | HTuple | HRecord | HClosure):
+        if isinstance(e, HList):
+            # Create new list
+            list_val = self._fresh_tmp()
+            self._lines.append(f"{_INDENT}AsterValue {list_val} = aster_list_new();")
+            for elem in e.elements:
+                elem_val = self._emit_expr(elem)
+                self._lines.append(f"{_INDENT}aster_list_append({list_val}, {elem_val});")
+            return list_val
+
+        if isinstance(e, HIndex):
+            obj = self._emit_expr(e.obj)
+            idx = self._emit_expr(e.index)
+            return f"aster_list_get({obj}, {idx})"
+
+        if isinstance(e, HBorrow | HMember | HTuple | HRecord | HClosure):
             return f"/* unsupported expr: {type(e).__name__} */"
 
         raise AssertionError(f"unhandled HExpr type: {type(e).__name__}")

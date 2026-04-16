@@ -122,15 +122,39 @@ AsterValue aster_ge(AsterValue a, AsterValue b) {
     return aster_bool(a.as.integer >= b.as.integer);
 }
 
-// Logical
-AsterValue aster_and(AsterValue a, AsterValue b) {
-    return aster_bool(aster_truthy(a) && aster_truthy(b));
+// List operations
+AsterValue aster_list_new(void) {
+    struct AsterList* list = (struct AsterList*)malloc(sizeof(struct AsterList));
+    if (!list) aster_panic("Out of memory");
+    list->data = NULL;
+    list->size = 0;
+    list->capacity = 0;
+    AsterValue v; v.kind = VAL_LIST; v.as.list = list; return v;
 }
 
-AsterValue aster_or(AsterValue a, AsterValue b) {
-    return aster_bool(aster_truthy(a) || aster_truthy(b));
+AsterValue aster_list_append(AsterValue list_val, AsterValue item) {
+    if (list_val.kind != VAL_LIST) aster_panic("Type error: append requires list");
+    struct AsterList* list = list_val.as.list;
+    if (list->size == list->capacity) {
+        list->capacity = list->capacity == 0 ? 8 : list->capacity * 2;
+        list->data = (AsterValue*)realloc(list->data, list->capacity * sizeof(AsterValue));
+        if (!list->data) aster_panic("Out of memory");
+    }
+    list->data[list->size++] = item;
+    return list_val;
 }
 
-AsterValue aster_not(AsterValue a) {
-    return aster_bool(!aster_truthy(a));
+AsterValue aster_list_get(AsterValue list_val, AsterValue index) {
+    if (list_val.kind != VAL_LIST) aster_panic("Type error: list get requires list");
+    if (index.kind != VAL_INT) aster_panic("Type error: list index requires int");
+    struct AsterList* list = list_val.as.list;
+    if (index.as.integer < 0 || (size_t)index.as.integer >= list->size) {
+        aster_panic("Index out of bounds");
+    }
+    return list->data[index.as.integer];
+}
+
+size_t aster_list_len(AsterValue list_val) {
+    if (list_val.kind != VAL_LIST) aster_panic("Type error: list len requires list");
+    return list_val.as.list->size;
 }

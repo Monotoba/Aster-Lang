@@ -27,10 +27,17 @@ typedef struct {
         int64_t integer;
         double floating;
         const char* string;
+        struct AsterList* list;
         // Pointers for more complex types will be added later
         void* ptr;
     } as;
 } AsterValue;
+
+struct AsterList {
+    AsterValue* data;
+    size_t size;
+    size_t capacity;
+};
 
 // Constructors
 static inline AsterValue aster_nil(void) {
@@ -48,6 +55,7 @@ static inline AsterValue aster_float(double f) {
 static inline AsterValue aster_string(const char* s) {
     AsterValue v; v.kind = VAL_STRING; v.as.string = s; return v;
 }
+AsterValue aster_list_new(void);
 
 // Global constants
 extern const AsterValue ASTER_NIL_VAL;
@@ -56,6 +64,11 @@ extern const AsterValue ASTER_NIL_VAL;
 void aster_print(AsterValue v);
 bool aster_truthy(AsterValue v);
 void aster_panic(const char* message);
+
+// List operations
+AsterValue aster_list_append(AsterValue list, AsterValue item);
+AsterValue aster_list_get(AsterValue list, AsterValue index);
+size_t aster_list_len(AsterValue list);
 
 // Arithmetic
 AsterValue aster_add(AsterValue a, AsterValue b);
