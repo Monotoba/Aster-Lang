@@ -135,8 +135,8 @@ gains them.  Planned additions:
 |-------|---------|--------|
 | 2 | Hover — show inferred type and documentation for identifiers | ✅ |
 | 2 | Document formatting (`Shift+Alt+F`) via the Aster formatter | ✅ |
-| 3 | Go-to-definition (`F12`) for single-file and cross-module symbols | planned |
-| 4 | Completion (`Ctrl+Space`) — scope identifiers, stdlib members, keywords | planned |
+| 3 | Go-to-definition (`F12`) for single-file and cross-module symbols | ✅ |
+| 4 | Completion (`Ctrl+Space`) — scope identifiers, stdlib members, keywords | ✅ |
 | 5 | Find references, rename symbol | planned |
 
 ---
