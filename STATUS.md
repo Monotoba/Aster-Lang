@@ -35,7 +35,9 @@ test runner, bench runner, doc generator, language server, and all native + sour
   bytecode VM with full language coverage including match, closures, imports, borrows
 - **VM artifacts** — serialized `*.asterbc.json` with format/version/SHA-256 integrity
   and optional HMAC signing; optional compressed binary encoding
-- **Placeholder C backend** — emits a stub `.c` file; full implementation deferred
+- **Native C backend** — `aster build --backend c`; compiles Aster to native executables
+  via MIR -> C codegen and GCC/system compiler. Supports basic arithmetic, control
+  flow, and built-ins with a modular runtime.
 - **Incremental build cache** — `aster build --cache`; SHA-256 keyed, per-backend
 
 ### Module system
@@ -99,7 +101,7 @@ test runner, bench runner, doc generator, language server, and all native + sour
 ## What does not yet exist
 - Float literal syntax in the parser/lexer (floats reachable only via native module returns)
 - Comment-preserving formatting (needs CST/trivia-aware work)
-- Full native C backend (spike scoped; implementation deferred)
+- Full C backend feature parity (closures, lists, records, and FFI pending)
 - Non-trailing rest patterns; nested mixed structural or-patterns
 - Version-constrained package registry (`aster pkg` currently path-only)
 
@@ -107,5 +109,5 @@ test runner, bench runner, doc generator, language server, and all native + sour
 
 The toolchain is feature-complete for most use cases. Immediate next steps depend on goals:
 - **Float literals** — extend lexer/parser for `1.5`, `3.14e-2`, etc.
-- **C backend** — implement `AsterValue` runtime, codegen, `cc` harness
+- **C backend expansion** — implement closures and collections in the native runtime.
 - **LSP enhancements** — find references, rename, and semantic tokens

@@ -56,84 +56,11 @@ from aster_lang.mir import (
 )
 
 # ---------------------------------------------------------------------------
-# Embedded C runtime
+# Embedded C runtime reference (replaced by aster_runtime.h)
 # ---------------------------------------------------------------------------
 
-_ASTER_RUNTIME = r"""
-/* ── Aster runtime (generated) ─────────────────────────────────── */
-#include <inttypes.h>
-#include <stdint.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-
-typedef enum { ASTER_INT, ASTER_BOOL, ASTER_NIL, ASTER_STRING } AsterTag;
-
-typedef struct {
-    AsterTag tag;
-    union {
-        int64_t i;
-        int     b;
-        const char *s;
-    };
-} AsterValue;
-
-static AsterValue aster_int(int64_t v)
-    { AsterValue r; r.tag = ASTER_INT; r.i = v; return r; }
-static AsterValue aster_bool(int v)
-    { AsterValue r; r.tag = ASTER_BOOL; r.b = v != 0; return r; }
-static AsterValue aster_string(const char *v)
-    { AsterValue r; r.tag = ASTER_STRING; r.s = v; return r; }
-static const AsterValue ASTER_NIL_VAL = { ASTER_NIL, {0} };
-
-static int aster_truthy(AsterValue v) {
-    if (v.tag == ASTER_BOOL)   return v.b;
-    if (v.tag == ASTER_INT)    return v.i != 0;
-    if (v.tag == ASTER_NIL)    return 0;
-    if (v.tag == ASTER_STRING) return v.s != NULL && v.s[0] != '\0';
-    return 0;
-}
-
-static void aster_print(AsterValue v) {
-    if (v.tag == ASTER_INT)    { printf("%" PRId64 "\n", v.i); }
-    else if (v.tag == ASTER_BOOL)   { printf("%s\n", v.b ? "true" : "false"); }
-    else if (v.tag == ASTER_NIL)    { printf("nil\n"); }
-    else if (v.tag == ASTER_STRING) { printf("%s\n", v.s ? v.s : ""); }
-}
-
-/* arithmetic */
-static AsterValue aster_add(AsterValue a, AsterValue b) { return aster_int(a.i + b.i); }
-static AsterValue aster_sub(AsterValue a, AsterValue b) { return aster_int(a.i - b.i); }
-static AsterValue aster_mul(AsterValue a, AsterValue b) { return aster_int(a.i * b.i); }
-static AsterValue aster_div(AsterValue a, AsterValue b)
-    { return aster_int(b.i != 0 ? a.i / b.i : 0); }
-static AsterValue aster_mod(AsterValue a, AsterValue b)
-    { return aster_int(b.i != 0 ? a.i % b.i : 0); }
-static AsterValue aster_neg(AsterValue a)               { return aster_int(-a.i); }
-
-/* comparisons */
-static AsterValue aster_eq(AsterValue a, AsterValue b) {
-    if (a.tag == ASTER_INT  && b.tag == ASTER_INT)  return aster_bool(a.i == b.i);
-    if (a.tag == ASTER_BOOL && b.tag == ASTER_BOOL) return aster_bool(a.b == b.b);
-    if (a.tag == ASTER_NIL  && b.tag == ASTER_NIL)  return aster_bool(1);
-    if (a.tag == ASTER_STRING && b.tag == ASTER_STRING)
-        return aster_bool(a.s && b.s && strcmp(a.s, b.s) == 0);
-    return aster_bool(0);
-}
-static AsterValue aster_ne(AsterValue a, AsterValue b)
-    { return aster_bool(!aster_truthy(aster_eq(a, b))); }
-static AsterValue aster_lt(AsterValue a, AsterValue b) { return aster_bool(a.i <  b.i); }
-static AsterValue aster_gt(AsterValue a, AsterValue b) { return aster_bool(a.i >  b.i); }
-static AsterValue aster_le(AsterValue a, AsterValue b) { return aster_bool(a.i <= b.i); }
-static AsterValue aster_ge(AsterValue a, AsterValue b) { return aster_bool(a.i >= b.i); }
-
-/* logical */
-static AsterValue aster_and(AsterValue a, AsterValue b)
-    { return aster_bool(aster_truthy(a) && aster_truthy(b)); }
-static AsterValue aster_or(AsterValue a, AsterValue b)
-    { return aster_bool(aster_truthy(a) || aster_truthy(b)); }
-static AsterValue aster_not(AsterValue a)               { return aster_bool(!aster_truthy(a)); }
-/* ── end Aster runtime ──────────────────────────────────────────── */
+_ASTER_RUNTIME_HEADER = r"""
+#include "aster_runtime.h"
 """
 
 # Operator → C helper name
@@ -192,7 +119,7 @@ class CTranspiler:
             self._forward_decls.append(self._fn_signature(fn) + ";")
 
         # Emit runtime + forward decls + function bodies.
-        self._lines.append(_ASTER_RUNTIME)
+        self._lines.append(_ASTER_RUNTIME_HEADER)
         for fd in self._forward_decls:
             self._lines.append(fd)
         if self._forward_decls:
@@ -386,15 +313,34 @@ def compile_c(c_source: str, out_path: Path) -> list[str]:
     Returns a list of warning/error strings.  Raises ``CBuildError`` if
     ``cc`` is not found or compilation fails.
     """
+    import aster_lang
+
     cc = shutil.which("cc") or shutil.which("gcc") or shutil.which("clang")
     if cc is None:
         raise CBuildError("No C compiler found (tried cc, gcc, clang)")
+
+    # Locate the runtime files
+    runtime_dir = Path(aster_lang.__file__).parent / "runtime"
+    runtime_c = runtime_dir / "aster_runtime.c"
+    runtime_h = runtime_dir / "aster_runtime.h"
+
+    if not runtime_c.exists() or not runtime_h.exists():
+        raise CBuildError(f"Aster runtime not found in {runtime_dir}")
 
     c_file = out_path.with_suffix(".c")
     c_file.write_text(c_source, encoding="utf-8")
 
     result = subprocess.run(
-        [cc, "-o", str(out_path), str(c_file), "-std=c11", "-lm"],
+        [
+            cc,
+            "-o",
+            str(out_path),
+            str(c_file),
+            str(runtime_c),
+            f"-I{runtime_dir}",
+            "-std=c11",
+            "-lm",
+        ],
         capture_output=True,
         text=True,
     )

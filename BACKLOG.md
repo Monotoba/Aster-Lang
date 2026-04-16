@@ -60,10 +60,10 @@
 - [x] expand VM backend coverage (runtime parity test gap closed; artifact compression/binary polish deferred)
 - [x] VM artifact compression/binary encoding (optional binary artifacts)
 - [x] native backend feasibility study (C target chosen; spike scope, ABI, and runtime stub sketched in docs/toolchain/NATIVE-BACKEND.md and COMPILER.md)
-- [x] C backend: implement AsterValue runtime header (Int/Bool/Nil/String tagged union, aster_print, aster_add_int, aster_eq_int)
-- [x] C backend: MIR → C codegen (functions, locals, arithmetic, if/while, calls)
-- [x] C backend: cc build harness in CBackendAdapter (compile emitted .c, run main)
-- [x] C backend: end-to-end spike test (integer arithmetic, if/else, while, function call)
+- [x] C backend: implement AsterValue runtime (Int/Bool/Nil/String/Float tagged union)
+- [x] C backend: MIR -> C codegen (functions, locals, arithmetic, if/while, calls, returns)
+- [x] C backend: cc build harness in CBackendAdapter (compile emitted .c with modular runtime, run main)
+- [x] C backend: end-to-end integration (aster build --backend c)
 - [x] caching and incremental compilation
 
 ## Phase 7: tooling

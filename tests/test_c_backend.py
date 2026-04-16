@@ -130,10 +130,7 @@ def test_emit_literal_string_newline() -> None:
 def test_transpile_includes_runtime_header() -> None:
     mmod = _module()
     c = CTranspiler().transpile(mmod)
-    assert "AsterValue" in c
-    assert "aster_truthy" in c
-    assert "aster_print" in c
-    assert "#include <stdio.h>" in c
+    assert '#include "aster_runtime.h"' in c
 
 
 # ---------------------------------------------------------------------------
