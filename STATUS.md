@@ -37,7 +37,7 @@ test runner, bench runner, doc generator, language server, and all native + sour
   and optional HMAC signing; optional compressed binary encoding
 - **Native C backend** — `aster build --backend c`; compiles Aster to native executables
   via MIR -> C codegen and GCC/system compiler. Supports arithmetic, string concatenation,
-  structural pattern matching, and dynamic lists.
+  structural pattern matching, dynamic lists, and records.
 - **Incremental build cache** — `aster build --cache`; SHA-256 keyed, per-backend
 
 ### Module system

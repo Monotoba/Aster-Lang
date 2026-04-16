@@ -179,7 +179,12 @@ class CTranspiler:
         if isinstance(s, MLet):
             expr_c = self._emit_expr(s.init)
             c_name = _mangle(s.name)
-            self._lines.append(f"{pad}AsterValue {c_name} = {expr_c};")
+            if isinstance(s.init, HClosure):
+                # Lambda-lifted functions are top-level C functions.
+                fn_name = s.init.fn_id.split("::")[-1]
+                self._lines.append(f"{pad}AsterValue (*{c_name})(AsterValue) = {fn_name};")
+            else:
+                self._lines.append(f"{pad}AsterValue {c_name} = {expr_c};")
 
         elif isinstance(s, MAssign):
             target_c = self._emit_lvalue(s.target)
@@ -265,7 +270,27 @@ class CTranspiler:
             idx = self._emit_expr(e.index)
             return f"aster_list_get({obj}, {idx})"
 
-        if isinstance(e, HBorrow | HMember | HTuple | HRecord | HClosure):
+        if isinstance(e, HClosure):
+            # For spike, ignore the closure and just call the function directly
+            # by name if possible, or emit a placeholder.
+            # Lambda-lifted functions have names like "__lambda1".
+            fn_name = e.fn_id.split("::")[-1]
+            return fn_name
+
+        if isinstance(e, HRecord):
+            # Create new record
+            rec_val = self._fresh_tmp()
+            self._lines.append(f"{_INDENT}AsterValue {rec_val} = aster_record_new();")
+            for name, val in e.fields:
+                val_c = self._emit_expr(val)
+                self._lines.append(f'{_INDENT}aster_record_set({rec_val}, "{name}", {val_c});')
+            return rec_val
+
+        if isinstance(e, HMember):
+            obj = self._emit_expr(e.obj)
+            return f'aster_record_get({obj}, "{e.member}")'
+
+        if isinstance(e, HBorrow | HTuple | HClosure):
             return f"/* unsupported expr: {type(e).__name__} */"
 
         raise AssertionError(f"unhandled HExpr type: {type(e).__name__}")
@@ -281,6 +306,16 @@ class CTranspiler:
             c_name = _mangle(e.func.name)
             args = ", ".join(self._emit_expr(a) for a in e.args)
             return f"{c_name}({args})"
+
+        # Handle closure calls.
+        if isinstance(e.func, HClosure):
+            # For spike, ignore the closure and just call the function directly
+            # by name if possible, or emit a placeholder.
+            # Lambda-lifted functions have names like "__lambda1".
+            fn_name = e.func.fn_id.split("::")[-1]
+            args = ", ".join(self._emit_expr(a) for a in e.args)
+            return f"{fn_name}({args})"
+
         # Expression call (closure etc.) — not yet supported.
         return "/* unsupported: expression call */"
 

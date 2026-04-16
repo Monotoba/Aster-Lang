@@ -158,3 +158,48 @@ size_t aster_list_len(AsterValue list_val) {
     if (list_val.kind != VAL_LIST) aster_panic("Type error: list len requires list");
     return list_val.as.list->size;
 }
+
+// Record operations
+AsterValue aster_record_new(void) {
+    struct AsterRecord* rec = (struct AsterRecord*)malloc(sizeof(struct AsterRecord));
+    if (!rec) aster_panic("Out of memory");
+    rec->keys = NULL;
+    rec->values = NULL;
+    rec->size = 0;
+    AsterValue v; v.kind = VAL_RECORD; v.as.record = rec; return v;
+}
+
+AsterValue aster_record_set(AsterValue rec_val, const char* key, AsterValue value) {
+    if (rec_val.kind != VAL_RECORD) aster_panic("Type error: set requires record");
+    struct AsterRecord* rec = rec_val.as.record;
+    
+    // Check for existing key
+    for (size_t i = 0; i < rec->size; i++) {
+        if (strcmp(rec->keys[i], key) == 0) {
+            rec->values[i] = value;
+            return rec_val;
+        }
+    }
+    
+    // Grow
+    rec->keys = (const char**)realloc(rec->keys, (rec->size + 1) * sizeof(const char*));
+    rec->values = (AsterValue*)realloc(rec->values, (rec->size + 1) * sizeof(AsterValue));
+    if (!rec->keys || !rec->values) aster_panic("Out of memory");
+    
+    rec->keys[rec->size] = key;
+    rec->values[rec->size] = value;
+    rec->size++;
+    return rec_val;
+}
+
+AsterValue aster_record_get(AsterValue rec_val, const char* key) {
+    if (rec_val.kind != VAL_RECORD) aster_panic("Type error: get requires record");
+    struct AsterRecord* rec = rec_val.as.record;
+    for (size_t i = 0; i < rec->size; i++) {
+        if (strcmp(rec->keys[i], key) == 0) {
+            return rec->values[i];
+        }
+    }
+    aster_panic("Key not found");
+    return ASTER_NIL_VAL;
+}

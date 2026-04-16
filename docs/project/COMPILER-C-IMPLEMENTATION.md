@@ -30,7 +30,7 @@ This plan breaks the C compiler implementation into five measurable milestones.
 ## Milestone 5: Advanced Features
 **Goal:** Support collections, closures, and FFI.
 - [x] Implement `VAL_LIST` in the runtime with heap allocation.
-- [ ] Implement `VAL_RECORD` in the runtime with heap allocation.
+- [x] Implement `VAL_RECORD` in the runtime with heap allocation.
 - [ ] Implement closure lowering (lambda lifting or environment structures).
 - [ ] Implement `extern fn` linkage for FFI.
 - [ ] Add optimization flags (`-O2`, `-O3`) to the build harness.

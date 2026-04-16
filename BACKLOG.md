@@ -64,6 +64,7 @@
 - [x] C backend: MIR -> C codegen (functions, locals, arithmetic, if/while, calls, returns)
 - [x] C backend: string concatenation and pattern matching support
 - [x] C backend: dynamic list support
+- [x] C backend: record support
 - [x] C backend: cc build harness in CBackendAdapter (compile emitted .c with modular runtime, run main)
 - [x] C backend: end-to-end integration (aster build --backend c)
 - [x] caching and incremental compilation

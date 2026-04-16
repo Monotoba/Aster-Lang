@@ -1,0 +1,5 @@
+fn main():
+    adder := (x: Int) -> :
+        return x + 10
+    
+    print(adder(5))
