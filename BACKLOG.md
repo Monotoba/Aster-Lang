@@ -67,7 +67,7 @@
 - [x] caching and incremental compilation
 
 ## Phase 7: tooling
-- [x] language server plan — full design in `docs/toolchain/LANGUAGE-SERVER.md`; 5 phases (diagnostics → hover/fmt → goto-def → completion → references)
+- [x] language server implementation — diagnostics, hover, formatting, go-to-definition, and completion
 - [ ] package manager plan
 - [x] doc generator (`aster doc`) — extracts `##` doc comments from pub declarations, emits Markdown
 - [x] test runner (`aster test`) — discovers `test_*.aster`, runs `fn test_*()`, reports pass/fail
@@ -80,3 +80,13 @@
 - [ ] dependency mapping and package resolution
 - [x] versioning and compatibility policy
 - [ ] unsafe / FFI policy
+
+## Phase 9: LSP and IDE
+- [x] implement `aster lsp` command
+- [x] implement `AsterLanguageServer` (pygls)
+- [x] Phase 1: publish diagnostics (parse + semantic errors)
+- [x] Phase 2: hover and formatting
+- [x] Phase 3: go-to-definition
+- [x] Phase 4: completion (initial)
+- [x] VS Code extension with syntax highlighting and LSP client
+- [ ] Phase 5: find references and rename

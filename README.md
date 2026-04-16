@@ -74,6 +74,7 @@ aster repl                        # interactive REPL
 aster ast <file>                  # dump parsed AST
 aster doc <file>                  # generate documentation
 aster lock <file>                 # write aster.lock
+aster lsp                         # launch Language Server
 aster test <dir>                  # run test suite
 ```
 
@@ -125,7 +126,7 @@ fizzbuzz through word counting and FFI math).
 ```
 src/aster_lang/         reference implementation
   stdlib/               Aster-written standard library modules
-tests/                  908 passing unit and integration tests
+tests/                  1092 passing unit and integration tests
 docs/
   language/             language reference and standard library docs
   toolchain/            interpreter, compiler, VM, formatter, package manager design

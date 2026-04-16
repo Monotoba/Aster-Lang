@@ -2,14 +2,14 @@
 
 ## Repository status
 
-Phases 2–8 are complete. The language can parse, format, analyze, execute,
-compile, and interact via the REPL, with a full standard library and tooling suite.
+Phases 2–9 are complete. The language can parse, format, analyze, execute,
+compile, and interact via the REPL and LSP, with a full standard library and tooling suite.
 
 ## Test count
 
-**1019 passing tests** covering parser, semantics, interpreter, formatter, CLI,
+**1092 passing tests** covering parser, semantics, interpreter, formatter, CLI,
 compiler, REPL, AST printer, typed HIR, experimental bytecode VM, caching layer,
-test runner, bench runner, doc generator, and all native + source-based stdlib modules.
+test runner, bench runner, doc generator, language server, and all native + source-based stdlib modules.
 
 ## What exists
 
@@ -52,6 +52,8 @@ test runner, bench runner, doc generator, and all native + source-based stdlib m
 - **`aster doc`** — extracts `##` doc comments from `pub` declarations, emits Markdown
 - **Error index** — `docs/ERROR-INDEX.md`: 55 named errors (PAR/SEM/INT/VM/MOD/LCK/CLI)
 - **`aster pkg`** — package manager (`init`, `check`, `build`, `list`)
+- **Language Server (LSP)** — supports diagnostics, hover, go-to-definition, formatting, and completion
+- **VS Code Extension** — provides syntax highlighting and LSP integration for `.aster` files
 
 ### Standard library
 
@@ -92,12 +94,12 @@ test runner, bench runner, doc generator, and all native + source-based stdlib m
 - 13 progressively complex runnable programs in `examples/programs/`
 - Language reference, ownership guide, FFI guide, toolchain docs
 - Standard library reference docs (one page per module)
+- Railroad diagrams for the language grammar
 
 ## What does not yet exist
 - Float literal syntax in the parser/lexer (floats reachable only via native module returns)
 - Comment-preserving formatting (needs CST/trivia-aware work)
 - Full native C backend (spike scoped; implementation deferred)
-- Language server (hold until IDE work begins)
 - Non-trailing rest patterns; nested mixed structural or-patterns
 - Version-constrained package registry (`aster pkg` currently path-only)
 
@@ -106,4 +108,4 @@ test runner, bench runner, doc generator, and all native + source-based stdlib m
 The toolchain is feature-complete for most use cases. Immediate next steps depend on goals:
 - **Float literals** — extend lexer/parser for `1.5`, `3.14e-2`, etc.
 - **C backend** — implement `AsterValue` runtime, codegen, `cc` harness
-- **Language server** — LSP integration for IDE support
+- **LSP enhancements** — find references, rename, and semantic tokens

@@ -8,7 +8,7 @@ The primary target is **VS Code** via the companion extension in `editors/vscode
 
 ## Current status
 
-**Phase 3 — Diagnostics + Hover + Formatting + Go-to-definition — complete.**
+**Phase 4 — Diagnostics + Hover + Formatting + Definition + Completion — complete.**
 
 | Capability | Status |
 |-----------|--------|
@@ -22,13 +22,14 @@ The primary target is **VS Code** via the companion extension in `editors/vscode
 | `textDocument/hover` → symbol name, kind, type | ✅ |
 | `textDocument/formatting` → canonical Aster source | ✅ |
 | `textDocument/definition` → jump to declaration | ✅ |
+| `textDocument/completion` → local/global symbols | ✅ |
 
-Phases 4–5 (completion, find-references/rename) are documented below as
-design targets.
+Phases 5 (find-references/rename) are documented below as design targets.
+...
+## Testing
 
----
+Tests live in `tests/test_lsp_server.py` and dedicated `test_lsp_*.py` files (75 tests, five layers):
 
-## Architecture
 
 ```
 Editor (VS Code)
@@ -204,11 +205,11 @@ Identify the symbol at the cursor, look it up in the symbol table, return a
 `Location` pointing to the declaration node.  Cross-file definitions use
 `ModuleResolution`.
 
-### Phase 4 — Completion
+### Phase 4 — Completion ✅ complete
 
 Build a `CompletionItem` list from scope-visible identifiers, imported module
 exports, `NATIVE_MODULE_SYMBOLS` stdlib members, and Aster keywords.
-Trigger on `.` for member completions.
+Trigger on `.` for member completions (member completion partially implemented).
 
 ### Phase 5 — Find references, rename, code actions
 
