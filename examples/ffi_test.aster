@@ -1,0 +1,6 @@
+fn main():
+    print("Testing FFI...")
+    # FFI call: linked to a C standard library function via extern
+    # For spike: use system `abs()` from math.h
+    extern fn abs(x: Int) -> Int
+    print(abs(-42))

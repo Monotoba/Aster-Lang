@@ -290,7 +290,7 @@ class CTranspiler:
             obj = self._emit_expr(e.obj)
             return f'aster_record_get({obj}, "{e.member}")'
 
-        if isinstance(e, HBorrow | HTuple | HClosure):
+        if isinstance(e, HBorrow | HTuple):
             return f"/* unsupported expr: {type(e).__name__} */"
 
         raise AssertionError(f"unhandled HExpr type: {type(e).__name__}")
