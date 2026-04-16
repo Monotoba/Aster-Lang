@@ -62,6 +62,7 @@
 - [x] native backend feasibility study (C target chosen; spike scope, ABI, and runtime stub sketched in docs/toolchain/NATIVE-BACKEND.md and COMPILER.md)
 - [x] C backend: implement AsterValue runtime (Int/Bool/Nil/String/Float tagged union)
 - [x] C backend: MIR -> C codegen (functions, locals, arithmetic, if/while, calls, returns)
+- [x] C backend: string concatenation and pattern matching support
 - [x] C backend: cc build harness in CBackendAdapter (compile emitted .c with modular runtime, run main)
 - [x] C backend: end-to-end integration (aster build --backend c)
 - [x] caching and incremental compilation

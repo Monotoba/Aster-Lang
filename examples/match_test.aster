@@ -1,0 +1,10 @@
+fn check_number(n: Int):
+    match n:
+        1: print("One")
+        2: print("Two")
+        _: print("Other")
+
+fn main():
+    check_number(1)
+    check_number(2)
+    check_number(3)

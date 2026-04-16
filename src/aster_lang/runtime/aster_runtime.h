@@ -59,6 +59,7 @@ void aster_panic(const char* message);
 
 // Arithmetic
 AsterValue aster_add(AsterValue a, AsterValue b);
+AsterValue aster_concat(AsterValue a, AsterValue b);
 AsterValue aster_sub(AsterValue a, AsterValue b);
 AsterValue aster_mul(AsterValue a, AsterValue b);
 AsterValue aster_div(AsterValue a, AsterValue b);

@@ -21,11 +21,11 @@ This plan breaks the C compiler implementation into five measurable milestones.
 - [x] Wire up the GCC invocation to produce a runnable binary.
 - [x] Verify with an end-to-end test: `aster build --backend c examples/sum.aster`.
 
-## Milestone 4: Control Flow & Patterns
+## Milestone 4: Control Flow & Patterns ✅
 **Goal:** Support loops, conditionals, and matching.
-- [ ] Implement C emission for `if`, `while`, and `return`.
-- [ ] Lower `match` expressions in the MIR pass.
-- [ ] Support `VAL_STRING` in the runtime and codegen.
+- [x] Implement C emission for `if`, `while`, and `return`. (Inherited from transpiler)
+- [x] Lower `match` expressions in the MIR pass. (Verified working via desugaring)
+- [x] Support `VAL_STRING` in the runtime and codegen. (Concatenation implemented)
 
 ## Milestone 5: Advanced Features
 **Goal:** Support collections, closures, and FFI.

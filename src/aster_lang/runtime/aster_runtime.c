@@ -38,8 +38,27 @@ AsterValue aster_add(AsterValue a, AsterValue b) {
         double vb = (b.kind == VAL_FLOAT) ? b.as.floating : (double)b.as.integer;
         return aster_float(va + vb);
     }
-    aster_panic("Type error: addition requires numbers");
+    if (a.kind == VAL_STRING && b.kind == VAL_STRING) {
+        return aster_concat(a, b);
+    }
+    aster_panic("Type error: addition requires numbers or strings");
     return ASTER_NIL_VAL;
+}
+
+AsterValue aster_concat(AsterValue a, AsterValue b) {
+    if (a.kind != VAL_STRING || b.kind != VAL_STRING) {
+        aster_panic("Type error: concatenation requires strings");
+    }
+    const char* s1 = a.as.string ? a.as.string : "";
+    const char* s2 = b.as.string ? b.as.string : "";
+    size_t len1 = strlen(s1);
+    size_t len2 = strlen(s2);
+    char* res = (char*)malloc(len1 + len2 + 1);
+    if (!res) aster_panic("Out of memory");
+    memcpy(res, s1, len1);
+    memcpy(res + len1, s2, len2);
+    res[len1 + len2] = '\0';
+    return aster_string(res);
 }
 
 AsterValue aster_sub(AsterValue a, AsterValue b) {

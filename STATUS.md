@@ -36,8 +36,8 @@ test runner, bench runner, doc generator, language server, and all native + sour
 - **VM artifacts** — serialized `*.asterbc.json` with format/version/SHA-256 integrity
   and optional HMAC signing; optional compressed binary encoding
 - **Native C backend** — `aster build --backend c`; compiles Aster to native executables
-  via MIR -> C codegen and GCC/system compiler. Supports basic arithmetic, control
-  flow, and built-ins with a modular runtime.
+  via MIR -> C codegen and GCC/system compiler. Supports arithmetic, string concatenation,
+  control flow (if/while), and structural pattern matching via desugaring.
 - **Incremental build cache** — `aster build --cache`; SHA-256 keyed, per-backend
 
 ### Module system
