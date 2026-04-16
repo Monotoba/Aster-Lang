@@ -1,0 +1,68 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="495" height="69">
+   <defs>
+      <style type="text/css">
+    @namespace "http://www.w3.org/2000/svg";
+    .line                 {fill: none; stroke: #332900; stroke-width: 1;}
+    .bold-line            {stroke: #141000; shape-rendering: crispEdges; stroke-width: 2;}
+    .thin-line            {stroke: #1F1800; shape-rendering: crispEdges}
+    .filled               {fill: #332900; stroke: none;}
+    text.terminal         {font-family: Verdana, Sans-serif;
+                            font-size: 12px;
+                            fill: #141000;
+                            font-weight: bold;
+                          }
+    text.nonterminal      {font-family: Verdana, Sans-serif;
+                            font-size: 12px;
+                            fill: #1A1400;
+                            font-weight: normal;
+                          }
+    text.regexp           {font-family: Verdana, Sans-serif;
+                            font-size: 12px;
+                            fill: #1F1800;
+                            font-weight: normal;
+                          }
+    rect, circle, polygon {fill: #332900; stroke: #332900;}
+    rect.terminal         {fill: #FFDB4D; stroke: #332900; stroke-width: 1;}
+    rect.nonterminal      {fill: #FFEC9E; stroke: #332900; stroke-width: 1;}
+    rect.text             {fill: none; stroke: none;}
+    polygon.regexp        {fill: #FFF4C7; stroke: #332900; stroke-width: 1;}
+  </style>
+   </defs>
+   <polygon points="9 17 1 13 1 21"/>
+   <polygon points="17 17 9 13 9 21"/>
+   <a xmlns:xlink="http://www.w3.org/1999/xlink"
+      xlink:href="#TypeConstructor"
+      xlink:title="TypeConstructor">
+      <rect x="51" y="35" width="124" height="32"/>
+      <rect x="49" y="33" width="124" height="32" class="nonterminal"/>
+      <text class="nonterminal" x="59" y="53">TypeConstructor</text>
+   </a>
+   <rect x="215" y="3" width="28" height="32" rx="10"/>
+   <rect x="213"
+         y="1"
+         width="28"
+         height="32"
+         class="terminal"
+         rx="10"/>
+   <text class="terminal" x="223" y="21">{</text>
+   <a xmlns:xlink="http://www.w3.org/1999/xlink"
+      xlink:href="#RecordFieldList"
+      xlink:title="RecordFieldList">
+      <rect x="283" y="35" width="116" height="32"/>
+      <rect x="281" y="33" width="116" height="32" class="nonterminal"/>
+      <text class="nonterminal" x="291" y="53">RecordFieldList</text>
+   </a>
+   <rect x="439" y="3" width="28" height="32" rx="10"/>
+   <rect x="437"
+         y="1"
+         width="28"
+         height="32"
+         class="terminal"
+         rx="10"/>
+   <text class="terminal" x="447" y="21">}</text>
+   <path class="line"
+         d="m17 17 h2 m20 0 h10 m0 0 h134 m-164 0 h20 m144 0 h20 m-184 0 q10 0 10 10 m164 0 q0 -10 10 -10 m-174 10 v12 m164 0 v-12 m-164 12 q0 10 10 10 m144 0 q10 0 10 -10 m-154 10 h10 m124 0 h10 m20 -32 h10 m28 0 h10 m20 0 h10 m0 0 h126 m-156 0 h20 m136 0 h20 m-176 0 q10 0 10 10 m156 0 q0 -10 10 -10 m-166 10 v12 m156 0 v-12 m-156 12 q0 10 10 10 m136 0 q10 0 10 -10 m-146 10 h10 m116 0 h10 m20 -32 h10 m28 0 h10 m3 0 h-3"/>
+   <polygon points="485 17 493 13 493 21"/>
+   <polygon points="485 17 477 13 477 21"/>
+</svg>

@@ -1,0 +1,198 @@
+{
+  "$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
+  "name": "Aster",
+  "scopeName": "source.aster",
+  "fileTypes": ["aster"],
+  "patterns": [
+    { "include": "#comment" },
+    { "include": "#string" },
+    { "include": "#fstring" },
+    { "include": "#number" },
+    { "include": "#keyword" },
+    { "include": "#builtin-type" },
+    { "include": "#builtin-constant" },
+    { "include": "#function-def" },
+    { "include": "#function-call" },
+    { "include": "#operator" },
+    { "include": "#punctuation" }
+  ],
+  "repository": {
+    "comment": {
+      "name": "comment.line.number-sign.aster",
+      "match": "#.*$"
+    },
+
+    "string": {
+      "patterns": [
+        {
+          "name": "string.quoted.double.aster",
+          "begin": "\"",
+          "end": "\"",
+          "patterns": [
+            {
+              "name": "constant.character.escape.aster",
+              "match": "\\\\[nrt\\\\\"'0]"
+            }
+          ]
+        },
+        {
+          "name": "string.quoted.single.aster",
+          "begin": "'",
+          "end": "'",
+          "patterns": [
+            {
+              "name": "constant.character.escape.aster",
+              "match": "\\\\[nrt\\\\\"'0]"
+            }
+          ]
+        },
+        {
+          "name": "string.quoted.double.raw.aster",
+          "begin": "r\"",
+          "end": "\""
+        }
+      ]
+    },
+
+    "fstring": {
+      "name": "string.quoted.double.aster meta.interpolation.aster",
+      "begin": "f\"",
+      "end": "\"",
+      "patterns": [
+        {
+          "name": "meta.embedded.expression.aster",
+          "begin": "\\{",
+          "end": "\\}",
+          "beginCaptures": { "0": { "name": "punctuation.section.interpolation.begin.aster" } },
+          "endCaptures": { "0": { "name": "punctuation.section.interpolation.end.aster" } },
+          "patterns": [{ "include": "$self" }]
+        },
+        {
+          "name": "constant.character.escape.aster",
+          "match": "\\\\[nrt\\\\\"'0]"
+        }
+      ]
+    },
+
+    "number": {
+      "patterns": [
+        {
+          "name": "constant.numeric.hex.aster",
+          "match": "\\b0x[0-9A-Fa-f_]+\\b"
+        },
+        {
+          "name": "constant.numeric.binary.aster",
+          "match": "\\b0b[01_]+\\b"
+        },
+        {
+          "name": "constant.numeric.float.aster",
+          "match": "\\b[0-9][0-9_]*\\.[0-9][0-9_]*\\b"
+        },
+        {
+          "name": "constant.numeric.integer.aster",
+          "match": "\\b[0-9][0-9_]*\\b"
+        }
+      ]
+    },
+
+    "keyword": {
+      "patterns": [
+        {
+          "name": "keyword.control.aster",
+          "match": "\\b(if|else|while|for|in|match|return|break|continue)\\b"
+        },
+        {
+          "name": "keyword.declaration.aster",
+          "match": "\\b(fn|use|as|type|trait|impl|extern|effect)\\b"
+        },
+        {
+          "name": "storage.modifier.aster",
+          "match": "\\b(mut|pub|self)\\b"
+        },
+        {
+          "name": "keyword.operator.logical.aster",
+          "match": "\\b(not|and|or)\\b"
+        }
+      ]
+    },
+
+    "builtin-type": {
+      "name": "support.type.builtin.aster",
+      "match": "\\b(Int|Str|Bool|Float|List|Nil|Self)\\b"
+    },
+
+    "builtin-constant": {
+      "name": "constant.language.aster",
+      "match": "\\b(true|false|nil)\\b"
+    },
+
+    "function-def": {
+      "match": "\\b(fn)\\s+([a-zA-Z_][a-zA-Z0-9_]*)\\s*(?=\\()",
+      "captures": {
+        "1": { "name": "keyword.declaration.aster" },
+        "2": { "name": "entity.name.function.aster" }
+      }
+    },
+
+    "function-call": {
+      "match": "\\b([a-zA-Z_][a-zA-Z0-9_]*)\\s*(?=\\()",
+      "captures": {
+        "1": { "name": "entity.name.function.call.aster" }
+      }
+    },
+
+    "operator": {
+      "patterns": [
+        {
+          "name": "keyword.operator.assignment.aster",
+          "match": ":=|<-"
+        },
+        {
+          "name": "keyword.operator.arrow.aster",
+          "match": "->"
+        },
+        {
+          "name": "keyword.operator.comparison.aster",
+          "match": "==|!=|<=|>=|<(?!<)|>(?!>)"
+        },
+        {
+          "name": "keyword.operator.bitshift.aster",
+          "match": "<<|>>"
+        },
+        {
+          "name": "keyword.operator.arithmetic.aster",
+          "match": "[+\\-*/%]"
+        },
+        {
+          "name": "keyword.operator.bitwise.aster",
+          "match": "[&|\\^~]"
+        },
+        {
+          "name": "keyword.operator.reference.aster",
+          "match": "\\*own|\\*shared|\\*raw|&mut\\b|&"
+        }
+      ]
+    },
+
+    "punctuation": {
+      "patterns": [
+        {
+          "name": "punctuation.accessor.dot.aster",
+          "match": "\\."
+        },
+        {
+          "name": "punctuation.separator.comma.aster",
+          "match": ","
+        },
+        {
+          "name": "punctuation.separator.colon.aster",
+          "match": ":"
+        },
+        {
+          "name": "punctuation.section.parens.aster",
+          "match": "[()\\[\\]{}]"
+        }
+      ]
+    }
+  }
+}

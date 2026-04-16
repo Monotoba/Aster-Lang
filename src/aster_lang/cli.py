@@ -285,6 +285,25 @@ def build_parser() -> argparse.ArgumentParser:
     sub.add_parser("version", help="show version")
 
     # ------------------------------------------------------------------
+    # aster lsp — language server
+    # ------------------------------------------------------------------
+    lsp_p = sub.add_parser("lsp", help="start the Aster language server (LSP)")
+    lsp_transport = lsp_p.add_mutually_exclusive_group()
+    lsp_transport.add_argument(
+        "--stdio",
+        action="store_true",
+        default=True,
+        help="use stdio transport (default)",
+    )
+    lsp_transport.add_argument(
+        "--tcp",
+        type=int,
+        metavar="PORT",
+        dest="tcp_port",
+        help="use TCP transport on the given port",
+    )
+
+    # ------------------------------------------------------------------
     # aster pkg — package manager
     # ------------------------------------------------------------------
     pkg_p = sub.add_parser("pkg", help="package manager commands")
@@ -652,6 +671,15 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.command == "repl":
         run_repl()
+        return 0
+
+    if args.command == "lsp":
+        try:
+            from aster_lang.lsp.server import start as lsp_start  # noqa: PLC0415
+        except ImportError:
+            print("pygls is required for the LSP server. Install it with: pip install pygls")
+            return 1
+        lsp_start(stdio=args.tcp_port is None, tcp_port=args.tcp_port)
         return 0
 
     if args.command == "version":

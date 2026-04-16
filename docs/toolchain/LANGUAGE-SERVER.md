@@ -1,181 +1,83 @@
 # Aster Language Server
 
 The Aster Language Server implements the [Language Server Protocol (LSP)](https://microsoft.github.io/language-server-protocol/)
-to provide IDE features — diagnostics, hover, completion, go-to-definition, and formatting —
-for any LSP-capable editor.  The primary target is **VS Code** via a companion extension.
+to provide IDE features for `.aster` files in any LSP-capable editor.
+The primary target is **VS Code** via the companion extension in `editors/vscode/`.
+
+---
+
+## Current status
+
+**Phase 3 — Diagnostics + Hover + Formatting + Go-to-definition — complete.**
+
+| Capability | Status |
+|-----------|--------|
+| `textDocument/didOpen` → publish diagnostics | ✅ |
+| `textDocument/didChange` → publish diagnostics | ✅ |
+| `textDocument/didClose` → clear diagnostics | ✅ |
+| Parse errors with token-precise ranges | ✅ |
+| Semantic errors with span-level ranges | ✅ |
+| Semantic warnings | ✅ |
+| VS Code extension (syntax highlighting + diagnostics) | ✅ |
+| `textDocument/hover` → symbol name, kind, type | ✅ |
+| `textDocument/formatting` → canonical Aster source | ✅ |
+| `textDocument/definition` → jump to declaration | ✅ |
+
+Phases 4–5 (completion, find-references/rename) are documented below as
+design targets.
 
 ---
 
 ## Architecture
 
-The language server is a thin shell around the existing Aster pipeline.
-No new parsing or analysis infrastructure is needed.
-
 ```
 Editor (VS Code)
      │  LSP (JSON-RPC over stdio)
      ▼
-aster_lang.lsp.server   ←── pygls AsterLanguageServer
+AsterLanguageServer          pygls 2.x LanguageServer subclass
+     │  src/aster_lang/lsp/server.py
      │
-     ├── textDocument/didOpen | didChange | didSave
-     │       │
-     │       ▼
-     │   DocumentStore           (in-memory source text per URI)
-     │       │
-     │       ├── Lexer + Parser  → Module AST  (parse errors → Diagnostics)
-     │       │
-     │       └── SemanticAnalyzer → symbol table, type map, error list
-     │                                        (semantic errors → Diagnostics)
+     ├── analyze_source(source, uri) → AnalysisResult
+     │       ├── parse_module()        → Module AST   (catches ParseError)
+     │       └── SemanticAnalyzer()    → errors, warnings, symbol_table
      │
-     ├── textDocument/hover      → symbol table lookup → hover text
-     ├── textDocument/definition → symbol table + module resolution → Location
-     ├── textDocument/completion → scope walk → CompletionItem list
-     └── textDocument/formatting → Formatter.format_source() → TextEdit list
+     ├── to_lsp_diagnostics(result) → list[Diagnostic]
+     │       ├── ParseError   → token.start.{line,column} → precise range
+     │       └── SemanticError/Warning → node.span.{start_line} → line range
+     │
+     ├── hover_for_position(result, lsp_line, lsp_char) → str | None
+     │       ├── token_at_position()   → streaming lexer, find IDENTIFIER at cursor
+     │       ├── _find_symbols_named() → DFS over scope tree
+     │       ├── _pick_symbol_at_line() → prefer span-matching symbol
+     │       └── _format_symbol_markdown() → name, kind, type as Markdown
+     │
+     ├── definition_for_position(result, lsp_line, lsp_char) → Location | None
+     │       ├── token_at_position()   → find IDENTIFIER at cursor
+     │       ├── _find_symbols_named() + _pick_symbol_at_line()
+     │       └── _name_column_in_line() → word-boundary regex for precise column
+     │
+     └── handlers
+           ├── didOpen      → analyze + publishDiagnostics
+           ├── didChange    → analyze + publishDiagnostics  (Full sync)
+           ├── didClose     → evict result + clear diagnostics
+           ├── hover        → hover_for_position → Hover{MarkupContent}
+           ├── formatting   → format_source → single TextEdit (whole doc)
+           └── definition   → definition_for_position → Location
 ```
 
 **Key design decisions:**
 
 - **Full re-parse on every change.** Aster source files are small; a full
-  lexer + parser + semantic pass on each `textDocument/didChange` is fast enough.
-  Incremental parsing is deferred to a future phase.
-- **stdio transport.** The server process communicates over stdin/stdout.
-  The VS Code extension spawns the process and connects to it.
-- **`pygls`** is the server library.  It handles JSON-RPC framing, capability
-  negotiation, and request/notification dispatch.
-- **Package location:** `src/aster_lang/lsp/` (new subdirectory).
-- **Entry point:** `aster lsp` CLI subcommand launches the server.
-
----
-
-## Existing components and what they power
-
-| Existing component | Reused for |
-|--------------------|------------|
-| `Lexer` | Token positions for semantic token hints |
-| `Parser` / `ParseError` | Diagnostics (syntax errors) |
-| `SemanticAnalyzer` / `analyzer.errors` | Diagnostics (semantic errors) |
-| `SemanticAnalyzer.symbol_table` | Hover type info, completion candidates, go-to-definition |
-| `ModuleResolution` | Cross-file go-to-definition |
-| `Formatter.format_source()` | Document formatting |
-| `NATIVE_MODULE_SYMBOLS` | Completion for stdlib module members |
-
----
-
-## Feature phases
-
-### Phase 1 — Diagnostics (highest value, lowest effort)
-
-Re-run the full pipeline on every `didChange`/`didSave`.
-Publish parse errors and semantic errors as LSP `Diagnostic` objects.
-
-```
-ParseError { message, token.line, token.col }
-    → Diagnostic { range: {line-1, col-1} to EOL, severity: Error, message }
-
-SemanticAnalyzer.errors  (list of strings with "at line N" suffix)
-    → parse line number from error string
-    → Diagnostic { range, severity: Error, message }
-```
-
-**LSP capabilities declared:**
-```json
-{ "textDocumentSync": { "change": 1 } }
-```
-
-**Deliverable:** errors appear inline in VS Code as squiggles within one keystroke.
-
----
-
-### Phase 2 — Hover and document formatting
-
-**Hover** (`textDocument/hover`):
-Look up the identifier under the cursor in the semantic symbol table.
-Return the symbol's name, kind, and type as a Markdown string.
-
-```
-cursor position → token at position → identifier name
-    → symbol_table.lookup(name) → Symbol { kind, type }
-    → "**fn** sum_to(n: Int) -> Int"
-```
-
-**Formatting** (`textDocument/formatting`):
-Pass the full document text through `format_source(text)`.
-Return the diff as a single `TextEdit` replacing the entire document.
-
-**LSP capabilities declared:**
-```json
-{ "hoverProvider": true, "documentFormattingProvider": true }
-```
-
----
-
-### Phase 3 — Go-to-definition
-
-**`textDocument/definition`:**
-1. Identify the symbol name at the cursor position.
-2. Look it up in the symbol table to find its declaration node.
-3. If the declaration is in the current file, return a `Location` pointing to
-   the declaration's source position.
-4. If it is in an imported module, resolve the module path via
-   `ModuleResolution` and return a cross-file `Location`.
-
-```
-cursor → identifier → symbol_table.lookup → Symbol.declaration_node
-    → ast node source position → Location { uri, range }
-```
-
-**LSP capabilities declared:**
-```json
-{ "definitionProvider": true }
-```
-
----
-
-### Phase 4 — Completion
-
-**`textDocument/completion`:**
-Build a `CompletionItem` list from:
-- All identifiers currently in scope (from `symbol_table` scope chain)
-- All exported names of imported modules
-- All `NATIVE_MODULE_SYMBOLS` members for known stdlib modules
-- Aster keywords (`fn`, `mut`, `return`, `if`, `while`, `for`, `match`, …)
-
-Trigger on `.` to filter to module/record member completions only.
-
-**LSP capabilities declared:**
-```json
-{ "completionProvider": { "triggerCharacters": ["."] } }
-```
-
----
-
-### Phase 5 — Find references, rename, code actions (future)
-
-- **Find references:** collect all `Identifier` nodes matching a name across
-  the open document (and optionally the whole project).
-- **Rename:** find references → batch `TextEdit` per file.
-- **Code actions:** "add `mut`", "add type annotation", quick-fix from error index.
-
-These require either a project-wide index or at minimum a full re-analysis of
-all open files.  Defer until Phase 3 is proven stable.
-
----
-
-## Line and column mapping
-
-Aster source positions use **1-based** lines and columns (`token.line`, `token.col`).
-LSP uses **0-based** lines and characters.
-
-All position conversions follow the same rule:
-
-```python
-lsp_line = aster_line - 1
-lsp_char = aster_col - 1
-```
-
-Characters are UTF-16 code units per LSP spec.  For ASCII-only source (the common
-case) UTF-16 and UTF-8 character offsets are identical.  Non-ASCII character handling
-is a known gap for Phase 1; a future fix can add a `utf16_offset(line, col)` helper.
+  lexer + parser + semantic pass on each `didChange` is fast enough.
+  Incremental parsing is deferred.
+- **No separate DocumentStore.** pygls manages open document text in
+  `server.workspace`; the server adds a `_results: dict[str, AnalysisResult]`
+  cache alongside it.
+- **Pure analysis function.** `analyze_source()` never raises; all errors are
+  captured in `AnalysisResult`.  This makes it trivially testable without any
+  LSP plumbing.
+- **stdio transport.** The server speaks JSON-RPC over stdin/stdout.
+  TCP is also supported for debugging (`aster lsp --tcp PORT`).
 
 ---
 
@@ -184,145 +86,143 @@ is a known gap for Phase 1; a future fix can add a `utf16_offset(line, col)` hel
 ```
 src/aster_lang/lsp/
     __init__.py
-    server.py          # AsterLanguageServer (pygls Application subclass)
-    document_store.py  # DocumentStore: URI → source text + cached analysis result
-    analysis.py        # AnalysisResult: AST, symbol table, error list for one file
-    positions.py       # Aster ↔ LSP position conversion utilities
-    providers/
-        diagnostics.py # publish_diagnostics() helper
-        hover.py       # hover_at(result, position) → HoverResult
-        definition.py  # definition_at(result, position) → Location | None
-        completion.py  # completions_at(result, position) → list[CompletionItem]
-        formatting.py  # format_document(source) → list[TextEdit]
+    server.py          # Everything: AnalysisResult, analyze_source(),
+                       # to_lsp_diagnostics(), AsterLanguageServer, start()
 ```
+
+The single-file layout was chosen for Phase 1 simplicity.  Once hover,
+definition, and completion providers are added each will move to its own
+module.
 
 ---
 
-## VS Code extension
+## Position mapping
 
-A minimal companion extension lives in `editors/vscode/`:
+Aster source positions use **1-based** lines, **0-based** columns.
+LSP uses **0-based** lines and characters.
 
-```
-editors/vscode/
-    package.json       # extension manifest: activationEvents, contributes.languages
-    extension.js       # activates on *.aster, spawns `aster lsp`, connects client
-    language-config.json  # comment chars, brackets, indentation rules
-    syntaxes/
-        aster.tmLanguage.json   # TextMate grammar for basic syntax highlighting
+```python
+lsp_line = aster_line - 1   # line is 1-based in Aster
+lsp_char = aster_col        # column is already 0-based
 ```
 
-`extension.js` is ~30 lines:
+`ParseError` provides `token.start.{line, column}` and `token.end.{line, column}`
+for precise character-level ranges.
 
-```js
-const { LanguageClient, TransportKind } = require('vscode-languageclient/node');
-
-function activate(context) {
-    const serverOptions = {
-        command: 'python',
-        args: ['-m', 'aster_lang.lsp', '--stdio'],
-        transport: TransportKind.stdio,
-    };
-    const clientOptions = {
-        documentSelector: [{ scheme: 'file', language: 'aster' }],
-    };
-    const client = new LanguageClient('aster', 'Aster Language Server', serverOptions, clientOptions);
-    client.start();
-    context.subscriptions.push(client);
-}
-
-module.exports = { activate };
-```
+`SemanticError` / `SemanticWarning` provide `node.span = (start_line, end_line)`.
+Column information is not available, so diagnostics span the full line.
 
 ---
 
 ## CLI entry point
 
 ```bash
-aster lsp          # start in stdio mode (used by editors)
-aster lsp --tcp 2087   # start in TCP mode (used for debugging)
+aster lsp              # stdio mode (used by editors)
+aster lsp --tcp 2087   # TCP mode (used for debugging)
 ```
 
-Add to `cli.py`:
-
-```python
-if args.command == "lsp":
-    from aster_lang.lsp.server import start
-    start(tcp_port=getattr(args, "tcp", None))
-```
-
----
-
-## Testing strategy
-
-### Unit tests (`tests/test_lsp_*.py`)
-
-Use `pygls`'s `LanguageServerProtocol` test helpers to send mock messages directly
-without starting a subprocess:
-
-```python
-from aster_lang.lsp.server import AsterLanguageServer
-
-def test_diagnostics_reported_for_parse_error():
-    server = AsterLanguageServer()
-    server.bf_text_document_did_open(make_did_open("fn (broken"))
-    published = server.last_published_diagnostics()
-    assert len(published) == 1
-    assert published[0]["severity"] == 1  # Error
-```
-
-### Integration smoke test
-
-A shell script opens a `.aster` file, sends a `didOpen`, waits for `publishDiagnostics`,
-and checks the response — usable in CI without VS Code installed.
-
-### Manual testing
-
-1. `pip install pygls`
-2. `python -m aster_lang.lsp --stdio`  (pipe LSP messages via stdin)
-3. Or: install the VS Code extension in development mode (`F5` in VS Code)
-
----
-
-## Implementation order
-
-| Step | What to build | Estimated scope |
-|------|--------------|-----------------|
-| 1 | `pygls` dependency, `lsp/` package skeleton, `aster lsp` CLI stub | ~50 lines |
-| 2 | `DocumentStore` + `AnalysisResult` (parse + analyze one file) | ~80 lines |
-| 3 | `textDocument/didOpen|didChange|didClose` + `publishDiagnostics` | ~60 lines |
-| 4 | Position utilities + `hover` provider | ~80 lines |
-| 5 | `formatting` provider (trivial — wraps Formatter) | ~20 lines |
-| 6 | `definition` provider (single-file; cross-file deferred) | ~60 lines |
-| 7 | `completion` provider (scope identifiers + keywords) | ~100 lines |
-| 8 | VS Code extension (`package.json` + `extension.js` + TM grammar) | ~150 lines |
-
-Total implementation: roughly **700 lines** of new Python across the `lsp/` package
-plus a small JS extension.  This fits comfortably in a single focused session.
+The `lsp` subcommand lazy-imports `aster_lang.lsp.server` so that `pygls`
+is not required for any other `aster` subcommand.
 
 ---
 
 ## Dependencies
 
-Add to `pyproject.toml`:
+`pygls` is an optional dependency:
 
 ```toml
+# pyproject.toml
 [project.optional-dependencies]
-lsp = ["pygls>=1.3"]
+lsp = ["pygls>=2.0"]
 ```
 
-Install with `pip install -e ".[lsp]"`.  The core `aster_lang` package remains
-importable without `pygls` installed; the `lsp/` subpackage imports `pygls`
-only when the `aster lsp` command is invoked.
+Install with:
+
+```bash
+pip install -e ".[lsp]"
+```
+
+---
+
+## Testing
+
+Tests live in `tests/test_lsp_server.py` (69 tests, five layers):
+
+| Layer | What is tested |
+|-------|---------------|
+| Position helpers | `_aster_to_lsp_position` boundary cases |
+| `analyze_source()` | valid input, parse errors, semantic errors |
+| `to_lsp_diagnostics()` | severity, range, source field, one-diag-per-error |
+| Server construction | name/version, feature registration (Phases 1–3) |
+| `_analyse_and_publish()` | result stored, publish called, uri matches, error count |
+| `didClose` handler | result evicted, diagnostics cleared |
+| `token_at_position()` | identifier found at cursor, None for non-identifier positions |
+| `hover_for_position()` | function/variable/builtin symbols, parse-error guard |
+| formatting handler | TextEdit coverage, idempotent source returns `[]`, None on error |
+| `definition_for_position()` | precise line+column, URI, builtin→None, parse-error→None |
+| definition handler | registered, returns Location, None for unknown URI |
+
+Run with:
+
+```bash
+pytest tests/test_lsp_server.py
+```
+
+---
+
+## VS Code extension
+
+The companion extension lives in `editors/vscode/`.
+See [`editors/vscode/README.md`](../../editors/vscode/README.md) for full
+installation and usage documentation.
+
+**Summary:**
+- Spawns `aster lsp --stdio` as a subprocess on activation.
+- Connects via `vscode-languageclient` (TypeScript).
+- Contributes the `aster` language for `.aster` files.
+- Provides TextMate grammar (syntax highlighting) and language configuration
+  (bracket matching, auto-indent, comment toggling) independently of the server.
+
+---
+
+## Planned phases
+
+### Phase 2 — Hover and formatting ✅ complete
+
+**Hover** (`textDocument/hover`): streams the Aster lexer to find the
+IDENTIFIER token at the cursor, DFS-searches the scope tree for all symbols
+with that name, picks the one whose declaration span contains the cursor line,
+and returns name / kind / type as Markdown.
+
+**Formatting** (`textDocument/formatting`): passes the document through
+`format_source()`, returns a single `TextEdit` replacing the whole document.
+Returns `[]` (no edit needed) when source is already canonical.
+
+### Phase 3 — Go-to-definition
+
+Identify the symbol at the cursor, look it up in the symbol table, return a
+`Location` pointing to the declaration node.  Cross-file definitions use
+`ModuleResolution`.
+
+### Phase 4 — Completion
+
+Build a `CompletionItem` list from scope-visible identifiers, imported module
+exports, `NATIVE_MODULE_SYMBOLS` stdlib members, and Aster keywords.
+Trigger on `.` for member completions.
+
+### Phase 5 — Find references, rename, code actions
+
+Requires workspace-wide indexing.  Deferred until Phase 3 is proven stable.
 
 ---
 
 ## Open questions
 
-1. **`pygls` version compatibility** — `pygls` 1.x has a different API from 0.x.
-   Pin to `>=1.3` and test against the latest release.
-2. **UTF-16 character offsets** — Phase 1 ignores non-ASCII; add a proper
-   `utf16_len()` helper before publishing the extension publicly.
-3. **Cross-file analysis in completion** — Phase 4 completion only covers the
-   current file's scope.  Workspace-wide symbol indexing is a Phase 5+ concern.
-4. **Semantic token provider** — token-by-token syntax highlighting beyond the
-   TextMate grammar is useful but can wait until Phase 4.
+1. **UTF-16 character offsets** — Phase 1 diagnostics use byte column offsets.
+   For non-ASCII source (identifiers with Unicode, string content) this diverges
+   from the LSP spec.  A `utf16_column()` helper is needed before the extension
+   is published publicly.
+2. **Semantic token provider** — provides richer editor-controlled highlighting
+   beyond the TextMate grammar.  Useful but deferred to Phase 4+.
+3. **Cross-file completion** — Phase 4 completion covers only the current file.
+   A workspace-wide symbol index is a Phase 5+ concern.
