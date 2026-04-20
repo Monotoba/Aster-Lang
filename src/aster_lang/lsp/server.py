@@ -234,7 +234,7 @@ _SERVER_NAME = "aster-lang"
 _SERVER_VERSION = "0.1.0"
 
 
-class AsterLanguageServer(LanguageServer):  # type: ignore[misc]
+class AsterLanguageServer(LanguageServer):  
     def __init__(self) -> None:
         super().__init__(
             _SERVER_NAME,
@@ -245,13 +245,13 @@ class AsterLanguageServer(LanguageServer):  # type: ignore[misc]
         self._register_lsp_handlers()
 
     def _register_lsp_handlers(self) -> None:
-        @self.feature(  # type: ignore[misc]
+        @self.feature(  
             types.TEXT_DOCUMENT_DID_OPEN
         )
         def did_open(_ls: AsterLanguageServer, params: types.DidOpenTextDocumentParams) -> None:
             self._analyse_and_publish(params.text_document.uri, params.text_document.text)
 
-        @self.feature(  # type: ignore[misc]
+        @self.feature(  
             types.TEXT_DOCUMENT_DID_CHANGE
         )
         def did_change(_ls: AsterLanguageServer, params: types.DidChangeTextDocumentParams) -> None:
@@ -259,7 +259,7 @@ class AsterLanguageServer(LanguageServer):  # type: ignore[misc]
                 text = params.content_changes[-1].text
                 self._analyse_and_publish(params.text_document.uri, text)
 
-        @self.feature(  # type: ignore[misc]
+        @self.feature(  
             types.TEXT_DOCUMENT_DID_CLOSE
         )
         def did_close(_ls: AsterLanguageServer, params: types.DidCloseTextDocumentParams) -> None:
@@ -269,7 +269,7 @@ class AsterLanguageServer(LanguageServer):  # type: ignore[misc]
                 types.PublishDiagnosticsParams(uri=uri, diagnostics=[])
             )
 
-        @self.feature(  # type: ignore[misc]
+        @self.feature(  
             types.TEXT_DOCUMENT_HOVER, types.HoverOptions()
         )
         def hover(_ls: AsterLanguageServer, params: types.HoverParams) -> types.Hover | None:
@@ -288,7 +288,7 @@ class AsterLanguageServer(LanguageServer):  # type: ignore[misc]
                 )
             )
 
-        @self.feature(  # type: ignore[misc]
+        @self.feature(  
             types.TEXT_DOCUMENT_FORMATTING, types.DocumentFormattingOptions()
         )
         def formatting(
@@ -320,7 +320,7 @@ class AsterLanguageServer(LanguageServer):  # type: ignore[misc]
                 )
             ]
 
-        @self.feature(  # type: ignore[misc]
+        @self.feature(  
             types.TEXT_DOCUMENT_DEFINITION, types.DefinitionOptions()
         )
         def definition(
@@ -332,7 +332,7 @@ class AsterLanguageServer(LanguageServer):  # type: ignore[misc]
                 return None
             return definition_for_position(result, params.position.line, params.position.character)
 
-        @self.feature(  # type: ignore[misc]
+        @self.feature(  
             types.TEXT_DOCUMENT_COMPLETION, types.CompletionOptions()
         )
         def completion(
