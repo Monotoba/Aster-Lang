@@ -13,8 +13,8 @@ jobs:
         with:
           python-version: "3.11"
       - run: python -m venv .venv
-      - run: . .venv/bin/activate && python -m pip install --upgrade pip
       - run: . .venv/bin/activate && python -m pip install -e ".[dev]"
+      - run: . .venv/bin/activate && python -m pip install lsprotocol pygls  
       - run: . .venv/bin/activate && pytest
       - run: . .venv/bin/activate && ruff check .
       - run: . .venv/bin/activate && mypy src
