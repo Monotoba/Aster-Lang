@@ -13,22 +13,26 @@ analyzer, formatter, REPL, VM, Python transpiler, and standard library.
 ### Linux / macOS
 
 ```bash
-cd aster-lang-gpt
+git clone https://github.com/Monotoba/Aster-Lang.git
+cd Aster-Lang
 bash ./setup-prj.sh
 source .venv/bin/activate
-pytest
 aster --help
 ```
 
 ### Windows PowerShell
 
 ```powershell
-cd aster-lang-gpt
+git clone https://github.com/Monotoba/Aster-Lang.git
+Set-Location Aster-Lang
 powershell -ExecutionPolicy Bypass -File .\setup-prj.ps1
 .\.venv\Scripts\Activate.ps1
-pytest
 aster --help
 ```
+
+Both setup scripts install the development dependencies and run the tests,
+lint, and type checks. After setup, use `aster run examples/<file>.aster`
+to run a program from the repository.
 
 ## Language at a glance
 
