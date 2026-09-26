@@ -14,8 +14,9 @@ from aster_lang.cli import main
 CapsysFixture: TypeAlias = pytest.CaptureFixture[str]
 
 
-def test_version_command_returns_zero() -> None:
+def test_version_command_returns_zero(capsys: CapsysFixture) -> None:
     assert main(["version"]) == 0
+    assert capsys.readouterr().out == "aster-lang 0.1.3a1\n"
 
 
 def test_backends_command_lists_backends(capsys: CapsysFixture) -> None:

@@ -14,6 +14,7 @@ import tarfile
 from datetime import UTC, datetime
 from pathlib import Path
 
+from aster_lang import __version__
 from aster_lang.pkg.manifest import Manifest, ManifestError, load_manifest
 
 MANIFEST_NAME = "aster.toml"
@@ -284,7 +285,7 @@ def cmd_build(
         "version": str(manifest.version),
         "built_at": _now_iso(),
         "source_file_count": len(files),
-        "tool": "aster-pkg/0.1.0",
+        "tool": f"aster-pkg/{__version__}",
     }
     buildinfo_bytes = json.dumps(buildinfo, indent=2).encode()
     name_ver = f"{manifest.name}-{manifest.version}"

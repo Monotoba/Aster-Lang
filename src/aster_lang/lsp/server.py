@@ -19,6 +19,7 @@ from dataclasses import dataclass, field
 from lsprotocol import types
 from pygls.lsp.server import LanguageServer
 
+from aster_lang import __version__
 from aster_lang import ast as aster_ast
 from aster_lang.lexer import Lexer, TokenKind
 from aster_lang.lexer import Token as LexToken
@@ -231,7 +232,7 @@ def definition_for_position(
 # ------
 
 _SERVER_NAME = "aster-lang"
-_SERVER_VERSION = "0.1.0"
+_SERVER_VERSION = __version__
 
 
 class AsterLanguageServer(LanguageServer):  

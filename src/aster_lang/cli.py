@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 from pathlib import Path
 
+from aster_lang import __version__
 from aster_lang.ast_printer import dump
 from aster_lang.backend import BackendBuildOptions
 from aster_lang.backend_adapters import get_default_backend_registry
@@ -683,7 +684,7 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     if args.command == "version":
-        print("aster-lang scaffold 0.1.0")
+        print(f"aster-lang {__version__}")
         return 0
 
     if args.command == "pkg":

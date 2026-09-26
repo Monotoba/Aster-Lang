@@ -241,7 +241,7 @@ class TestAsterLanguageServerConstruction:
     def test_name_and_version(self) -> None:
         server = AsterLanguageServer()
         assert server.name == "aster-lang"
-        assert server.version == "0.1.0"
+        assert server.version == "0.1.3a1"
 
     def test_did_open_registered(self) -> None:
         server = AsterLanguageServer()
