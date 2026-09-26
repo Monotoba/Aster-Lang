@@ -130,7 +130,7 @@ fizzbuzz through word counting and FFI math).
 ```
 src/aster_lang/         reference implementation
   stdlib/               Aster-written standard library modules
-tests/                  1092 passing unit and integration tests
+tests/                  1095 passing unit and integration tests
 docs/
   language/             language reference and standard library docs
   toolchain/            interpreter, compiler, VM, formatter, package manager design

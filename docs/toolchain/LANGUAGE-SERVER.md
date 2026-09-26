@@ -134,7 +134,7 @@ is not required for any other `aster` subcommand.
 ```toml
 # pyproject.toml
 [project.optional-dependencies]
-lsp = ["pygls>=2.0"]
+lsp = ["lsprotocol>=2025.0.0", "pygls>=2.0"]
 ```
 
 Install with:

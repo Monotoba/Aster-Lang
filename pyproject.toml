@@ -16,11 +16,17 @@ dependencies = []
 
 [project.optional-dependencies]
 dev = [
+  "lsprotocol>=2025.0.0",
+  "pygls>=2.0",
   "pytest>=8.2",
   "pytest-cov>=5.0",
   "ruff>=0.6",
   "mypy>=1.10",
   "pre-commit>=3.7",
+]
+lsp = [
+  "lsprotocol>=2025.0.0",
+  "pygls>=2.0",
 ]
 
 [project.scripts]
