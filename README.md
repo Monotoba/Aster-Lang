@@ -1,5 +1,11 @@
 # Aster Language
 
+[![CI](https://github.com/Monotoba/Aster-Lang/actions/workflows/ci.yml/badge.svg)](https://github.com/Monotoba/Aster-Lang/actions/workflows/ci.yml)
+[![Release](https://img.shields.io/github/v/release/Monotoba/Aster-Lang?include_prereleases&sort=semver)](https://github.com/Monotoba/Aster-Lang/releases)
+[![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-3776AB?logo=python&logoColor=white)](https://www.python.org/)
+[![License: GPL-2.0](https://img.shields.io/github/license/Monotoba/Aster-Lang)](LICENSE)
+[![Project status: alpha](https://img.shields.io/badge/status-alpha-orange)](STATUS.md)
+
 Aster is a human-first general-purpose programming language and toolchain.
 It combines Python-style readability and indentation-sensitive syntax with
 stronger typing, opt-in ownership diagnostics, and a path toward compiled
@@ -31,8 +37,16 @@ aster --help
 ```
 
 Both setup scripts install the development dependencies and run the tests,
-lint, and type checks. After setup, use `aster run examples/<file>.aster`
-to run a program from the repository.
+lint, and type checks. Then run your first Aster program:
+
+```bash
+aster run examples/hello.aster
+aster run examples/programs/03-fizzbuzz/main.aster
+```
+
+Aster is currently alpha software: it is suitable for experimentation,
+language implementation study, and contributions, but syntax and semantics
+may change before 1.0.
 
 ## Language at a glance
 
@@ -130,7 +144,7 @@ fizzbuzz through word counting and FFI math).
 ```
 src/aster_lang/         reference implementation
   stdlib/               Aster-written standard library modules
-tests/                  1095 passing unit and integration tests
+tests/                  1097 passing unit and integration tests
 docs/
   language/             language reference and standard library docs
   toolchain/            interpreter, compiler, VM, formatter, package manager design

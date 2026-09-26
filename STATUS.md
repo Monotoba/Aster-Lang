@@ -7,7 +7,7 @@ compile, and interact via the REPL and LSP, with a full standard library and too
 
 ## Test count
 
-**1095 passing tests** covering parser, semantics, interpreter, formatter, CLI,
+**1097 passing tests** covering parser, semantics, interpreter, formatter, CLI,
 compiler, REPL, AST printer, typed HIR, experimental bytecode VM, caching layer,
 test runner, bench runner, doc generator, language server, and all native + source-based stdlib modules.
 

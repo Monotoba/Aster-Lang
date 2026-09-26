@@ -1,18 +1,43 @@
 [build-system]
-requires = ["setuptools>=69", "wheel"]
+requires = ["setuptools>=77", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
 name = "aster-lang"
 version = "0.1.2"
-description = "Aster language and toolchain scaffold"
+description = "A human-first programming language with an interpreter, compiler, VM, formatter, and LSP"
 readme = "README.md"
 requires-python = ">=3.11"
-license = { text = "GPL-2.0-only" }
+license = "GPL-2.0-only"
+license-files = ["LICENSE"]
 authors = [
-  { name = "OpenAI GPT project scaffold" }
+  { name = "R Morgan" }
+]
+keywords = [
+  "compiler",
+  "interpreter",
+  "language-server",
+  "programming-language",
+  "virtual-machine",
+]
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "Environment :: Console",
+  "Intended Audience :: Developers",
+  "Operating System :: OS Independent",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Topic :: Software Development :: Compilers",
+  "Topic :: Software Development :: Interpreters",
 ]
 dependencies = []
+
+[project.urls]
+Homepage = "https://github.com/Monotoba/Aster-Lang"
+Documentation = "https://github.com/Monotoba/Aster-Lang/tree/main/docs"
+Repository = "https://github.com/Monotoba/Aster-Lang"
+Issues = "https://github.com/Monotoba/Aster-Lang/issues"
 
 [project.optional-dependencies]
 dev = [
